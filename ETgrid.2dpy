@@ -1,0 +1,48 @@
+def Init():
+   # --- author : jamesc
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Size")
+   STR.SetFParam2Name("")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : 
+   # ---    trigger : 
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+
+def Render(cr):
+
+   a = STR.CheckAccent()
+   t = STR.CheckTrigger()
+   f0 = STR.F0()
+   f1 = STR.F1()
+   f2 = STR.F2()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,f0) 
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   grid = int(40 * f1) + 1
+
+   xPos = random.randint(0,int(320/grid) )
+   yPos = random.randint(0,int(2400/grid) )
+
+   cr.set_line_width(3)
+
+   col = random.random()
+   cr.set_source_rgb(col, col, col)
+   cr.move_to(xPos*grid, yPos*grid)
+   cr.line_to(xPos*grid+grid-0.5, yPos*grid)
+
+   col = random.random()
+   cr.set_source_rgb(col, col, col)
+   cr.move_to(xPos*grid, yPos*grid)
+   cr.line_to(xPos*grid, yPos*grid+grid-0.5)
+   cr.stroke()
+

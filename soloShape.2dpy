@@ -1,0 +1,113 @@
+def Init():
+   # --- author : jamesc
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Radius 1")
+   STR.SetFParam2Name("Size")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : reverse order
+   # ---    trigger : randomize 
+
+   # --- default settigs
+   GLB.bp = 8
+   GLB.sp = 3
+   GLB.sthick = 2
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   def drawShapes(xCenter, yCenter, bigR, bigPoints, smR, smSides, smThick, r,g,b, ac) :
+      # x/y Center   - center of screen (320x240 for 640x480, etc…)
+      # bigR         - how far from the center to draw the polygons
+      # bigPoints    - how many polygons to draw
+      # smR          - "radius" of polygon
+      # smSides      - number of sides on polygon
+      # smThick      - thickness of the pen
+      # ac           - accent active ?
+
+      smDegrees = 0
+
+      if bigPoints > 0 :
+         for points in range(0, bigPoints ) :
+            myDegrees = 360.0 * points / bigPoints 
+            myRadians = radians(myDegrees)     
+
+            xSmall = xCenter + cos(myRadians) * bigR     # ---  find 'x' of center point for smShape
+            ySmall = yCenter  + sin(myRadians)  * bigR   # ---  find 'y' of center point for smShape
+
+            myOffset = 0
+
+            if myDegrees < 180 :
+               myOffset = myDegrees + 180
+            else :
+               myOffset = myDegrees - 180
+
+            for ss in range (0, smSides ) :           # --- now draw the smaller shape
+               smDegrees = 360.0 * ss/smSides         # --- yeah.. need a float value there
+
+               if (ac):
+                  # ---  if you change the above lines to += and -=  it will change the order of the lines being drawn, sort of creates stars/spirographs...
+                  if myDegrees < 180 :
+                     smDegrees += 180
+                  else :
+                     smDegrees -= 180
+
+               smRadians = radians(smDegrees+myOffset)
+               xStart = xSmall + cos(smRadians) * smR
+               yStart = ySmall + sin(smRadians) * smR
+
+               if (ss + 1) == smSides :
+                  myNextPoint = 0
+               else :
+                  myNextPoint = ss + 1
+
+               # --- the diversity in the potential output is based on how the next angle (and subsequent x,y) is calculated
+               smDegreesNext  = (360.0 * myNextPoint  / smSides ) + myOffset
+               smRadiansNext  = radians(smDegreesNext)
+               xEnd = xSmall + cos(smRadiansNext) * smR
+               yEnd = ySmall + sin(smRadiansNext) * smR
+
+
+               # --- draw
+               cr.set_source_rgb(r, g, b)
+               cr.set_line_width(smThick)
+               cr.move_to(xStart, yStart)
+               cr.line_to(xEnd, yEnd)
+               cr.stroke()
+   GLB.drawShapes = drawShapes
+
+
+def Render(cr):
+
+   acc = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(1., .00001)
+   f1 = STR.F1()
+   f2 = STR.F2()
+
+   ftime = STR.FT()
+   itime = STR.IT() 
+
+   fade = 1. - ( .5 * log(f0) + 1  )
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,fade)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   if (GLB.xmode):
+      GLB.bp = random.randint(3, 12)
+      GLB.sp = random.randint(3, 12)
+      GLB.sthick = random.randint(1,3)
+      GLB.xmode = 0
+
+   r,g,b = hsv_to_rgb( (2+sin(itime+ftime)) * .5, 1., .8)  
+   GLB.drawShapes(160, 120, int(100 * f1), GLB.bp, 2 *sin(itime+ftime) * int(75 *f2), GLB.sp, GLB.sthick, b, g, r, acc )
+
+

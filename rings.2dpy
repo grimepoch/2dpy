@@ -1,0 +1,68 @@
+def Init():
+   # --- author : jamesc
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Radius 1")
+   STR.SetFParam2Name("Radius 2")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : XOR mode
+   # ---    trigger : random colors
+
+   GLB.f1 = 1.0
+   GLB.deg = 90
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+     
+def Render(cr):
+   acc = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0()
+   f1 = STR.F1()
+   f2 = STR.F2()
+
+   ftime = STR.FT()
+   itime = STR.IT()
+   time = (itime *1.0)  + ftime
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,f0) 
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   GLB.f1 = f1
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   mysin = (sin(time) + 1 ) / 2
+
+   cr.save()
+   cr.translate(160,120)
+   cr.rotate(GLB.deg*pi/180)
+
+   if (GLB.xmode):
+      cr.set_source_rgb(np.random.random(), np.random.random(), np.random.random() )
+   else :
+      cr.set_source_rgb(1,1,1)  
+
+   size =  40 * f2
+      
+   if (acc):
+      cr.set_operator(cairo.OPERATOR_XOR)
+
+   cr.arc(size + sin(time) * .5, size + cos(time) * .5 , 120 * f1 , 0,pi*2)
+
+   cr.stroke()
+   cr.translate(-160,-120)
+
+   cr.restore()
+
+   GLB.deg = GLB.deg + 5
+   if (GLB.deg > 360) :
+      GLB.deg = 5
+

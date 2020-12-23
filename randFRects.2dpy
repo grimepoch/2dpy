@@ -1,0 +1,56 @@
+def Init():
+   # --- author : rickb
+   STR.SetFParam0Name("Decay")
+   STR.SetFParam1Name("Color Adjust")
+   STR.SetFParam2Name("Size")
+   GLB.a = 0
+   GLB.mode = 0
+   GLB.delta = 0
+   # --- accent : Triangle Mode
+   # --- trigger : Rotate Mode
+
+
+def Render(cr):
+   # ---- clear screen
+   f0 = STR.F0mix(0.00,.35)
+   f1 = STR.F1mix(-0.5,0.5)
+   f2 = STR.F2()
+   cr.set_source_rgba(0,0,0,f0)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+   cr.set_source_rgb(random.random()+GLB.a,random.random()+f1,random.random()-f1)
+   x = 320*random.random()
+   y = 240*random.random()
+
+
+   if STR.CheckTrigger():
+      GLB.mode = 0 if GLB.mode == 1 else 1
+      if GLB.mode == 0:
+         GLB.delta=0
+
+   if GLB.mode:
+      cr.translate(160,120)
+      cr.rotate(GLB.delta)
+      cr.translate(-160,-120)
+      GLB.delta = GLB.delta + 0.1
+      cr.set_operator(cairo.OPERATOR_XOR)
+   cr.set_line_width(4)
+   w = GLB.a*200*f2
+   h = GLB.a*140*f2
+   if STR.CheckAccent():
+      if random.randint(0,1):
+         cr.move_to(x,y)
+         cr.line_to(x+w,y)
+         cr.line_to(x+w/2,y+h)
+         cr.line_to(x,y)
+      else:
+         cr.move_to(x,y)
+         cr.line_to(x+w,y)
+         cr.line_to(x+w/2,y-h)
+         cr.line_to(x,y)
+   else:
+      cr.rectangle(x,y,w,h)
+   cr.fill()
+   GLB.a = GLB.a+0.1
+   if GLB.a>1.0:
+      GLB.a=0

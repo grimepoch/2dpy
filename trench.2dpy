@@ -1,0 +1,69 @@
+def Init():
+   # --- author : rickb
+   STR.SetFParam0Name("Density")
+   STR.SetFParam1Name("Color")
+   STR.SetFParam2Name("Speed")
+   # --- accent : Stop Drawing
+   # --- trigger : Blur
+   
+   GLB.angle  = -pi/2
+   GLB.angle2 = -pi/2
+   GLB.dir    = 1
+   GLB.xmode  = 0
+
+
+def Render(cr):
+   f0 = STR.F0mix(1,10)
+   GLB.f1 = STR.F1mix(0.0,0.75)
+   GLB.f2 = STR.F2mix(0.96,0.92)
+
+   trig = STR.CheckTrigger()
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+   acc = STR.CheckAccent()
+
+   sur2 = surface.create_similar(cairo.CONTENT_COLOR_ALPHA,320,240)
+   cr2 = cairo.Context(sur2)
+
+   sp = cairo.SurfacePattern(surface)
+   if GLB.xmode:
+      sp.set_filter(cairo.FILTER_GOOD)
+   else:
+      sp.set_filter(cairo.FILTER_NEAREST)
+
+   m = cairo.Matrix()
+   m.translate(160,120)
+   m.scale(GLB.f2,GLB.f2)
+   m.translate(-160,-120)
+   sp.set_matrix(m)
+
+   cr2.set_source(sp)
+   cr2.rectangle(0,0,320,240)
+   cr2.fill()
+
+   sp = cairo.SurfacePattern(sur2)
+   cr.set_source(sp)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   on = 0
+   x = 0
+   r,g,b = hsv_to_rgb(GLB.f1,1,1)
+   nr = 1.0-r
+   ng = 1.0-g
+   nb = 1.0-b
+   cr.set_source_rgb(0,0,0)
+   for i in range(320):
+      if random.randint(0,15) < int(f0):
+         on = 1 if on == 0 else 0
+         if not acc:
+            if on:
+               cr.set_source_rgb(nb,ng,nr)
+            else:
+               cr.set_source_rgb(b,g,r)
+         cr.move_to(x,100)
+         cr.line_to(i,100)
+         x = i
+         cr.stroke()
+
+

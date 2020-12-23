@@ -1,0 +1,178 @@
+def Init():
+   # --- author : jamesc
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Thickness")
+   STR.SetFParam2Name("Speed")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : fast draw
+   # ---    trigger : change rotation
+
+   GLB.f1 = 0.0
+   GLB.f2 = 0.0
+
+   # --- define screen size
+   GLB.resx = 320
+   GLB.resy = 240
+
+   # --- primary objects
+   GLB.NUM_OBJS = 12
+   GLB.objs = [{} for i in range(GLB.NUM_OBJS)]
+
+   # --- rand x,y position
+   def rnd_xy(x,y):
+      return(np.random.randint(x), np.random.randint(y))
+   GLB.rnd_xy = rnd_xy
+
+   # --- create random pallet
+   def rnd_pallet(): 
+      r1 = np.random.random()
+      g1 = np.random.random()
+      b1 = np.random.random()
+      return (r1, g1, b1)
+   GLB.rnd_pallet = rnd_pallet
+
+   # --- random circle bits
+   def rnd_circleBits():
+      degree_offset = 360 * np.random.random()
+      move_speed = np.random.random() * 5
+      if (np.random.random() < .5) : move_speed = move_speed * -1
+      radius = np.random.randint(20,120)
+      return (degree_offset, move_speed, radius)
+   GLB.rnd_circleBits = rnd_circleBits
+
+      
+   # --- create a random obj data
+   def rnd_obj(id):
+      size = np.random.randint(low=10, high=50)
+      (x, y) = rnd_xy(GLB.resx-size, GLB.resy-size)
+      (r, g, b) = rnd_pallet()
+
+      (deoff, mvsp, radius) = rnd_circleBits()
+
+      xd = np.random.random() * 2. + 1
+      if (np.random.random() < 0.5) : xd = xd * -1
+      yd = np.random.random() * 2. + 1
+      if (np.random.random() < 0.5) : yd = yd * -1
+      GLB.objs[id].update({'x':x, 'y':y, 'xdir':xd, 'ydir':yd, 'size':size, 'r':r, 'g':g, 'b': b, 'do':deoff, 'ms':mvsp, 'rad':radius } )
+   GLB.rnd_obj = rnd_obj
+
+
+   def draw_shot(id,vel):
+         myRadians = radians(GLB.objs[id]['do'])
+         r1 = GLB.objs[id]['rad']
+         x1 = (GLB.resx * .5) + cos(myRadians) * r1  # ---  find 'x' of center point 
+         y1 = (GLB.resy * .5) + sin(myRadians) * r1  # ---  find 'y' of center point
+ 
+         dest_id = np.random.randint(GLB.NUM_OBJS)
+         myRadians = radians(GLB.objs[dest_id]['do'])
+         r2 = GLB.objs[dest_id]['rad']
+         x2 = (GLB.resx * .5) + cos(myRadians) * r2  # ---  find 'x' of center point
+         y2 = (GLB.resy * .5) + sin(myRadians) * r2  # ---  find 'y' of center point
+
+         r1 = GLB.objs[id]['r']
+         g1 = GLB.objs[id]['g']
+         b1 = GLB.objs[id]['b']
+
+         cr.set_source_rgb(r1,g1,b1)
+         cr.set_line_width(4*GLB.f1)
+         cr.set_line_cap(cairo.LINE_CAP_ROUND)
+
+         cr.move_to(x1, y1)
+         cr.line_to(x2, y2)
+         cr.stroke()
+   GLB.draw_shot = draw_shot
+
+   # --- move on arc
+   def move_arc(id):
+      GLB.objs[id]['do'] = GLB.objs[id]['do'] + GLB.objs[id]['ms']
+   GLB.move_arc = move_arc
+
+   # --- build list of dictionaries for notes
+   for i in range(GLB.NUM_OBJS):
+      rnd_obj(i) 
+
+   # --- number of characters to group together 
+   GLB.pad_x = 6
+   GLB.pad_y = 6
+
+   # --- speed control
+   GLB.timer_max = 30
+   GLB.timer = 0
+
+   # --- my preference for handling MIDI vs Audio vs Unknown
+   GLB.mode = "auto"
+   GLB.line = "?"
+   if (GLB.slots == 10) :
+      GLB.mode = "audio"
+      GLB.line = "]_[ <^> ..: :.. |+| {{{ }}} \V/ +M+ /\\/ ,;, @@@"
+   if (GLB.slots == 24) :
+      GLB.mode = "midi"
+      GLB.line = "C C# D D# E F F# G G# A A# B"
+
+   # --- space separated values of each note/bad - or override blow
+   # GLB.line = "<> >< [] ][ +=+ :*: ..: :.. _/\_ <^> \//\ -|-"
+   # GLB.line = "pack my box with five dozen liquor jugs the quick brown fox"    # --- 12 words
+   # GLB.line = "*"        # ---- one word, other slots will be filled w/character below
+
+   GLB.words = GLB.line.split()
+   # --- make sure we have enough items
+   while (len(GLB.words) < GLB.NUM_OBJS):
+      GLB.words.append("*")
+
+   # --- use the cairo toy font
+   cr.select_font_face("mono", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,GLB.resx,GLB.resy)
+   cr.fill()
+
+
+def Render(cr):
+   acc = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0()
+   GLB.f1 = STR.F1()
+   GLB.f2 = STR.F2()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,f0)
+   cr.rectangle(0,0,GLB.resx,GLB.resy)
+   cr.fill()
+
+   if (trig):
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+   
+   if (acc) :
+      GLB.timer = 100
+
+   if (GLB.timer > GLB.timer_max) :
+      GLB.timer = 0
+      for i in range(GLB.slots):
+         (id,note,velo) = STR.GetSlotData(i)
+         # --- capture incoming data:
+         if GLB.mode == "midi":
+               if id != 0:
+                  nn = note % 12
+                  GLB.draw_shot(nn, velo)
+
+         if GLB.mode == "audio":
+               for i in range(GLB.slots):
+                  (id,note,velo) = STR.GetSlotData(i)
+                  if (velo > 20) :
+                     GLB.draw_shot(note, velo)
+
+         if (GLB.mode != "default"):
+            # --- move the objects
+            for i in range(GLB.NUM_OBJS):
+               GLB.move_arc(i)
+   else :
+      GLB.timer = GLB.timer + (GLB.f2  * 30 )
+
+   if ( GLB.xmode ) :
+      for i in range(GLB.NUM_OBJS):
+         GLB.objs[i]['ms'] = GLB.objs[i]['ms'] * -1
+      GLB.xmode = 0
+

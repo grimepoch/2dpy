@@ -1,0 +1,72 @@
+def Init():
+   # --- author : jamesc
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Size")
+   STR.SetFParam2Name("Speed")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : toggle color sm box
+   # ---    trigger : toggle color big box
+
+   GLB.xmode = 0
+
+   # --- speed control
+   GLB.timer_max = 20
+   GLB.timer = 0
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+
+def Render(cr):
+   acc = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0()
+   f1 = STR.F1()
+   f2 = STR.F2()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,f0) 
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   if (GLB.timer > GLB.timer_max) :
+      size = (int(f1 * 12 ) * 5) + 2
+      r = np.random.random()
+      g = np.random.random()
+      b = np.random.random()
+
+      x = np.random.randint(0, int(320/size) +1) * size
+      y = np.random.randint(0, int(240/size) +1) * size
+
+      if (GLB.xmode):
+         gray = np.random.random()
+         cr.set_source_rgb(gray, gray, gray) 
+      else : 
+         cr.set_source_rgb(b,g,r)
+
+      cr.rectangle(x,y,size,size)
+      cr.fill()
+
+      if (np.random.random() > .3) :
+         if (acc):
+            g = np.random.random()
+            cr.set_source_rgb(g, g, g)
+         else :
+            cr.set_source_rgb(1.- b, 1.- g, 1. - r)
+
+         sm = size / 2
+         s  = size / 4
+         cr.rectangle(x + s, y + s, sm, sm)
+         cr.fill()
+
+         GLB.timer = 0
+
+   GLB.timer = GLB.timer+ (10*f2)
+

@@ -1,0 +1,111 @@
+def Init():
+   # --- author : rickb
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Color Adjust")
+   STR.SetFParam2Name("Speed")
+   # --- accent : Turn Off XOR
+   # --- trigger : Line Mode
+   
+   # --- Setup global variables for the scene.  GLB is reset every time a shader is loaded
+   #     or reset is called
+   GLB.mode   = 0
+   GLB.count  = 500
+   GLB.shapes = []
+   GLB.xmode  = 0
+
+
+   def drawPoly(co,points):
+      cr.save()
+
+      if GLB.xmode :
+         cr.set_line_width(8)
+      
+      cr.move_to(points[0][0],points[0][1])
+      for p in points[1:]:
+        cr.line_to(p[0],p[1])
+      cr.close_path()
+      r,g,b = hsv_to_rgb(GLB.f1+co+0.25,1,1)
+      cr.set_source_rgb(b,g,r)
+      if GLB.xmode :
+         cr.stroke()
+      else:
+         cr.fill()
+
+
+      cr.restore()
+
+   # --- Assigning of the function to global, you then call with GLB.drawLightening(args)
+   GLB.drawPoly = drawPoly
+
+
+
+def Render(cr):
+   # --- grabbing copies of local variables and demonstrating our mix methods as well
+   f0 = STR.F0()
+   GLB.f1 = STR.F1mix(0.0,0.5)
+   GLB.f2 = STR.F2mix(5,12)
+
+   t = STR.FT() + STR.IT()
+
+   # --- trigger can only be checked once, as it resets the internal flag (accent can be called multiple times)
+   trig = STR.CheckTrigger()
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   # ---- clear screen (color set above relative to trigger)
+   cr.set_source_rgba(0,0,0,f0)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   # ONLY THE LAST ARM CAN BE MOVING
+
+   speed = int(GLB.f2)
+
+   if GLB.mode == 0:
+      GLB.shapes = []
+      for i in range(random.randint(3,5)):
+         pts = []
+         dirs = []
+         for i in range(random.randint(4,8)):
+            pts.append([random.randint(0,320),random.randint(0,240)])
+            dirs.append( random.uniform(0,2*pi))
+         c = random.uniform(0.,1.)
+         GLB.shapes.append([pts,dirs,c])
+      GLB.mode = 1
+      GLB.count  = 100
+      #Initialize all shapes
+   if GLB.mode == 1:
+      for s in range(len(GLB.shapes)):
+         (pts,dirs,c) = GLB.shapes[s]
+         for i in range(len(pts)):
+            x = pts[i][0]
+            y = pts[i][1]
+            a = dirs[i]
+            ox = speed*cos(a)
+            oy = speed*sin(a)
+            nx = ox+x
+            ny = oy+y
+            if nx > 318 or nx < 1 or ny > 238 or ny < 1: 
+               #invert angle
+               a = a + pi
+               GLB.shapes[s][1][i]=a
+            else:
+               x = nx
+               y = ny
+               GLB.shapes[s][0][i][0]=x
+               GLB.shapes[s][0][i][1]=y
+      GLB.count = GLB.count - 1
+      # Move Shapes, adjust counter to reset
+   # ---- drawing routines
+   if STR.CheckAccent():
+      cr.set_operator(cairo.OPERATOR_OVER)
+   else:
+      cr.set_operator(cairo.OPERATOR_XOR)
+ 
+   for i in GLB.shapes:
+      (pts,dirs,c) = i
+      GLB.drawPoly(c,pts)
+
+   if GLB.count == 0:
+      GLB.mode = 0
+

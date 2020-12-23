@@ -1,0 +1,124 @@
+def Init():
+   # --- author : jamesc
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Size")
+   STR.SetFParam2Name("Rotation")
+   # ---    accent : toggle circle or square
+   # ---    trigger : toggle draw lines
+
+   # --- if listening to PARAMS::ACTIONS::Extra Mod Type
+   # --- 10 slots = FFT analysis bins
+   # --- 24 slots = MIDI notes
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+
+   GLB.mode = "auto"
+   if (GLB.slots == 10) :
+      GLB.mode = "audio"
+   if (GLB.slots == 24) :
+      GLB.mode = "midi"
+
+   GLB.degOff = 0
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+
+def Render(cr):
+   acc = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0()
+   f1 = STR.F1()
+   f2 = STR.F2mix(-0.5 , 0.5)
+
+   ftime = STR.FT()
+   itime = STR.IT()
+   time = ftime + itime
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,f0) 
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+
+   # --- colors
+   lg3 = cairo.LinearGradient(0.0, 0.0, 0.0, 240.0)
+   lg3.add_color_stop_rgb(0.0, 1.0, 1.0, 1.0)    # --- white
+   lg3.add_color_stop_rgb(0.3, 0.3, 1.0, 1.0)    # --- yellow
+   lg3.add_color_stop_rgb(0.6, 0.2, 0.6, 1.0)    # --- orange
+   lg3.add_color_stop_rgb(1.0, 0.0, 0.0, 1.0)
+
+
+   # --- capture incoming data:
+
+   xCenter = 160
+   yCenter = 120
+   lastVelo = 0
+   useSlots = 10
+
+   if GLB.mode == "audio":
+      useSlots = GLB.slots
+
+   # --- capture incoming data:
+   if GLB.mode == "midi":
+      useSlots = 12
+
+   myDegrees = 0
+   for i in range(GLB.slots ) :
+      (id,note,velo) = STR.GetSlotData(i)
+      drawDot = True
+
+      if (useSlots == 12) :   # --- MIDI 
+         if id != 0:
+            myDegrees = 360.0 / useSlots * (note  % useSlots)  + GLB.degOff
+         else :
+            drawDot = False
+      else :
+         myDegrees = (360.0 / useSlots * i ) + GLB.degOff
+
+      if (drawDot) :
+         myRadians = radians(myDegrees)
+         myVelo = velo
+         if (useSlots == 10) :    # --- audio
+            if (note == (GLB.slots-1) ):  # --- amplify highest audio value
+               myVelo = (velo + (lastVelo * .5) ) * .8 
+
+         bigR = myVelo + 10
+
+         xSmall = xCenter + cos(myRadians) * bigR  # ---  find 'x' of center point for smShape
+         ySmall = yCenter + sin(myRadians) * bigR  # ---  find 'y' of center point for smShape
+
+         cr.set_source_rgb(.7, .7, .7)
+         cr.set_line_width(6 * f1)
+
+         if (GLB.xmode) :
+            cr.move_to(xCenter, yCenter)
+            cr.line_to(xSmall, ySmall)
+            cr.stroke()
+
+         if (useSlots == 12) :   # --- MIDI
+            r,g,b = hsv_to_rgb( ((note % useSlots)/useSlots ) ,1,1)
+         else: 
+            r,g,b = hsv_to_rgb( (note/GLB.slots ) ,1,1)
+         cr.set_source_rgb(b, g, r)
+
+         if (acc) :
+            offset = 30 * f1 * .5
+            cr.rectangle(xSmall - offset, ySmall - offset, 20*f1, 20*f1)
+         else :
+            cr.arc(xSmall, ySmall,20 * f1, 0, 6.28318530)
+         cr.fill()
+
+      if ( abs(f2) < 0.05) :      # --- 9oclock no rotate
+         dmod = 0
+
+      GLB.degOff = GLB.degOff + f2
+
+      lastVelo = velo
+

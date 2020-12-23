@@ -1,0 +1,114 @@
+def Init():
+   # --- author : rickb
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Color Adjust")
+   STR.SetFParam2Name("Speed")
+   # -- accent : Revcolor Large Circles 
+   # -- trigger : Rotate
+   
+   GLB.angle = -pi/2
+   GLB.angle2 = -pi/2
+   GLB.dir   = 1
+   GLB.xmode = 0
+
+
+
+   def drawArm(x,y,l,time,angle,co):
+      cr.save()
+      cr.set_line_width(4)
+      
+      cr.translate(x,y)
+
+      xn = cos(angle)*l
+      yn = sin(angle)*l
+      cr.set_source_rgba(1,1,1,0.15)
+      cr.move_to(0,0)
+      cr.line_to(xn,yn)
+      cr.stroke()
+
+      r,g,b = hsv_to_rgb(GLB.f1+co,1,1)
+      cr.set_source_rgb(b,g,r)
+     
+      if STR.CheckAccent():
+         cr.set_source_rgb(1.-b,1.-g,1.-r)
+         cr.arc(xn,yn, 20, 0, 2 * pi);
+         cr.stroke()
+      else:
+         cr.set_source_rgb(b,g,r)
+         cr.arc(xn,yn, 10, 0, 2 * pi);
+         cr.fill()
+      cr.restore()
+
+   # --- Assigning of the function to global, you then call with GLB.drawLightening(args)
+   GLB.drawArm = drawArm
+
+
+
+def Render(cr):
+   # --- grabbing copies of local variables and demonstrating our mix methods as well
+   f0 = STR.F0()
+   GLB.f1 = STR.F1mix(0.0,0.5)
+   GLB.f2 = STR.F2mix(0.1,4.0)
+
+   t = STR.FT() + STR.IT()
+
+   # --- trigger can only be checked once, as it resets the internal flag (accent can be called multiple times)
+   trig = STR.CheckTrigger()
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   sur2 = surface.create_similar(cairo.CONTENT_COLOR_ALPHA,320,240)
+   cr2 = cairo.Context(sur2)
+
+   sp = cairo.SurfacePattern(surface)
+   #sp.set_filter(cairo.FILTER_NEAREST)
+
+   m = cairo.Matrix()
+   m.translate(160,120)
+   m.scale(1.02,1.02)
+   if GLB.xmode:
+      m.rotate(.10)
+   m.translate(-160,-120)
+   sp.set_matrix(m)
+
+   cr2.set_source(sp)
+   cr2.rectangle(0,0,320,240)
+   cr2.fill()
+
+   sp = cairo.SurfacePattern(sur2)
+   #sp.set_filter(cairo.FILTER_NEAREST)
+   cr.set_source(sp)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   cr.set_source_rgba(0,0,0,f0)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   # ---- drawing routines
+
+   # Need to slow down as we get further from -pi/2
+   if abs(GLB.angle) > pi/2:
+      d = abs(GLB.angle) - pi/2
+   else:
+      d = pi/2 - abs(GLB.angle)
+
+   d = pi/2 - d
+
+   if d < 0.04:
+      d = 0.04
+
+   GLB.angle = GLB.angle + 0.3*GLB.dir*(d/(pi/2))
+   if(GLB.angle>=0):
+      GLB.dir = -1
+
+   if(GLB.angle<=-pi):
+      GLB.dir = 1
+
+   GLB.angle2 = (GLB.angle2+0.1*GLB.f2)%(2*pi)
+
+   GLB.drawArm(160,120,95,t,GLB.angle2,.5)
+   GLB.drawArm(160,120,80,t,GLB.angle,0)
+
+

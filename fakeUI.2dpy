@@ -1,0 +1,170 @@
+def Init():
+   # --- author : rickb
+   
+   # --- Set parameter names
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Border Intensity")
+   STR.SetFParam2Name("Radar Speed")
+   # --- accent : Strobe
+   # --- trigger : Wobble
+   
+   GLB.mode   = 0
+   GLB.count  = 0
+   GLB.scroll = []
+   GLB.blips  = []
+   GLB.graphs = []
+   GLB.bars   = []
+   GLB.xmode  = 0
+
+   def drawBorder(x,y,w,h):
+      cr.set_source_rgba(1,1,0,GLB.f1)
+      cr.set_line_width(5)
+
+      d = 10
+
+      cr.move_to(x+d,y)
+      cr.line_to(x,y+d)
+      cr.line_to(x,y+h-d)
+      cr.line_to(x+d,y+h)
+      cr.line_to(x+w-d,y+h)
+      cr.line_to(x+w,y+h-d)
+      cr.line_to(x+w,y+d)
+      cr.line_to(x+w-d,y)
+      cr.close_path()
+      cr.stroke()
+
+   GLB.drawBorder = drawBorder
+
+   def genRand():
+      if GLB.xmode:
+         return random.randint(0,20)-10
+      else:
+         return 0
+   GLB.genRand = genRand
+
+   def genFakeText():
+      t = []
+      for i in range(random.randint(0,20)):
+         t.append( random.randint(0,1) )
+         if random.randint(0,40)==0:
+            t[-1] = 2
+
+      return t
+
+   GLB.genFakeText = genFakeText
+
+   GLB.scroll.append(GLB.genFakeText())
+
+def Render(cr):
+   # --- grabbing copies of local variables and demonstrating our mix methods as well
+   f0 = STR.F0()
+   GLB.f1 = STR.F1mix(0.0,1.0)
+   GLB.f2 = STR.F2mix(0.1,0.8)
+
+   t = STR.FT() + STR.IT()
+
+   # --- trigger can only be checked once, as it resets the internal flag (accent can be called multiple times)
+   trig = STR.CheckTrigger()
+   acc  = STR.CheckAccent()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0 
+
+   if acc:
+      cr.set_operator(cairo.OPERATOR_EXCLUSION)
+
+   # ---- clear screen (color set above relative to trigger)
+   cr.set_source_rgba(0,0,0,f0)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   # LEFT
+   GLB.drawBorder(30+GLB.genRand(),15,160-35,239-30)
+   cr.set_source_rgba(1,1,1,1)
+   x = 40 + GLB.genRand()
+   y = 30
+   for l in GLB.scroll:
+      for p in l:
+         if p == 1:
+            cr.set_source_rgba(1,1,1,1)
+            cr.rectangle(x,y,5,5)
+            cr.fill()
+         elif p == 2:
+            cr.set_source_rgba(0,0,1,1)
+            cr.rectangle(x,y,5,5)
+            cr.fill()
+         x = x + 5
+      x = 40 + GLB.genRand()
+      y = y + 10
+
+   if GLB.count%10 == 0:
+      if len(GLB.scroll) > 17:
+         GLB.scroll = GLB.scroll[:-1]
+      GLB.scroll.insert(0,GLB.genFakeText())   
+
+   # RIGHT/BOTTOM 
+   GLB.drawBorder(165+GLB.genRand(),15,160-35,120-20)
+
+   if GLB.count%190 == 0:
+      GLB.graphs = []
+      for i in range(8):
+         GLB.graphs.append(random.uniform(0,10))
+
+   if GLB.count%180 == 0:
+      GLB.bars   = []
+      for i in range(4):
+         GLB.bars.append(random.uniform(0,10))
+
+   cr.set_source_rgba(0,1,1,1)
+   x = 190 + GLB.genRand()
+   y = 30
+   cr.move_to(x,y)
+   for l in GLB.graphs:
+      cr.line_to(x,y+l*5)
+      x=x+10
+   cr.line_to(x,y)
+   cr.close_path()
+   cr.fill()
+   
+   cr.set_source_rgba(0,1,0,1)
+   x = 190 + GLB.genRand()
+   y = 30
+   for l in GLB.bars:
+      cr.rectangle(x,y,8,l*4*(1+sin(4*t+3*l)/2))
+      x = x + 20
+   cr.fill()
+
+   cr.set_source_rgba(1,1,1,1)
+   cr.move_to(185+GLB.genRand(),100)
+   cr.line_to(185+GLB.genRand(),26)
+   cr.line_to(280+GLB.genRand(),26)
+   cr.stroke()
+
+   # RIGHT/TOP 
+   GLB.drawBorder(165+GLB.genRand(),126,160-35,120-25)
+
+   cr.set_source_rgba(1,0,0,1)
+   cr.set_line_width(3)
+   for i in range(3):
+      cr.arc(227.5+GLB.genRand(),172.5,20*i,0,2*pi)
+      cr.stroke()
+
+   # randomly add blips that are grey that come in and out
+   if GLB.count%100 == 0:
+      GLB.blips = []
+      d = 25
+      for i in range(random.randint(2,5)):
+         b = [random.uniform(170+d,290-d),random.uniform(131+d,216-d)]
+         GLB.blips.append(b)
+   cr.set_source_rgba(.5,.5,.5,1)
+   for b in GLB.blips:
+      cr.rectangle(b[0]+GLB.genRand(),b[1],5,5)
+      cr.fill()
+
+   cr.set_source_rgba(1,1,1,1.0-GLB.f2)
+   cr.move_to(227.5,172.5)
+   cr.arc(227.5+GLB.genRand(),172.5,40,2*pi+GLB.count/70,2*pi+GLB.f2+GLB.count/70)
+   cr.fill()
+
+
+   GLB.count = GLB.count + 1

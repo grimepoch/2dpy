@@ -1,0 +1,83 @@
+def Init():
+   # --- author : rickb
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Color Adjust")
+   STR.SetFParam2Name("Speed")
+   # --- accent : Black Diamond
+   # --- trigger : Blur Off
+   
+   GLB.angle = -pi/2
+   GLB.angle2 = -pi/2
+   GLB.dir   = 1
+   GLB.xmode = 0
+
+def Render(cr):
+   # --- grabbing copies of local variables and demonstrating our mix methods as well
+   GLB.f0 = STR.F0mix(0.0,0.2)
+   GLB.f1 = STR.F1mix(-0.75,0.75)
+   GLB.f2 = STR.F2mix(0.85,0.95)
+
+   t = STR.FT() + STR.IT()
+
+   # --- trigger can only be checked once, as it resets the internal flag (accent can be called multiple times)
+   trig = STR.CheckTrigger()
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   sur2 = surface.create_similar(cairo.CONTENT_COLOR_ALPHA,320,240)
+   cr2 = cairo.Context(sur2)
+
+   sp = cairo.SurfacePattern(surface)
+   if GLB.xmode:
+      sp.set_filter(cairo.FILTER_NEAREST)
+
+   m = cairo.Matrix()
+   m.translate(160,120)
+   m.scale(GLB.f2,GLB.f2)
+   #m.rotate(sin(t))
+   m.translate(-160,-120)
+   sp.set_matrix(m)
+
+   cr2.set_source(sp)
+   cr2.rectangle(0,0,320,240)
+   cr2.fill()
+
+   sp = cairo.SurfacePattern(sur2)
+   sp.set_filter(cairo.FILTER_BEST)
+   cr.set_source(sp)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   cr.set_source_rgba(0,0,0,GLB.f0)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   on = 0
+   x = 0
+   for i in range(120):
+      if random.randint(0,15) < 2:
+         on = 1 if on == 0 else 0
+         if on:
+            h,s,v = rgb_to_hsv(0,0,random.uniform(0.,1.))
+            h = h + GLB.f1
+            r,g,b = hsv_to_rgb(h,s,v)
+            cr.set_source_rgb(b,g,r)
+         else:
+            h,s,v = rgb_to_hsv(random.uniform(0.,1.),0,0)
+            h = h + GLB.f1
+            r,g,b = hsv_to_rgb(h,s,v)
+            cr.set_source_rgb(b,g,r)
+         cr.arc(160,120,20,4*pi*x/180,4*pi*i/180)
+         x = i
+         cr.stroke()
+
+   if STR.CheckAccent():
+      s = 30
+      cr.move_to(160,120+s)
+      cr.line_to(160+s,120)
+      cr.line_to(160,120-s)
+      cr.line_to(160-s,120)
+      cr.close_path()
+      cr.set_source_rgba(0,0,0,0.5)
+      cr.fill()
+

@@ -1,0 +1,140 @@
+def Init():
+   # --- author : jamesc
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("")
+   STR.SetFParam2Name("Speed")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.acc = 0
+   # ---    accent : toggle color
+   # ---    trigger : toggle dash line
+
+   # --- our objects
+   GLB.objs = []
+   GLB.NUM_OBJS = 4
+
+   GLB.f1 = 1.0
+   GLB.f2 = 1.0
+
+   my_rnd = np.random.randint(10,20)
+   GLB.dash = [my_rnd]
+
+   def make_point(item):
+      x = np.random.randint(0,320)
+      y = np.random.randint(0,240)
+      xdir = np.random.randint(2,7)
+      ydir = np.random.randint(2,7)
+      if (np.random.random() < .5) : xdir = xdir * -1
+      if (np.random.random() < .5) : ydir = ydir * -1
+      return x,y,xdir,ydir
+   GLB.make_point = make_point
+
+
+   def add_obj(objs):
+      objs.append({})
+
+      x1,y1,xd1,yd1 = make_point(1)
+      x2,y2,xd2,yd2 = make_point(2)
+      x3,y3,xd3,yd3 = make_point(3)
+      x4,y4,xd4,yd4 = make_point(4)
+      
+      r = np.random.random()
+      g = np.random.random()
+      b = np.random.random()
+
+      width = np.random.randint(1,4)
+      
+      objs[-1].update( {'x1':x1,'y1':y1,'xd1':xd1,'yd1':yd1, 'x2':x2,'y2':y2,'xd2':xd2,'yd2':yd2, 'x3':x3,'y3':y3,'xd3':xd3,'yd3':yd3, 'x4':x4,'y4':y4,'xd4':xd4,'yd4':yd4, 'r':r,'g':g,'b':b, 'width': width} )
+   GLB.add_obj = add_obj
+
+   # --- create pyramids
+   for i in range(GLB.NUM_OBJS):
+      add_obj(GLB.objs)
+
+
+   def move_point(x,y,xd,yd):
+      x = x + xd * GLB.f2
+      if (x < 1) :
+         x = 1
+         xd = xd * -1
+      if (x > 319):
+         x = 319
+         xd = xd * -1
+         
+      y = y + yd * GLB.f2
+      if (y < 1) :
+         y = 1
+         yd = yd * -1
+      if (y > 239):
+         y = 239
+         yd = yd * -1
+      return x,y,xd,yd
+
+
+   def draw_pyramid(obj): 
+      if (GLB.acc) :
+         cr.set_source_rgb(1,1,1)
+      else :
+         cr.set_source_rgb(obj['r'], obj['g'], obj['b'])
+
+      if (GLB.xmode) :
+         cr.set_dash(GLB.dash)
+         cr.set_line_cap(cairo.LINE_CAP_ROUND)
+      else :
+         cr.set_line_width(3)
+   
+      cr.set_line_cap(cairo.LINE_CAP_ROUND)
+      cr.set_line_width(GLB.f1 * 5 + 1)
+
+      cr.move_to(obj['x1'],obj['y1'])
+      cr.line_to(obj['x2'],obj['y2'])
+      cr.move_to(obj['x1'],obj['y1'])
+      cr.line_to(obj['x3'],obj['y3'])
+      cr.move_to(obj['x1'],obj['y1'])
+      cr.line_to(obj['x4'],obj['y4'])
+
+      cr.move_to(obj['x2'],obj['y2'])
+      cr.line_to(obj['x3'],obj['y3'])
+      cr.move_to(obj['x2'],obj['y2'])
+      cr.line_to(obj['x4'],obj['y4'])
+
+      cr.move_to(obj['x3'],obj['y3'])
+      cr.line_to(obj['x4'],obj['y4'])
+
+      cr.stroke()
+
+      obj['x1'], obj['y1'], obj['xd1'], obj['yd1'] = move_point(obj['x1'], obj['y1'], obj['xd1'], obj['yd1'])
+      obj['x2'], obj['y2'], obj['xd2'], obj['yd2'] = move_point(obj['x2'], obj['y2'], obj['xd2'], obj['yd2'])
+      obj['x3'], obj['y3'], obj['xd3'], obj['yd3'] = move_point(obj['x3'], obj['y3'], obj['xd3'], obj['yd3'])
+      obj['x4'], obj['y4'], obj['xd4'], obj['yd4'] = move_point(obj['x4'], obj['y4'], obj['xd4'], obj['yd4'])
+   GLB.draw_pyramid = draw_pyramid
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+     
+def Render(cr):
+   acc = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0()
+   f1 = STR.F1()
+   f2 = STR.F2()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,f0)  # --- fade
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   GLB.f1 = f1
+   GLB.f2 = f2
+   GLB.acc = acc
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   for i in range(GLB.NUM_OBJS):
+      GLB.draw_pyramid(GLB.objs[i])
+

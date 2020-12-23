@@ -1,0 +1,104 @@
+def Init():
+   # --- author: rickb
+
+   # --- Set parameter names
+   STR.SetFParam0Name("Flame Width")
+   STR.SetFParam1Name("Width")
+   STR.SetFParam2Name("Intensity")
+   GLB.c   = 0
+   GLB.xmode = 0
+
+   # --- accent : Turn Off Flame
+   # --- trigger : Split Frame
+
+
+def Render(cr):
+   # --- grabbing copies of local variables and demonstrating our mix methods as well
+   GLB.f0 = STR.F0mix(4.0,20.0)
+   GLB.f1 = int(STR.F1mix(100.0,-100))
+   GLB.f2 = STR.F2mix(0.90,0.84)
+
+   time = STR.FT() + STR.IT()
+
+   time = time * GLB.f0
+
+   # --- trigger can only be checked once, as it resets the internal flag (accent can be called multiple times)
+   trig = STR.CheckTrigger()
+   acc  = STR.CheckAccent()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   sur2 = surface.create_similar(cairo.CONTENT_COLOR_ALPHA,320,240)
+   cr2 = cairo.Context(sur2)
+
+   sp = cairo.SurfacePattern(surface)
+   sp.set_filter(cairo.FILTER_GOOD)
+
+   ox = 0
+   oy = -1
+
+   spacing = 50
+
+   cr.set_line_width(10)
+   on = 0
+   x = 0
+   for i in range(spacing,320-spacing):
+      if random.randint(0,int(GLB.f0)) < 3:
+         on = 1 if on == 0 else 0
+         centoff = 0
+         if GLB.xmode:
+            w = int(320-(spacing+GLB.f1*2))
+            d = int(w*0.1)
+            if i > 160-d and i < 160+d:
+               centoff = 1
+
+         if on or acc or i < spacing+GLB.f1 or i > 320-spacing-GLB.f1 or centoff:
+            cr.set_source_rgb(0,0,0)
+         else:
+            b = random.uniform(0.,8.)
+            cr.set_source_rgb(b,b,b)
+         cr.move_to(x,1)
+         cr.line_to(i,1)
+         x = i
+         cr.stroke()
+
+   m = cairo.Matrix()
+   m.translate(160+ox,0)
+   m.scale(1.,GLB.f2)
+   m.rotate(.005*sin(time)+0.005*cos(time/7))
+   m.translate(-160+ox,0)
+   sp.set_matrix(m)
+
+   cr2.set_source(sp)
+   cr2.rectangle(spacing,0,320-spacing*2,120)
+   cr2.fill()
+
+
+   sp = cairo.SurfacePattern(sur2)
+   cr.set_source(sp)
+   cr.rectangle(spacing,0,320-spacing*2,120)
+   cr.fill()
+
+   cr.set_operator(cairo.OPERATOR_MULTIPLY)
+   cr.set_source_rgb(0,.90,.95)
+   cr.rectangle(spacing,0,320-spacing*2,120)
+   cr.fill()
+  
+   
+   cr.set_operator(cairo.OPERATOR_COLOR_BURN)
+   cr.set_source_rgb(0,.94,.95)
+   cr.rectangle(spacing,0,320-spacing*2,120)
+   cr.fill()
+
+   cr.set_operator(cairo.OPERATOR_OVER)
+   GLB.c = GLB.c + 1
+
+   cr.set_line_width(10)
+   cr.set_source_rgb(0,0,0)
+   cr.move_to(spacing,1)
+   cr.line_to(319-spacing,1)
+   cr.stroke()
+
+
+

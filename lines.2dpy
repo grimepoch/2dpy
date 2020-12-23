@@ -1,0 +1,85 @@
+def Init():
+   # --- author : jamesc
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Thickness")
+   STR.SetFParam2Name("Speed")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : random color
+   # ---    trigger : toggle color
+
+   GLB.NUM_OBJS = 12
+   GLB.objs = [{} for i in range(GLB.NUM_OBJS)]
+   for i in range(GLB.NUM_OBJS):
+      GLB.objs[i].update({'xpos' : np.random.randint(low=0, high=320), 'ypos' : np.random.randint(low=0, high=240), 'xdir' :np.random.random() * 8.0 - 4.0 , 'ydir' : np.random.random() * 8.0 - 4.0, 'size' : np.random.randint(low=2, high=32), 'r' : np.random.random(), 'g' : np.random.random(), 'b' : np.random.random() }  ) 
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+     
+
+   def update(objs, f1, f2, a, xmode): 
+      for i in range(GLB.NUM_OBJS):
+         if (xmode):
+            cr.set_source_rgb(objs[i]['b'], objs[i]['g'], objs[i]['r'])
+         else :
+            cr.set_source_rgb(1, 1, 1)
+
+         if (a):
+            objs[i]['r'] = np.random.random()
+            objs[i]['g'] = np.random.random()
+            objs[i]['b'] = np.random.random()
+            cr.set_source_rgb(objs[i]['b'], objs[i]['g'], objs[i]['r'])
+
+         cr.set_line_width(f1 * 8.0 + 1)
+         cr.set_line_cap(cairo.LINE_CAP_ROUND)
+         cr.move_to(objs[i]['xpos'], objs[i]['ypos'] )
+
+         if (i == (GLB.NUM_OBJS -1) ):
+            cr.line_to(objs[0]['xpos'], objs[0]['ypos'] )
+         else :
+            cr.line_to(objs[i+1]['xpos'], objs[i+1]['ypos'] )
+         cr.stroke()
+
+         # --- move objects
+         objs[i]['xpos'] = objs[i]['xpos'] + objs[i]['xdir'] * f2
+         if (objs[i]['xpos'] > 320) :
+            objs[i]['xpos'] = 320
+            objs[i]['xdir'] =  objs[i]['xdir'] * -1
+            if (a):
+               objs[i]['r'] = np.random.random()
+               objs[i]['g'] = np.random.random()
+               objs[i]['b'] = np.random.random()
+         elif (objs[i]['xpos'] < 0) :
+            objs[i]['xpos'] = 0
+            objs[i]['xdir'] =  objs[i]['xdir'] * -1
+            
+         objs[i]['ypos'] =  objs[i]['ypos'] + objs[i]['ydir'] * f2
+         if (objs[i]['ypos'] > 240) :
+            objs[i]['ypos'] =  240
+            objs[i]['ydir'] = objs[i]['ydir'] * -1
+         elif (objs[i]['ypos'] < 0) :
+            objs[i]['ypos'] = 0
+            objs[i]['ydir'] =  objs[i]['ydir'] * -1
+
+   GLB.update = update
+
+def Render(cr):
+   acc = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0()
+   f1 = STR.F1()
+   f2 = STR.F2()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,f0) 
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   GLB.update(GLB.objs, f1, f2, acc, GLB.xmode)
+

@@ -1,0 +1,160 @@
+def Init():
+   # --- author : jamesc
+
+   STR.SetFParam0Name("fade")
+   STR.SetFParam1Name("y origin")
+   STR.SetFParam2Name("speed")
+
+   global NUM_OBJS 
+   NUM_OBJS = 12
+   GLB.objs = [{} for i in range(NUM_OBJS)]
+
+   GLB.phase = 0
+   GLB.color = 0
+   GLB.gray = 0
+   GLB.graydir = 0.05 
+
+   # ---  b/c floats sort of float accuracy
+   def fequal(a,b):
+      tolerance = 0.005
+      if ( abs(a-b) < tolerance):
+         return 1
+      return 0
+   GLB.fequal = fequal
+
+
+   def chg_gray():
+      GLB.gray = GLB.gray + GLB.graydir
+
+      if ( GLB.fequal(GLB.gray, 1.) ):
+         GLB.gray = 1.
+         GLB.graydir = GLB.graydir * -1
+      if ( GLB.fequal(GLB.gray, 0.) ):    
+         GLB.graydir = GLB.graydir * -1
+         GLB.gray = GLB.graydir
+      return GLB.gray
+   GLB.chg_gray = chg_gray
+   
+  
+   def add_obj(objs,gray,color):
+      objs.append({})
+      thick = (20. * np.random.random() )+ 2.
+      arc_off = np.random.random() * 360
+      arc_len = np.random.random() * 180
+      arc_dir = np.random.random() * 20 - 10.
+
+      if (color):
+         r = np.random.random()
+         g = np.random.random()
+         b = np.random.random()
+         objs[-1].update( {'x':0, 'y':0, 'w':320, 'h':240, 'd':110, 'r':r, 'g':g, 'b':b, 'thick':thick, 'arc_off':arc_off, 'arc_len':arc_len, 'arc_dir':arc_dir } ) 
+      else:
+         objs[-1].update( {'x':0, 'y':0, 'w':320, 'h':240, 'd':110, 'r':gray, 'g':gray, 'b':gray, 'thick':thick, 'arc_off':arc_off, 'arc_len':arc_len, 'arc_dir':arc_dir } ) 
+
+      GLB.phase = GLB.phase + .5
+   GLB.add_obj = add_obj
+
+
+   def randomAllObjs(objs):
+      for i in range(NUM_OBJS):
+         gray = chg_gray()
+         thick = (20. * np.random.random() )+ 2.
+         arc_off = np.random.random() * 360
+         arc_len = np.random.random() * 180
+         arc_dir = np.random.random() * 20 - 10.
+
+         objs[i].update( {'x':0, 'y':0, 'w':320, 'h':240, 'd':i*10, 'r':gray, 'g':gray, 'b':gray, 'thick':thick, 'arc_off':arc_off, 'arc_len':arc_len, 'arc_dir':arc_dir } ) 
+         GLB.phase = GLB.phase + .5
+   GLB.randomAllObjs = randomAllObjs
+
+   randomAllObjs(GLB.objs)
+
+   GLB.xmode = 0
+   GLB.delta = 0
+   
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   def draw_circle(ob,f0,f1,f2):
+      cr.save()
+
+      cr.set_source_rgb(ob['b'], ob['g'], ob['r'])
+      scale = pow(1 - (ob['d'] / 410), 4)
+      if (scale <= 0):
+         cr.restore()
+         return
+      
+      cr.scale(scale,scale)
+
+      w = ob['w']
+      w *= .5 
+      x = ob['x']
+
+      h = ob['h']
+      h *= .5 
+      y = ob['y'] + (f1 - .5) * 240.  
+
+      cr.set_line_width(ob['thick'])
+
+      arcs = ob['arc_off']  * pi / 180
+      arcl = (arcs + ob['arc_len'] ) * pi / 180.
+
+      cr.arc(x, y, h, arcs, arcl )
+      cr.stroke()
+   
+      cr.restore()
+   GLB.draw_circle = draw_circle
+
+
+def Render(cr):
+   acc = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0()
+   f1 = STR.F1()
+   f2 = STR.F2mix(.05,1.)
+
+   # ---- clear screen
+   cr.set_source_rgba(0,0,0,f0) 
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   cr.translate(160,120)
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   if GLB.xmode:
+      GLB.color = not GLB.color
+      GLB.xmode = 0
+
+   objs = GLB.objs
+
+   remobj = 0
+   addobj = 0
+
+   for i in reversed(objs):
+      GLB.draw_circle(i,f0, f1, f2)
+
+      dir = 1
+      if (acc) : dir = -1
+
+      i['arc_off'] = i['arc_off'] + (i['arc_dir'] * f2 * dir)
+      i['arc_len'] = i['arc_len'] + (i['arc_dir'] * f2 * dir)
+
+      i['d'] = i['d'] - .5
+      if (i['d'] == 0) :
+         addobj = 1
+      if (i['d'] < -60):
+         remobj = 1
+
+
+   if (addobj):
+      GLB.add_obj(objs,GLB.gray,GLB.color)
+      GLB.chg_gray()
+      
+   if (remobj) :
+      if (len(objs) > 1):
+         objs.pop(0)
+

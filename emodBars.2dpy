@@ -1,0 +1,86 @@
+def Init():
+   # --- author : rickb
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Color")
+   STR.SetFParam2Name("Speed") 
+   # --- accent : XOR Snap
+   # --- trigger : circles
+
+   GLB.xmode = 0
+   GLB.slots = STR.GetMaxSlots()
+   GLB.d = dict()
+   GLB.slide = 3
+
+def Render(cr):
+   # ---- clear screen
+   f0 = STR.F0()
+   f1 = STR.F1()
+   f2 = STR.F2()
+
+   acc = STR.CheckAccent()
+   if acc:
+      cr.set_source_rgba(0,0,0,0)
+   else:
+      cr.set_source_rgba(0,0,0,f0)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   if acc:
+      cr.set_operator(cairo.OPERATOR_XOR)
+
+   trig = STR.CheckTrigger()
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+
+   GLB.slide = 3+6*f2
+
+   for i in range(GLB.slots):
+      (id,note,velo) = STR.GetSlotData(i)
+      note = note%12
+      if id != 0:
+         if id not in GLB.d:
+            GLB.d[id] = (id,note,velo,320,0)
+         else:
+            (id,note,velo_old,x,l) = GLB.d[id]
+            if GLB.slots == 24:
+               l = l+GLB.slide
+               velo=velo_old
+            else:
+               l=20
+            GLB.d[id] = (id,note,velo,x,l)
+   # dictionary should be sorted oldest first, so if we are larger that 12 notes we get rid of oldest
+   while(len(GLB.d)>36):
+      l = sorted(list(GLB.d.keys()))
+      del GLB.d[l[0]]
+
+   for i in list(GLB.d.keys()):
+      (id,note,velo,x,l) = GLB.d[i]
+
+      r,g,b = hsv_to_rgb(f1,1,1)
+
+      cr.set_source_rgb(b,g,r)
+      if GLB.slots == 24:
+         y = 20 + note*16.7
+      else:
+         y = note*10+(velo/127.)*12*20
+
+      if GLB.xmode:
+         cr.arc(x,y,l/2,0,2*pi)
+         cr.stroke()
+
+      else:
+         cr.rectangle(x,y,l,5)
+         cr.fill()
+      if GLB.slots == 24:
+         x = x-GLB.slide
+      else:
+         x = x-6*(velo/127.)
+      if x+l < 0:
+         del GLB.d[i]
+      else:
+         GLB.d[i] = (id,note,velo,x,l)
+
+
+
+

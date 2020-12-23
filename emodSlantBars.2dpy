@@ -1,0 +1,79 @@
+def Init():
+   # --- author : rickb
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Height")
+   STR.SetFParam2Name("Curve Amount")
+   # --- accent : Red Center
+   # --- trigger : Split Draw
+
+   GLB.xmode = 0
+   GLB.slots = STR.GetMaxSlots()
+
+   # mode is used to just return the calculated values so we can run again sorted
+
+
+def Render(cr):
+   # ---- clear screen
+   GLB.f0 = STR.F0mix(0,1)
+   GLB.f1 = int(STR.F1mix(1,20))
+   GLB.f2 = STR.F2mix(0,.50)
+
+   GLB.ftime = STR.FT()
+   
+
+   trig = STR.CheckTrigger()
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+   GLB.acc = STR.CheckAccent()
+
+   # - blank the screen
+   cr.set_source_rgba(0,0,0,GLB.f0)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   notes = []
+
+   slots = GLB.slots
+   tslots = slots
+   if slots == 24:
+      tslots=24
+      slots=12
+
+
+   hbuff = 60
+   vbuff = 40
+
+   cr.save()
+
+   for i in range(tslots):
+      (ids,note,velo) = STR.GetSlotData(i)
+      if ids != 0:
+         note = note%12
+         y = vbuff+note*(240-vbuff*2)/(slots-1)
+         v = velo/127.
+
+         r,g,b = hsv_to_rgb(v+note/11.,1,1)
+         cr.set_source_rgba(b,g,r,1)
+         cr.save()
+         cr.translate(160,y)
+         cr.rotate(sin(note/11*2*pi+GLB.ftime*2*pi)*GLB.f2)
+         if GLB.xmode:
+            cr.rectangle(-160,-GLB.f1,v*160,GLB.f1*2)
+            cr.rectangle(160-v*160,-GLB.f1,v*160,GLB.f1*2)
+         else:
+            cr.rectangle(-v*160,-GLB.f1,2*v*160,GLB.f1*2)
+         cr.fill()
+
+         if GLB.acc:
+            cr.save()
+            cr.set_operator(cairo.OPERATOR_XOR)
+            cr.set_source_rgba(0,0,1,1)
+            cr.rectangle(-v*40,-20,2*v*40,20*2)
+            cr.fill()
+            cr.restore()
+
+         cr.restore()
+
+   cr.restore()  
+  
+

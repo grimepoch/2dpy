@@ -1,0 +1,264 @@
+def Init():
+   # --- author : rickb
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Line Width")
+   STR.SetFParam2Name("Star Size")
+   # --- accent : Faster Rotate
+   # --- trigger : Rainbow Mode
+   
+   GLB.count  = 0
+   GLB.xmode  = 0
+
+   GLB.rocks = []
+
+   GLB.rockdie = []
+
+   def GenRock(x,y,disp,size,speed):
+      item = []
+      if x == -1:
+         cx = random.randint(0,319)
+      else:
+         cx = x + random.randint(disp,5+disp)
+      if y == -1:
+         cy = random.randint(0,239)
+      else:
+         cy = y + random.randint(disp,2*disp)
+
+      points = []
+      
+      steps = random.randint(9,13)
+      for p in range(steps):
+         r = random.randint(size,int(size*1.6))
+         px = cx+r*cos(2*pi*p/steps)
+         py = cy+r*sin(2*pi*p/steps)
+         points.append([px,py])
+      item.append(points)
+      item.append(speed)
+      item.append(random.uniform(0,2*pi))
+      item.append(random.uniform(-.1,.1))
+      item.append(GLB.RockCenter(points))
+      item.append(size)
+      return item
+
+   GLB.GenRock = GenRock
+
+   def NotOutside(pt_sets):
+      for pts in pt_sets:
+         l = len(pts)
+         o = 0
+         for p in pts:
+            if(p[0]<0 or p[0]>319 or p[1]<0 or p[1]>239):
+               o = o + 1
+         if l != o:
+            return pts
+
+   GLB.NotOutside = NotOutside
+
+   def RockCenter(pts):
+      xs,ys = zip(*pts)
+      max_x = max(xs)
+      min_x = min(xs)
+
+      max_y = max(ys)
+      min_y = min(ys)
+      cx = (max_x+min_x)/2
+      cy = (max_y+min_y)/2
+      return [cx,cy]
+   GLB.RockCenter = RockCenter
+
+   def RotateRock(pts,rot):
+      new_pts = []
+      [cx,cy] = GLB.RockCenter(pts)
+
+      for p in pts:
+         ax = p[0]-cx
+         ay = p[1]-cy
+         r  = sqrt(ax*ax+ay*ay)
+         a  = atan2(ay,ax) + rot
+         x  = r*cos(a)+cx
+         y  = r*sin(a)+cy
+         new_pts.append([x,y])
+      return new_pts
+
+   GLB.RotateRock = RotateRock
+
+   def DrawStar(center,size):
+      size = size * GLB.f2
+      cr.set_source_rgba(1,1,1,(50.-size)/50.)
+      cr.set_line_width(GLB.f2+2)
+      #left
+      cr.move_to(center[0]-size/2,center[1])
+      cr.line_to(center[0]-size/2-size,center[1])
+      #right
+      cr.move_to(center[0]+size/2,center[1])
+      cr.line_to(center[0]+size/2+size,center[1])
+      #top
+      cr.move_to(center[0],center[1]+size/2)
+      cr.line_to(center[0],center[1]+size/2+size)
+      #top
+      cr.move_to(center[0],center[1]-size/2)
+      cr.line_to(center[0],center[1]-size/2-size)
+      cr.stroke()
+   GLB.DrawStar = DrawStar
+
+   for i in range(4):
+      GLB.rocks.append(GLB.GenRock(-1,-1,0,30,random.randint(1,4)))
+
+
+def Render(cr):
+   # --- grabbing copies of local variables and demonstrating our mix methods as well
+   GLB.f0 = STR.F0mix(0.0,1.0)
+   GLB.f1 = STR.F1mix(1,15)
+   GLB.f2 = STR.F2mix(0.1,4.00)
+
+
+   t = STR.FT() + STR.IT()
+
+   # --- trigger can only be checked once, as it resets the internal flag (accent can be called multiple times)
+   trig = STR.CheckTrigger()
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   # ---- clear screen (color set above relative to trigger)
+   cr.set_source_rgba(0,0,0,GLB.f0)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   i = 0
+   cr.set_line_width(GLB.f1)
+   cr.set_source_rgba(0,1,0,.5)
+   while i < len(GLB.rocks):
+      if GLB.xmode:
+         r,g,b = hsv_to_rgb(random.uniform(0,1),1,1)
+         cr.set_source_rgba(b,g,r,0.5)
+      # We need to detect when a single point is outside the visible area, if so we add again on opposite side.  When all points outside, we delete     
+      (pts,speed,angle,spin,center,size) = GLB.rocks[i]
+      total_points = len(pts)
+      out_points = 0
+      out_top    = 0
+      out_bottom = 0
+      out_right  = 0
+      out_left   = 0
+      # This is multiple sets now
+      extra_pts = []
+
+      for p in pts:
+         if(p[0]<0 or p[0]>319 or p[1]<0 or p[1]>239):
+            out_points = out_points + 1
+            if(p[0]<0):
+               out_left = 1
+            elif(p[0]>319):
+               out_right = 1
+            if(p[1]<0):
+               out_bottom = 1
+            elif(p[1]>219):
+               out_top = 1
+
+      # Clone to draw if we are out of the window (up to 3 clones)
+      if out_points > 0:
+         if(out_left or out_right):
+            if out_left:
+               xo = 320
+            if out_right:
+               xo = -320
+            yo = 0
+            set_pts = []
+            for p in pts:
+               nx = p[0]+xo
+               ny = p[1]+yo
+               set_pts.append([nx,ny])
+            extra_pts.append(set_pts)
+         if(out_bottom or out_top):
+            if out_bottom:
+               yo = 240
+            if out_top:
+               yo = -240
+            xo = 0
+            if(out_left or out_right):
+               set_pts = []
+               for p in extra_pts[0]:
+                  nx = p[0]+xo
+                  ny = p[1]+yo
+                  set_pts.append([nx,ny])
+               extra_pts.append(set_pts)
+            set_pts = []
+            for p in pts:
+               nx = p[0]+xo
+               ny = p[1]+yo
+               set_pts.append([nx,ny])
+            extra_pts.append(set_pts)
+      if(out_points == total_points):
+         del GLB.rocks[i]
+
+         pts = GLB.NotOutside(extra_pts)
+         
+         if(pts != None):
+            GLB.rocks.append([pts,speed,angle,spin,center,size])
+         continue
+
+      cr.move_to(pts[0][0],pts[0][1])
+      
+      x = speed*cos(angle)
+      y = speed*sin(angle)
+      GLB.rocks[i][0][0][0] = GLB.rocks[i][0][0][0] + x
+      GLB.rocks[i][0][0][1] = GLB.rocks[i][0][0][1] + y
+
+      for p in range(1,len(pts)):
+         cr.line_to(pts[p][0],pts[p][1])
+         GLB.rocks[i][0][p][0] = GLB.rocks[i][0][p][0] + x
+         GLB.rocks[i][0][p][1] = GLB.rocks[i][0][p][1] + y
+      cr.close_path()
+      cr.stroke()
+      for pts in extra_pts:
+         cr.move_to(pts[0][0],pts[0][1])
+         for p in range(1,len(pts)):
+            cr.line_to(pts[p][0],pts[p][1])
+         cr.close_path()
+         cr.stroke()
+      fastrot = 1
+      if STR.CheckAccent():
+         fastrot = 4
+
+      rpots =  GLB.RotateRock(GLB.rocks[i][0],spin*fastrot)
+      GLB.rocks[i][0] = rpots
+      GLB.rocks[i][4] = GLB.RockCenter(GLB.rocks[i][0])
+      i = i + 1
+
+   # Now lets go through all the rocks and see if two are close to each other, if so, we'll take the second one and break it into two smaller
+   collide = False
+   for i in range(len(GLB.rocks)):
+      for j in range(len(GLB.rocks)):
+         if collide == False and i != j:
+            (ptsa,speeda,anglea,spina,centera,sizea) = GLB.rocks[i]
+            (ptsb,speedb,angleb,spinb,centerb,sizeb) = GLB.rocks[j]
+            a = centera[0] - centerb[0]
+            b = centera[1] - centerb[1]
+            
+            dist = sqrt(a*a+b*b)
+
+            if dist < 10:
+               collide = True
+               del GLB.rocks[j]
+               new_size = int(sizeb * 0.5)
+               if(new_size>2):
+                  new_rock = GLB.GenRock(centerb[0],centerb[1],new_size,new_size,speedb)
+                  GLB.rocks.append(new_rock)
+                  new_rock = GLB.GenRock(centerb[0],centerb[1],new_size,new_size,speedb)
+                  GLB.rocks.append(new_rock)
+               else:
+                  GLB.rockdie.append([centerb,1])
+        
+   i = 0
+   while i < len(GLB.rockdie):
+      (center,size) = GLB.rockdie[i]
+      if(size>50):
+         del(GLB.rockdie[i])
+      else:
+         size = size + 1
+         GLB.DrawStar(center,size)
+         GLB.rockdie[i][1]=size
+         i = i + 1
+
+   GLB.count = GLB.count + 1
+   if GLB.count == 1250:
+      Init()

@@ -1,0 +1,97 @@
+def Init():
+   # --- author : jamesc
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Big Radius")
+   STR.SetFParam2Name("Speed")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : reset
+   # ---    trigger : toggle pen
+
+   GLB.xmode = 0
+   GLB.timer = 0
+   GLB.lastx = 12345
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+def Render(cr):
+
+   # ---- clear screen
+   acc = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(1., .00001)
+   f1 = STR.F1()
+   f2 = STR.F2()
+
+   ftime = STR.FT()
+   itime = STR.IT() 
+   time = ftime + itime
+
+   fade = 1. - ( .5 * log(f0) + 1  )
+
+   cr.set_source_rgba(0,0,0,fade) 
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   baseR = 80
+   baser = 40
+   basea = 5
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+
+   if (acc):
+      cr.set_source_rgba(0,0,0,1)
+      cr.rectangle(0,0,320,240)
+      cr.fill()
+      baseR = np.random.randint(40,200)
+      baser = np.random.randint(5, 50)
+      basea = np.random.randint(2, 8)
+      GLB.lastx = 12345
+
+   # R = baseR * f1 + 0.1
+   R = baseR * (sin(time) * .5) * f1
+
+   #r = baser * f2 + 0.1
+   r = baser * (sin(time) ) + 0.01
+
+   a = basea  
+
+   # --- random for each segment, might be nice as HSV instead
+   cr.set_source_rgb(np.random.random(), np.random.random(), np.random.random() )
+
+   # --- different algorithms 
+   #x = (R+r) * cos(GLB.timer) - (r+a) * cos(((R+r)*GLB.timer)/r)
+   #y = (R+r) * sin(GLB.timer) - (r+a) * sin(((R+r)*GLB.timer)/r)
+
+   # --- website
+   #x = (R+r) * cos(GLB.timer) - (r+a) * cos(((R+r)*GLB.timer)/r)
+   #y = (R+r) * sin(GLB.timer) - (r+a) * sin(((R+r)*GLB.timer)/r)
+
+   #my modul8
+   x = (R+r) * cos(GLB.timer) + a + r  * cos((R+r) * GLB.timer / r)
+   y = (R+r) * sin(GLB.timer) + a + r * sin((R+r) * GLB.timer / r)
+
+   if (GLB.lastx >  1000) :
+      GLB.lastx = x + 160
+      GLB.lasty = y + 120
+   else:   
+      if (GLB.xmode == 0):
+         cr.move_to(GLB.lastx, GLB.lasty)
+         cr.line_to(x+160, y+120)
+         cr.set_line_width(np.random.randint(3,10))
+      else:
+         cr.set_line_width(np.random.randint(4) )
+         cr.arc(x+160,y+120,6, 0, 6.28318530)
+      cr.stroke()
+
+   GLB.lastx = x + 160
+   GLB.lasty = y + 120
+
+   GLB.timer = GLB.timer + f2
+

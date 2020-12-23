@@ -1,0 +1,116 @@
+def Init():
+   # --- author : rickb
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Spacing")
+   STR.SetFParam2Name("Thickness")
+   # --- accent : Red Lines
+   # --- trigger : Rand X Offset
+
+   GLB.xmode = 0
+   GLB.slots = STR.GetMaxSlots()
+   GLB.d = dict()
+   GLB.n = dict()
+   GLB.age = dict()
+   GLB.rand = dict()
+   if GLB.slots == 24:
+      GLB.o = 1.67
+   else:
+      GLB.o = 1.67+(20*(12-GLB.slots))/GLB.slots
+
+
+def Render(cr):
+   # ---- clear screen
+   f0 = STR.F0()
+   GLB.f1 = STR.F1mix(1,3)
+   GLB.f2 = STR.F2mix(1,4)
+
+   ftime = STR.FT()
+   
+
+   trig = STR.CheckTrigger()
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+   acc = STR.CheckAccent()
+
+   cr.set_source_rgba(0,0,0,f0)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   # Only keeping 12 at time, if we get overlap, they replace
+   for i in range(GLB.slots):
+      (ids,note,velo) = STR.GetSlotData(i)
+      note = note%12
+      if ids!=0:
+         if ids not in GLB.d:
+            GLB.d[ids] = velo
+            GLB.n[ids] = note
+            GLB.age[ids]=10
+            GLB.rand[ids]=[]
+            for r in range(3):
+               GLB.rand[ids].append([])
+               for a in range(8):
+                  GLB.rand[ids][r].append(random.randint(0,1))
+         else:
+            GLB.age[ids]=10
+            GLB.d[ids] = velo
+
+   w = 20
+   i = 0
+   keysRem = []
+   for ids in GLB.d:
+      if GLB.age[ids]>0:
+         note = GLB.n[ids]
+         x = 30 + note*(w+GLB.o) 
+         y = 50+130*(GLB.d[ids]/127.)
+         if GLB.age[ids] > 0:
+            #solid box
+            xl = x
+            h = 20*GLB.f1
+            cr.set_source_rgb(1,1,1)
+            cr.set_line_width(GLB.f2)
+
+            s=2*pi/8
+
+            if GLB.slots == 24:
+               agem = GLB.age[ids]/10.
+               for r in range(len(GLB.rand[ids])):
+                  for a in range(len(GLB.rand[ids][r])):
+                     cr.set_source_rgb(1,1,1)
+                     if GLB.rand[ids][r][a]:
+                        if GLB.xmode:
+                           xl = x + random.randint(0,20)-10
+                        if r%2:
+                           if acc:
+                              cr.set_source_rgb(0,0,1)
+                           cr.arc(xl,y,GLB.f1*agem*(10+r*5),a*s+pi*2*ftime,(a+1)*s+pi*2*ftime)
+                        else:
+                           cr.arc(xl,y,GLB.f1*agem*(10+r*5),a*s-pi*2*ftime,(a+1)*s-pi*2*ftime)
+                        cr.stroke()
+            else:
+               #FREQ MODE
+               xl = 160
+               for r in range(len(GLB.rand[ids])):
+                  for a in range(len(GLB.rand[ids][r])):
+                     cr.set_source_rgb(1,1,1)
+                     if GLB.rand[ids][r][a]:
+                        if GLB.xmode:
+                           xl = 150 + random.randint(0,20)
+                        if r%2:
+                           if acc:
+                              cr.set_source_rgb(0,0,1)
+                           cr.arc(xl,120,GLB.d[ids]/4*GLB.f1*(10+r*5),a*s+pi*2*ftime,(a+1)*s+pi*2*ftime)
+                        else:
+                           cr.arc(xl,120,GLB.d[ids]/4*GLB.f1*(10+r*5),a*s-pi*2*ftime,(a+1)*s-pi*2*ftime)
+                        cr.stroke()
+
+
+
+         GLB.age[ids] = GLB.age[ids]-1
+         if GLB.age[ids] <= 0:
+            keysRem.append(ids)
+
+   for ids in keysRem:
+      del GLB.d[ids]
+      del GLB.n[ids]
+      del GLB.age[ids]
+      del GLB.rand[ids]

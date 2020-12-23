@@ -1,0 +1,131 @@
+def Init():
+   # --- author : rickb
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Color Adjust")
+   STR.SetFParam2Name("Line Width")
+   # --- accent : Add Outline Circles 
+   # --- trigger : Hide Lines
+   
+   GLB.mode   = 0
+   GLB.count  = 0
+   GLB.arms = []
+   GLB.lastx  = 160
+   GLB.lasty  = 120
+   GLB.color  = 0
+   GLB.xmode  = 0
+
+
+   def drawArm(x,y,l,time,angle,co):
+      cr.save()
+      cr.set_line_width(GLB.f2)
+      
+      cr.translate(x,y)
+
+      xn = cos(angle)*l
+      yn = sin(angle)*l
+      r,g,b = hsv_to_rgb(GLB.f1+co+0.5,1,1)
+      cr.set_source_rgb(b,g,r)
+      cr.move_to(0,0)
+      cr.line_to(xn,yn)
+      cr.stroke()
+
+      if GLB.xmode:
+         cr.set_line_width(GLB.f2/2)
+         cr.set_source_rgb(1.-b,1.-g,1.-r)
+         cr.move_to(0,0)
+         cr.line_to(xn,yn)
+         cr.stroke()
+
+      r,g,b = hsv_to_rgb(GLB.f1+co,1,1)
+      cr.set_source_rgb(b,g,r)
+      
+      if not GLB.xmode:
+         cr.arc(0,0, 10, 0, 2 * pi);
+         cr.arc(xn,yn, 10, 0, 2 * pi);
+         cr.fill()
+
+
+      if STR.CheckAccent():
+         cr.new_path()
+         cr.set_line_width(4)
+         cr.arc(0,0, 20, 0, 2 * pi);
+         cr.stroke()
+         cr.arc(xn,yn, 20, 0, 2 * pi);
+         cr.stroke()
+
+
+      GLB.lastx = x+xn
+      GLB.lasty = y+yn
+      cr.restore()
+
+   GLB.drawArm = drawArm
+
+
+
+def Render(cr):
+   f0 = STR.F0()
+   GLB.f1 = STR.F1mix(0.0,0.5)
+   GLB.f2 = STR.F2mix(1,20)
+
+   t = STR.FT() + STR.IT()
+
+   trig = STR.CheckTrigger()
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   acc = STR.CheckAccent()
+
+   cr.set_source_rgba(0,0,0,f0)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   cr.translate(160,120)
+   cr.rotate(t)
+   cr.translate(-160,-120)
+
+   mult = 16 
+   mult_l = 4
+   addNext = 0
+
+   # ONLY THE LAST ARM CAN BE MOVING
+
+   if GLB.mode == 0:
+      GLB.mode = 1
+      GLB.count = random.randint(5,10)
+      GLB.arms = []
+   if GLB.mode == 1:
+      a1 = random.randint(0,359)
+      d  = -1 if random.randint(0,1) else 1
+      a2 = a1 + d*random.randint(45,135)
+      c  = GLB.color
+      GLB.arms.append([GLB.lastx,GLB.lasty,0,random.randint(35,55),a1,a2,d,c])
+      GLB.count = GLB.count - 1
+      GLB.mode = 2
+   elif GLB.mode == 2:
+      (x,y,cl,l,a1,a2,d,c) = GLB.arms[-1]
+      if cl < l:
+         cl = cl+mult_l
+         GLB.arms[-1] = [x,y,cl,l,a1,a2,d,c]
+      else:
+         if(abs(a1-a2)>mult):
+            a1 = a1 + mult*d
+            GLB.arms[-1] = [x,y,cl,l,a1,a2,d,c]
+         else:
+            addNext = 1
+
+   # ---- drawing routines
+
+ 
+   if(len(GLB.arms)>0):
+      for i in GLB.arms:
+         (x,y,cl,l,a1,a2,d,c) = i
+         GLB.drawArm(x,y,cl,t,2*pi*(a1/360),c)
+
+   if GLB.count==0:
+      GLB.mode = 0
+      GLB.lastx = 160
+      GLB.lasty = 120
+      GLB.color = 0
+   elif addNext == 1:
+      GLB.mode = 1
+      GLB.color = GLB.color + 0.1

@@ -1,0 +1,152 @@
+def Init():
+   # --- author : rickb
+
+   # --- Set parameter names
+   STR.SetFParam0Name("Decay")
+   STR.SetFParam1Name("Red Blue Fade")
+   STR.SetFParam2Name("Slant to Red")
+   GLB.xmode = 0
+   
+   # --- accent: Vert Lines
+   # --- trigger: Line Width
+   
+   GLB.N = 20
+   GLB.M = 15
+   GLB.FRAME = 0
+   GLB.grid = np.array([])
+   GLB.lastGrid = np.zeros(shape=(GLB.N,GLB.M))
+   GLB.color    = np.zeros(shape=(GLB.N,GLB.M))
+
+   def addGlider(i, j, grid): 
+      glider = np.array([[0,    0, 255],  
+                         [255,  0, 255],  
+                         [0,  255, 255]]) 
+      grid[i:i+3, j:j+3] = glider 
+
+   GLB.addGlider = addGlider
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   def randomGrid(N,M):
+      GLB.color = np.random.choice([0,1,2,3], N*M, p=[0.25, 0.25,0.25,0.25]).reshape(N,M)
+      return np.random.choice([1,0], N*M, p=[0.2, 0.8]).reshape(N,M)
+
+   GLB.randomGrid = randomGrid
+
+   def setColor(val):
+      if val==0:
+         cr.set_source_rgba(1-GLB.f1,GLB.f1,0,0.5)
+      elif val==1:
+         cr.set_source_rgba(0,1-GLB.f2,GLB.f2,0.5)
+      elif val==2:
+         cr.set_source_rgba(0,0,1-GLB.f1,0.5)
+      else:
+         cr.set_source_rgba(1,1,1,0.5)
+
+   GLB.setColor = setColor
+
+   def update(grid,N,M): 
+      GLB.FRAME = GLB.FRAME + 1
+      # copy grid since we require 8 neighbors  
+      # for calculation and we go line by line  
+      newGrid = grid.copy() 
+      for i in range(N): 
+         for j in range(M): 
+  
+            # compute 8-neghbor sum 
+            # using toroidal boundary conditions - x and y wrap around  
+            # so that the simulaton takes place on a toroidal surface. 
+            total = int(grid[i, (j-1)%M] + grid[i, (j+1)%M] + 
+                         grid[(i-1)%N, j] + grid[(i+1)%N, j] + 
+                         grid[(i-1)%N, (j-1)%M] + grid[(i-1)%N, (j+1)%M] + 
+                         grid[(i+1)%N, (j-1)%M] + grid[(i+1)%N, (j+1)%M]) 
+            
+
+            # apply Conway's rules 
+            if grid[i, j]  == 1: 
+                if (total < 2) or (total > 3): 
+                    newGrid[i, j] = 0 
+                else:
+                    if total == 2:
+                        GLB.color[i, j]=0
+                    else:
+                        GLB.color[i, j]=1
+            else: 
+                if total == 3: 
+                    newGrid[i, j] = 1 
+                    GLB.color[i, j]=2
+            x = i*16 - 6
+            y = j*16 - 6
+            cr.set_line_width(3)
+            if newGrid[i,j] == 1:
+               c = GLB.color[i,j]
+               if STR.CheckAccent():
+                  c=4
+               if c==1:
+                  GLB.setColor(c)
+                  if GLB.xmode:
+                     cr.set_line_width(10)
+                  cr.move_to(x,y)
+                  cr.line_to(x+18,y+18)
+                  cr.stroke()
+               elif c==2:
+                  GLB.setColor(c)
+                  if GLB.xmode:
+                     cr.set_line_width(14)
+                  cr.move_to(x,y+18)
+                  cr.line_to(x+18,y)
+                  cr.stroke()
+               elif c==3:
+                  GLB.setColor(c)
+                  if GLB.xmode:
+                     cr.set_line_width(6)
+                  cr.move_to(x,y)
+                  cr.line_to(x+18,y)
+                  cr.stroke()
+               else:
+                  GLB.setColor(c)
+                  if GLB.xmode:
+                     cr.set_line_width(10)
+                  cr.move_to(x,y)
+                  cr.line_to(x,y+18)
+                  cr.stroke()
+      
+      compa = grid == newGrid
+      compb = GLB.lastGrid == newGrid
+      
+      if compa.all() or compb.all() or GLB.FRAME==600:
+         GLB.FRAME=0
+         GLB.grid = GLB.randomGrid(GLB.N,GLB.M)
+
+      else:
+         if GLB.FRAME==300:
+            GLB.addGlider(0,0,GLB.grid)
+
+         GLB.lastGrid = grid.copy()
+         grid[:] = newGrid[:] 
+         
+   GLB.update = update
+
+   GLB.grid = GLB.randomGrid(GLB.N,GLB.M)
+
+
+def Render(cr):
+
+   trig = STR.CheckTrigger()
+   GLB.f0 = STR.F0()
+   GLB.f1 = STR.F1mix(0,1)
+   GLB.f2 = STR.F2mix(0,1)
+   cr.set_source_rgba(0,0,0,GLB.f0)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+   
+   #if GLB.xmode:
+   #   cr.set_operator(cairo.OPERATOR_XOR)
+  
+   GLB.update(GLB.grid,GLB.N,GLB.M)
+

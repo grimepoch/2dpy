@@ -1,0 +1,100 @@
+def Init():
+   # --- author : rickb
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Square Height")
+   STR.SetFParam2Name("Outer Box Width")
+   # --- accent : White Box Fill
+   # --- trigger : VLine Mode
+
+   GLB.xmode = 0
+   GLB.slots = STR.GetMaxSlots()
+   GLB.d = dict()
+   GLB.n = dict()
+   GLB.age = dict()
+   if GLB.slots == 24:
+      GLB.o = 1.67
+   else:
+      GLB.o = 1.67+(20*(12-GLB.slots))/GLB.slots
+
+
+def Render(cr):
+   # ---- clear screen
+   f0 = STR.F0()
+   GLB.f1 = STR.F1mix(1/20,1)
+   GLB.f2 = STR.F2mix(0,6)
+
+   trig = STR.CheckTrigger()
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+
+
+   cr.set_source_rgba(0,0,0,f0)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   # Only keeping 12 at time, if we get overlap, they replace
+   for i in range(GLB.slots):
+      (ids,note,velo) = STR.GetSlotData(i)
+      note = note%12
+      if ids!=0:
+         GLB.d[ids] = velo
+         GLB.n[ids] = note
+         GLB.age[ids]=10
+
+   w = 20
+   i = 0
+   keysRem = []
+   for ids in GLB.d:
+      if GLB.age[ids]>0:
+         note = GLB.n[ids]
+         x = 30 + note*(w+GLB.o) 
+         y = 50+130*(GLB.d[ids]/127.)
+         if GLB.age[ids] == 10:
+            #solid box
+            h = 20*GLB.f1
+            cr.set_source_rgb(1,1,1)
+            cr.set_line_width(1)
+            if STR.CheckAccent():
+               cr.rectangle(x,y+((20-h))/2,w,20*GLB.f1)
+               cr.stroke()
+            else:
+               cr.rectangle(x,y+((20-h))/2,w,20*GLB.f1)
+               cr.fill()
+            if GLB.xmode:
+               if GLB.slots==10:
+                  c = GLB.d[ids]/127.
+                  cr.set_source_rgb(0,1-c,c)
+               cr.move_to(x,0)
+               cr.line_to(x,240)
+               cr.move_to(x+w,0)
+               cr.line_to(x+w,240)
+               cr.stroke()
+
+            if GLB.slots==10:
+               cr.set_line_width(GLB.f2)
+               c = GLB.d[ids]/127.
+               cr.set_source_rgb(c,0,1-c)
+               grow = 30*c/2
+               cr.rectangle(x-grow,y-grow,w+(grow*2),20+(grow*2))
+               cr.stroke()
+
+         else:
+            # growing larger box dropping down
+            #newY = (240-y)*(GLB.age[ids]/10)
+            newY = y
+            grow = pow((10-GLB.age[ids]),2)
+            c = GLB.age[ids]/10.
+            cr.set_source_rgb(c,0,1-c)
+            cr.set_line_width(GLB.f2)
+            cr.rectangle(x-grow,newY-grow,w+2*grow,20+2*grow)
+            cr.stroke()
+
+         GLB.age[ids] = GLB.age[ids]-.1
+         if GLB.age[ids] <= 0:
+            keysRem.append(ids)
+
+   for ids in keysRem:
+      del GLB.d[ids]
+      del GLB.n[ids]
+      del GLB.age[ids]

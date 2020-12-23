@@ -1,0 +1,108 @@
+def Init():
+   # --- author : rickb
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Color")
+   STR.SetFParam2Name("Line Opacity")
+   # --- accent : Invert Colors
+   # --- trigger : Squares
+
+   GLB.xmode = 0
+   GLB.slots = STR.GetMaxSlots()
+
+   # mode is used to just return the calculated values so we can run again sorted
+
+
+def Render(cr):
+   # ---- clear screen
+   GLB.f0 = STR.F0mix(0,1)
+   GLB.f1 = STR.F1mix(-0.5,0.5)
+   GLB.f2 = STR.F2mix(0.00,1.0)
+
+   GLB.ftime = STR.FT()
+   
+
+   trig = STR.CheckTrigger()
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+   GLB.acc = STR.CheckAccent()
+
+   # - blank the screen
+   cr.set_source_rgba(0,0,0,GLB.f0)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   notes = []
+
+   slots = GLB.slots
+   if slots == 24:
+      tslots=24
+      slots=12
+      step=4
+   else:
+      tslots=9
+      slots=9
+      step=3
+
+
+   hbuff = 60
+   vbuff = 40
+
+   sets = []
+
+   if GLB.acc:
+      r,g,b = hsv_to_rgb(GLB.f1,1,1)
+      cr.set_source_rgba(b,g,r,GLB.f2)
+   else:
+      cr.set_source_rgba(1,1,1,1)
+
+   for i in range(tslots):
+      (ids,note,velo) = STR.GetSlotData(i)
+      if ids != 0:
+         note = note%12
+         r = int(note/step)
+         c = note%step
+         x = hbuff+c*(320-hbuff*2)/(step-1)
+         y = vbuff+r*(240-vbuff*2)/((slots/step)-1)
+         v = velo/127.
+         sets.append([x,y,v])
+
+         if GLB.xmode:
+            hw = (20*v+5)
+            cr.rectangle(x-hw,y-hw,2*hw,2*hw)
+         else:
+            cr.arc(x,y,20*v+5,0,2*pi)
+         cr.stroke()
+
+   cr.set_line_width(3)
+   
+   if GLB.acc:
+      cr.set_source_rgba(1,1,1,1)
+   else:
+      r,g,b = hsv_to_rgb(GLB.f1,1,1)
+      cr.set_source_rgba(b,g,r,GLB.f2)
+   
+   o=1
+   for r in range(len(sets)):
+      x1 = sets[r][0]
+      y1 = sets[r][1]
+      for c in range(o,len(sets)):
+         if slots == 9:
+            v1 = sets[r][2]
+            v2 = sets[c][2]
+            v = v1 if v1 < v2 else v2
+            if GLB.acc:
+               cr.set_source_rgba(1,1,1,v)
+            else:
+               rc,g,b = hsv_to_rgb(GLB.f1,1,1)
+               cr.set_source_rgba(b,g,rc,v*v*GLB.f2)
+
+
+
+         x2 = sets[c][0]
+         y2 = sets[c][1]
+         cr.move_to(x1,y1)
+         cr.line_to(x2,y2)
+         cr.stroke()
+      o=o+1
+
+

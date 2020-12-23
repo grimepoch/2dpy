@@ -1,0 +1,144 @@
+def Init():
+   # --- author : rickb
+
+   STR.SetFParam0Name("Decay")
+   STR.SetFParam1Name("Color Adjist")
+   STR.SetFParam2Name("Width")
+   # --- accent : Stop Movement
+   # --- trigger : Solid Line
+
+   
+   # --- Setup global variables for the scene.  GLB is reset every time a shader is loaded
+   #     or reset is called
+   GLB.x = 10
+   GLB.y = 10
+   # 0 = left, 1 = bottom, 2 = right, 3 = top 
+   GLB.d = 2
+   # --- Functions can be defined in Init, which after we assign to global.  We do this so when a new 
+   #     program is loaded, the old functions are cleaned out to save memory space 
+   GLB.a=0
+   GLB.xmode = 0
+
+   def pipe(cx, cy, d):
+      if d == 0:
+         #left
+         newx = 20+random.randint(0,cx-20)
+         newy = cy
+         #1 or 3
+         if  newy <= 20:
+            newd = 1
+         elif newy >= 220:
+            newd = 3
+         else:
+            newd = 1+(random.randint(0,1)*2)
+      elif d == 2:
+         #right
+         newx = 10+random.randint(cx,310)
+         newy = cy
+         #1 or 3
+         if  newy <= 20:
+            newd = 1
+         elif newy >= 220:
+            newd = 3
+         else:
+            newd = 1+(random.randint(0,1)*2)
+      elif d == 1:
+         #bottom
+         newx = cx
+         newy = 10+random.randint(cy,230)
+         #1 or 3
+         if  newx <= 20:
+            newd = 2
+         elif newx >= 300:
+            newd = 0
+         else:
+            newd = (random.randint(0,1)*2)
+      else:
+         #top
+         newx = cx
+         newy = 20+random.randint(0,cy-20)
+         #1 or 3
+         if  newx <= 20:
+            newd = 2
+         elif newx >= 300:
+            newd = 0
+         else:
+            newd = (random.randint(0,1)*2)
+      
+      if d == 0 or d == 2:
+         #H
+         pattern = cairo.LinearGradient(cx,cy-10,cx,cy+10)
+      else:
+         #V
+         pattern = cairo.LinearGradient(cx-10,cy,cx+10,cy)
+      pattern.add_color_stop_rgb(0.0,1.0-GLB.f2,0.0,1.0)
+      pattern.add_color_stop_rgb(0.5,1.0,0.0,1.0-GLB.f2)
+      pattern.add_color_stop_rgb(1.0,0.0,1.0,1.0-GLB.f2)
+
+      if GLB.xmode:
+         cr.set_source_rgba(1.0,1-GLB.f1,GLB.f1,1.0)
+      else:
+         cr.set_source(pattern)
+
+      cr.set_line_width(2+GLB.f2)
+      cr.move_to(cx,cy)
+      cr.line_to(newx,newy)
+      GLB.x = newx
+      GLB.y = newy
+      GLB.d = newd
+
+   GLB.pipe = pipe
+
+def Render(cr):
+   # --- grabbing copies of local variables and demonstrating our mix methods as well
+   GLB.f0 = STR.F0mix(-0.04,0.04)
+   GLB.f1 = STR.F1()
+   GLB.f2 = STR.F2mix(0.0,19.0)
+
+   # --- trigger can only be checked once, as it resets the internal flag (accent can be called multiple times)
+   trig = STR.CheckTrigger()
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+
+   cr.save()
+
+   sp = cairo.SurfacePattern(surface)
+   sp.set_filter(cairo.FILTER_GOOD)
+   m = cairo.Matrix()
+   m.translate(160,120)
+   if not STR.CheckAccent():
+      m.scale(1.01,1.01)
+   m.translate(-160,-120)
+   sp.set_matrix(m)
+
+   #sp.set_extend(cairo.EXTEND_REPEAT)
+   sp.set_extend(cairo.EXTEND_NONE)
+   cr.set_source(sp)
+
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+   cr.restore()
+   cr.set_operator(cairo.OPERATOR_MULTIPLY)
+   cr.set_source_rgba((1.0-GLB.f1)*.97,0.97*sin(GLB.f1*pi),0.97*GLB.f1,1)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   cr.set_operator(cairo.OPERATOR_OVER)
+   cr.set_source_rgba(0,0,0,0.05+GLB.f0)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   # ---- drawing routines
+   cr.set_source_rgb(1.0,0.5,0.5)
+   
+   cr.set_line_cap(cairo.LINE_CAP_ROUND);
+
+   GLB.pipe(GLB.x,GLB.y,GLB.d)
+
+   cr.stroke()
+
+   # --- Management of global variables
+   GLB.a=GLB.a+0.1
+   if GLB.a>1.0:
+      GLB.a=0

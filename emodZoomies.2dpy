@@ -1,0 +1,88 @@
+def Init():
+   # --- author : rickb
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Range")
+   STR.SetFParam2Name("Size")
+   # --- accent : More Random + CW
+   # --- trigger : XOR mode
+
+   GLB.xmode = 0
+   GLB.slots = STR.GetMaxSlots()
+
+   # mode is used to just return the calculated values so we can run again sorted
+
+
+def Render(cr):
+   # ---- clear screen
+   GLB.f0 = STR.F0mix(0,1)
+   GLB.f1 = int(STR.F1mix(1,30))
+   GLB.f2 = STR.F2mix(0.10,4.0)
+
+   GLB.ftime = STR.FT()
+   
+
+   trig = STR.CheckTrigger()
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+   GLB.acc = STR.CheckAccent()
+
+   # - blank the screen
+   cr.set_source_rgba(0,0,0,GLB.f0)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   notes = []
+
+   slots = GLB.slots
+   if slots == 24:
+      tslots=24
+      slots=12
+      step=4
+   else:
+      tslots=9
+      slots=9
+      step=3
+
+
+   hbuff = 60
+   vbuff = 40
+
+   cr.save()
+   cr.translate(160,120)
+   if GLB.acc:
+      cr.rotate(0.2-GLB.ftime*2*pi)
+   else:
+      cr.rotate(0.2+GLB.ftime*2*pi)
+   cr.translate(-160,-120)
+
+   if GLB.xmode:
+      cr.set_operator(cairo.OPERATOR_XOR)
+
+   for i in range(tslots):
+      (ids,note,velo) = STR.GetSlotData(i)
+      if ids != 0:
+         note = note%12
+         r = int(note/step)
+         c = note%step
+         x = hbuff+c*(320-hbuff*2)/(step-1)
+         y = vbuff+r*(240-vbuff*2)/((slots/step)-1)
+         v = velo/127.
+
+
+
+         if GLB.acc:
+            rx = random.randint(0,GLB.f1*2)-GLB.f1
+            ry = random.randint(0,GLB.f1*2)-GLB.f1
+         else:
+            rx = random.randint(0,GLB.f1)-GLB.f1/2
+            ry = random.randint(0,GLB.f1)-GLB.f1/2
+   
+         r,g,b = hsv_to_rgb(v+note/11.,1,1)
+         cr.set_source_rgba(b,g,r,GLB.f2)
+
+         cr.arc(x+rx,y+ry,GLB.f2*10*v+5,0,2*pi)
+         cr.fill()
+
+   cr.restore()  
+  
+

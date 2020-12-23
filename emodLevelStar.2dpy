@@ -1,0 +1,123 @@
+def Init():
+   # --- author : jamesc
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Thickness")
+   STR.SetFParam2Name("Rotation")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : toggle square ends
+   # ---    trigger : toggle use half lines
+
+   # --- if listening to PARAMS::ACTIONS::Extra Mod Type
+   # --- 10 slots = FFT analysis bins
+   # --- 24 slots = MIDI notes
+
+   GLB.slots = STR.GetMaxSlots()
+
+   GLB.mode = "auto"
+   if (GLB.slots == 10) :
+      GLB.mode = "audio"
+   if (GLB.slots == 24) :
+      GLB.mode = "midi"
+
+   GLB.degOff = 0
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+
+def Render(cr):
+   acc = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0()
+   f1 = STR.F1mix(0.05,1.0)
+   f2 = STR.F2mix(-0.5 , 0.5)
+
+   ftime = STR.FT()
+   itime = STR.IT()
+   time = ftime + itime
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,f0) 
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   # --- capture incoming data:
+   xCenter = 160
+   yCenter = 120
+   lastVelo = 0
+   useSlots = 10
+
+   if GLB.mode == "audio":
+      useSlots = GLB.slots
+
+   # --- capture incoming data:
+   if GLB.mode == "midi":
+      useSlots = 12
+
+   myDegrees = 0
+   for i in range(GLB.slots) :
+      (id,note,velo) = STR.GetSlotData(i)
+      drawDot = True 
+      drawLine = True
+
+
+      # --- draw fewer lines if toggled
+      if (GLB.xmode):
+         if (useSlots == 10):    # --- audio
+            if not (note % 2):
+               drawLine = False
+ 
+      if (useSlots == 12) :   # --- MIDI
+         if id == 0:
+            drawDot = False
+
+      if (drawLine and drawDot) :
+         for j in range(4) :     # --- draw four lines at 90deg from each other
+            if (useSlots == 12) :   # --- MIDI
+               if id != 0:
+                  myDegrees = 90.0 / useSlots * (note  % useSlots)  + GLB.degOff + j * 90
+               else :
+                  drawDot = False
+            else :
+               myDegrees = (90.0 / useSlots * i ) + GLB.degOff + j * 90
+
+            myRadians = radians(myDegrees)
+            myVelo = velo
+
+            if (useSlots == 10) :   # --- audio
+               if (note == (GLB.slots-1) ):
+                  myVelo = (velo + (lastVelo * .5) ) * .8
+
+            bigR = myVelo + 10
+
+            xSmall = xCenter + cos(myRadians) * bigR    # ---  find 'x' of center point for smShape
+            ySmall = yCenter + sin(myRadians) * bigR    # ---  find 'y' of center point for smShape
+
+            if (useSlots == 12) :   # --- MIDI
+               r,g,b = hsv_to_rgb( ((note % useSlots)/useSlots ) ,1,1)
+            else:
+               r,g,b = hsv_to_rgb( (note/GLB.slots ) ,1,1)
+            cr.set_source_rgb(b, g, r)
+
+            cr.set_line_width(6 * f1)
+            cr.move_to(xCenter, yCenter)
+            cr.line_to(xSmall, ySmall)
+            cr.stroke()
+
+            if (acc) :
+               offset = 20 * f1 * .5
+               cr.rectangle(xSmall - offset, ySmall - offset, 20*f1, 20*f1)
+               cr.fill()
+         lastVelo = velo
+
+      GLB.degOff = GLB.degOff + f2
+
+      if ( abs(f2) < 0.05) :      # --- 9oclock no rotate
+         dmod = 0

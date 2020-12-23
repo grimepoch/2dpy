@@ -1,0 +1,290 @@
+def Init():
+   # --- author : jamesc
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Head Bob")
+   STR.SetFParam2Name("Speed")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : strobe x
+   # ---    trigger : toggle auto-move
+
+   GLB.f0 = 0.0
+   GLB.f1 = 0.0
+   GLB.f2 = 0.0
+
+   # --- define screen size
+   GLB.resx = 320
+   GLB.resy = 240
+
+   # --- primary objects
+   GLB.NUM_OBJS = 12
+   GLB.objs = [{} for i in range(GLB.NUM_OBJS)]
+
+   # --- body!
+   GLB.limbs = dict()
+   GLB.torso = dict()
+   GLB.head_bob = 0
+   GLB.slot_control = ['rs', 're', 'ls', 'le', 'rh', 'rk', 'lh', 'lk', 'head', 'chest', 'head', 'chest' ]
+   
+   GLB.mods = []
+   for i in range(GLB.NUM_OBJS):
+      GLB.mods.append(np.random.randint(3) + 1)
+
+   # --- my preference for handling MIDI vs Audio vs Unknown
+   GLB.mode = "auto"
+   if (GLB.slots == 10) :
+      GLB.mode = "audio"
+   if (GLB.slots == 24) :
+      GLB.mode = "midi"
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,GLB.resx,GLB.resy)
+   cr.fill()
+
+   # --- create random pallet
+   def rnd_pallet():
+      r1 = np.random.random()
+      g1 = np.random.random()
+      b1 = np.random.random()
+      return (r1, g1, b1)
+   GLB.rnd_pallet = rnd_pallet
+
+   GLB.limbs = {}
+   # --- draw a body
+   def new_body(x,y,time):
+
+      GLB.torso['head'] = { 'cx':x, 'cy':y+25, 'radius':8, 'y_min':y+22, 'y_max':y+26, 'y_dir':-1,'width':2, 'fill':0, 'ext_mod':0 }
+      GLB.torso['chest'] = {'rsx':x+10, 'rsy':y+15, 'lsx':x-10, 'lsy':y+15, 'rhx':x+7, 'rhy':y-15, 'lhx':x-7, 'lhy':y-15, 'width':2, 'fill':0 , 'ext_mod':0}
+
+      rsx = GLB.torso['chest']['rsx']
+      rsy = GLB.torso['chest']['rsy']
+      lsx = GLB.torso['chest']['lsx']
+      lsy = GLB.torso['chest']['lsy']
+
+      rhx = GLB.torso['chest']['rhx']
+      rhy = GLB.torso['chest']['rhy']
+      lhx = GLB.torso['chest']['lhx']
+      lhy = GLB.torso['chest']['lhy']
+
+
+      GLB.limbs['rs'] = { 'type':'u', 'sx':rsx, 'sy':rsy, 'ex':0, 'ey':0, 'len':15, 'a_cur':270, 'a_min':270, 'a_max':405, 'a_dir':1,  'a_def':270, 'd_def':1,  'ext_mod':0 }
+      GLB.limbs['re'] = { 'type':'l', 'sx':0,   'sy':0,   'ex':0, 'ey':0, 'len':15, 'a_cur':0,   'a_min':-45, 'a_max':45,  'a_dir':1,  'a_def':0,   'd_def':1,  'ext_mod':0 } 
+      GLB.limbs['ls'] = { 'type':'u', 'sx':lsx, 'sy':lsy, 'ex':0, 'ey':0, 'len':15, 'a_cur':270, 'a_min':135, 'a_max':270, 'a_dir':-1, 'a_def':270, 'd_def':-1, 'ext_mod':0 } 
+      GLB.limbs['le'] = { 'type':'l', 'sx':0,   'sy':0,   'ex':0, 'ey':0, 'len':15, 'a_cur':0,   'a_min':-45, 'a_max':45,  'a_dir':-1, 'a_def':0,   'd_def':-1, 'ext_mod':0 } 
+
+      GLB.limbs['rh'] = { 'type':'u', 'sx':rhx, 'sy':rhy, 'ex':0, 'ey':0, 'len':20, 'a_cur':270, 'a_min':250, 'a_max':370, 'a_dir':1,  'a_def':270, 'd_def':1,  'ext_mod':0 }
+      GLB.limbs['rk'] = { 'type':'l', 'sx':0,   'sy':0,    'ex':0, 'ey':0, 'len':20, 'a_cur':0,   'a_min':-45, 'a_max':45,  'a_dir':1,  'a_def':0,  'd_def':1,  'ext_mod':0 } 
+      GLB.limbs['lh'] = { 'type':'u', 'sx':lhx, 'sy':lhy, 'ex':0, 'ey':0, 'len':20, 'a_cur':270, 'a_min':190, 'a_max':290, 'a_dir':-1, 'a_def':270, 'd_def':-1, 'ext_mod':0 } 
+      GLB.limbs['lk'] = { 'type':'l', 'sx':0,   'sy':0,    'ex':0, 'ey':0, 'len':20, 'a_cur':0,   'a_min':-45, 'a_max':45,  'a_dir':-1, 'a_def':0,  'd_def':-1, 'ext_mod':0 } 
+
+   GLB.new_body = new_body
+   GLB.new_body(160, 120, 10)
+
+   def draw_limb(part, mod):
+      # --- mod is in degrees, a_ is angle
+      GLB.limbs[part]['a_cur'] = GLB.limbs[part]['a_cur'] + GLB.f2 * ( (GLB.limbs[part]['a_dir'] * (mod + 4 * GLB.limbs[part]['ext_mod'] ) ) )
+
+      GLB.limbs[part]['ext_mod'] = 0
+
+      if (GLB.limbs[part]['a_cur'] < GLB.limbs[part]['a_min'] ) :
+         GLB.limbs[part]['a_cur'] = GLB.limbs[part]['a_min']
+         GLB.limbs[part]['a_dir'] = GLB.limbs[part]['a_dir'] * -1
+      if (GLB.limbs[part]['a_cur'] > GLB.limbs[part]['a_max'] ) :
+         GLB.limbs[part]['a_cur'] = GLB.limbs[part]['a_max']
+         GLB.limbs[part]['a_dir'] = GLB.limbs[part]['a_dir'] * -1
+
+      if (GLB.limbs[part]['type'] == 'u') :
+         myrad = radians(GLB.limbs[part]['a_cur'])
+      else:
+         myrad = radians(GLB.limbs[part]['a_cur'] + GLB.limbs[part]['a_def'] )
+
+      GLB.limbs[part]['ex'] = GLB.limbs[part]['sx'] + cos(myrad) * GLB.limbs[part]['len']
+      GLB.limbs[part]['ey'] = GLB.limbs[part]['sy'] + sin(myrad) * GLB.limbs[part]['len']
+
+      # --- upper or lower ?
+      next_bit = ''
+      if (GLB.limbs[part]['type'] == 'u'):
+         side = part[0]
+         bit = part[1]
+
+         if (bit == 's') :
+            lower = side + 'e'
+            GLB.limbs[lower]['sx'] = GLB.limbs[part]['ex']
+            GLB.limbs[lower]['sy'] = GLB.limbs[part]['ey']
+            GLB.limbs[lower]['a_def'] = GLB.limbs[part]['a_cur']
+
+         if (bit == 'h') :
+            lower = side + 'k'
+            GLB.limbs[lower]['sx'] = GLB.limbs[part]['ex']
+            GLB.limbs[lower]['sy'] = GLB.limbs[part]['ey']
+            GLB.limbs[lower]['a_def'] = GLB.limbs[part]['a_cur']
+      
+      if (GLB.limbs[part]['type'] == "u"): cr.set_source_rgb(1,0,0)
+      if (GLB.limbs[part]['type'] == "l"): cr.set_source_rgb(0,0,1)
+
+      # --- draw the limb
+      cr.move_to(GLB.limbs[part]['sx'], GLB.limbs[part]['sy'])
+      cr.line_to(GLB.limbs[part]['ex'], GLB.limbs[part]['ey'])
+      cr.stroke()
+
+   GLB.draw_limb = draw_limb
+
+   def draw_torso():
+      # --- start draw
+      cr.set_line_cap(cairo.LINE_CAP_ROUND)
+  
+      # --- chest
+      cr.set_line_width(GLB.torso['chest']['width'])
+      cr.set_source_rgb(1,0,0)
+
+      cr.move_to(GLB.torso['chest']['rsx'], GLB.torso['chest']['rsy'])
+      cr.line_to(GLB.torso['chest']['rhx'], GLB.torso['chest']['rhy'])
+
+      cr.move_to(GLB.torso['chest']['rhx'], GLB.torso['chest']['rhy'])
+      cr.line_to(GLB.torso['chest']['lhx'], GLB.torso['chest']['lhy'])
+
+      cr.move_to(GLB.torso['chest']['lhx'], GLB.torso['chest']['lhy'])
+      cr.line_to(GLB.torso['chest']['lsx'], GLB.torso['chest']['lsy'])
+
+      cr.move_to(GLB.torso['chest']['lsx'], GLB.torso['chest']['lsy'])
+      cr.line_to(GLB.torso['chest']['rsx'], GLB.torso['chest']['rsy'])
+      cr.stroke()
+
+      g = GLB.torso['chest']['ext_mod'] * .8
+      cr.set_source_rgb(g, g, g)
+      cr.move_to(GLB.torso['chest']['rsx'], GLB.torso['chest']['rsy'])
+      cr.line_to(GLB.torso['chest']['lhx'], GLB.torso['chest']['lhy'])
+      cr.move_to(GLB.torso['chest']['lsx'], GLB.torso['chest']['lsy'])
+      cr.line_to(GLB.torso['chest']['rhx'], GLB.torso['chest']['rhy'])
+      cr.stroke()
+      GLB.torso['chest']['ext_mod'] = 0
+
+
+      # --- head
+      GLB.torso['head']['cy'] = GLB.torso['head']['cy'] + ( GLB.head_bob  * GLB.torso['head']['y_dir'])
+
+      if (GLB.torso['head']['cy'] < GLB.torso['head']['y_min']):
+         GLB.torso['head']['cy'] = GLB.torso['head']['y_min']
+         GLB.torso['head']['y_dir'] = GLB.torso['head']['y_dir'] * -1
+      if (GLB.torso['head']['cy'] > GLB.torso['head']['y_max']):
+         GLB.torso['head']['cy'] = GLB.torso['head']['y_max']
+         GLB.torso['head']['y_dir'] = GLB.torso['head']['y_dir'] * -1
+   
+      hs = GLB.torso['head']['radius'] * (GLB.torso['head']['ext_mod'] * 2. + .5  )
+      cr.set_line_width(GLB.torso['head']['width'])
+
+      cr.set_source_rgb(0,0,0)
+      cr.arc(GLB.torso['head']['cx'], GLB.torso['head']['cy'], GLB.torso['head']['radius'], 0, 2*pi)
+      cr.fill()
+
+      cr.set_source_rgb(0,0,1)
+      cr.arc(GLB.torso['head']['cx'], GLB.torso['head']['cy'], GLB.torso['head']['radius'], 0, 2*pi)
+      cr.stroke()
+
+      if ( GLB.torso['head']['ext_mod'] > 0) :
+         cr.set_source_rgb(1, 1, 1)
+         for i in range(3):
+            st = radians(10 + (10 * i) )
+            et = radians(360 - (10 * i) )
+            cr.arc(GLB.torso['head']['cx'], GLB.torso['head']['cy'], GLB.torso['head']['radius'] + (5 * (i+1)), et, st)
+            cr.stroke()
+            st = radians(180 + (10 * i) )
+            et = radians(180 - (10 * i) )
+            cr.arc(GLB.torso['head']['cx'], GLB.torso['head']['cy'], GLB.torso['head']['radius'] + (5 * (i+1)), et, st)
+            cr.stroke()
+
+         GLB.torso['head']['ext_mod'] = 0
+
+   GLB.draw_torso = draw_torso
+
+
+   def draw_body():
+      # --- start draw
+      cr.set_line_width(2)
+      cr.set_line_cap(cairo.LINE_CAP_ROUND)
+
+      draw_torso()
+
+
+      if (GLB.xmode) :
+         draw_limb('rs', 0)
+         draw_limb('ls', 0)
+         draw_limb('re', 0)
+         draw_limb('le', 0)
+         draw_limb('rh', 0)
+         draw_limb('rk', 0)
+         draw_limb('lh', 0)
+         draw_limb('lk', 0)
+      else:
+         draw_limb('rs', GLB.mods[0])
+         draw_limb('ls', GLB.mods[1])
+         draw_limb('re', GLB.mods[2])
+         draw_limb('le', GLB.mods[3])
+         draw_limb('rh', GLB.mods[4])
+         draw_limb('rk', GLB.mods[5])
+         draw_limb('lh', GLB.mods[6])
+         draw_limb('lk', GLB.mods[7])
+
+   GLB.draw_body = draw_body
+
+   new_body(160, 120, 0)
+
+def Render(cr):
+   acc = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0()
+   GLB.f1 = STR.F1()
+
+   GLB.f2 = STR.F2mix(0.5,2.0)
+
+   ftime = STR.FT()
+   itime = STR.IT()
+   time = (itime *1.0)  + ftime
+   ##mysin = (sin(time) + 1 ) / 2
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,f0)
+   cr.rectangle(0,0,GLB.resx,GLB.resy)
+   cr.fill()
+
+   if (trig):
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   GLB.head_bob = GLB.f1 * .75
+
+   # --- draw a dude
+   GLB.draw_body()
+
+   for i in range(GLB.slots):
+      (id,note,velo) = STR.GetSlotData(i)
+      # --- capture incoming data:
+      if GLB.mode == "midi":
+            if id != 0:
+               nn = note % 12
+               if (nn < 8) :
+                  GLB.limbs[GLB.slot_control[nn]]['ext_mod'] = (velo/127) 
+               else :
+                  GLB.torso[GLB.slot_control[nn]]['ext_mod'] = (velo/127)
+
+      if GLB.mode == "audio":
+            for i in range(GLB.slots):
+               (id,note,velo) = STR.GetSlotData(i)
+               if (velo > 20) :
+                  nn = int(note)
+                  if (nn < 8) :
+                     GLB.limbs[GLB.slot_control[nn]]['ext_mod'] = (velo/127) 
+                  else :
+                     GLB.torso[GLB.slot_control[nn]]['ext_mod'] = (velo/127)
+
+   if (acc) :
+      (r, g, b) = GLB.rnd_pallet() 
+      cr.set_source_rgb(b, g, r)
+      cr.move_to(GLB.torso['chest']['rsx'], GLB.torso['chest']['rsy'])
+      cr.line_to(GLB.torso['chest']['lhx'], GLB.torso['chest']['lhy'])
+      cr.move_to(GLB.torso['chest']['lsx'], GLB.torso['chest']['lsy'])
+      cr.line_to(GLB.torso['chest']['rhx'], GLB.torso['chest']['rhy'])
+      cr.stroke()
+
+

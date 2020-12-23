@@ -1,0 +1,94 @@
+def Init():
+   # --- author : rickb
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Width")
+   STR.SetFParam2Name("Length")
+   # --- accent : In Circle
+   # --- trigger : Offset
+
+   GLB.xmode = 0
+   GLB.slots = STR.GetMaxSlots()
+
+   # mode is used to just return the calculated values so we can run again sorted
+
+
+def Render(cr):
+   # ---- clear screen
+   GLB.f0 = STR.F0mix(0,1)
+   GLB.f1 = STR.F1mix(1,10)
+   GLB.f2 = STR.F2mix(0,60.0)
+
+   GLB.time = STR.FT() + float(STR.IT())
+   
+
+   trig = STR.CheckTrigger()
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+   GLB.acc = STR.CheckAccent()
+
+   # - blank the screen
+   cr.set_source_rgba(0,0,0,GLB.f0)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   notes = []
+
+   slots = GLB.slots
+   if slots == 24:
+      tslots=24
+      slots=12
+      step=4
+   else:
+      tslots=9
+      slots=9
+      step=3
+
+
+   hbuff = 60
+   vbuff = 40
+
+   cr.set_line_width(GLB.f1)
+   f = 0
+   for i in range(tslots):
+      (ids,note,velo) = STR.GetSlotData(i)
+      if ids != 0:
+         cr.save()
+         note = note%12
+         r = int(note/step)
+         c = note%step
+         m=1
+         if GLB.acc:
+            if f == 0:
+               x = 160
+               y = 120
+               m = 10
+               f = 1
+            else:
+               x = 160+80*cos(2*pi*note/11)
+               y = 120+80*sin(2*pi*note/11)
+         else:
+            x = hbuff+c*(320-hbuff*2)/(step-1)
+            y = vbuff+r*(240-vbuff*2)/((slots/step)-1)
+         
+         v = velo/127.
+
+         d = 1 if note%2 else -1
+
+         r,g,b = hsv_to_rgb(v+note/11.,1,1)
+         cr.set_source_rgba(b,g,r,1)
+
+         cr.translate(x,y)
+         cr.rotate(GLB.time*v*16*d)
+
+         oy = 20 if GLB.xmode else 0
+
+
+         for i in range(3):
+            cr.rotate(2*pi/3.)
+            cr.move_to(-20*m,oy)
+            cr.curve_to(0,-40*sin(40*GLB.time*v)+oy,0,40*sin(40*GLB.time*v)+oy,m*(GLB.f2+20*v),oy)
+            cr.stroke()
+
+         cr.restore()  
+  
+

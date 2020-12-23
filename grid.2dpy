@@ -1,0 +1,76 @@
+def Init():
+   # --- author : jamesc
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Size")
+   STR.SetFParam2Name("Thickness")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : green rings
+   # ---    trigger : toggle center
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+
+def Render(cr):
+   acc = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0()
+   f1 = STR.F1()
+   f2 = STR.F2()
+
+   ftime = STR.FT()
+   itime = STR.IT()
+   time = (itime *1.0)  + ftime
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,f0) 
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   cr.set_line_width(abs(sin(time)) * f2 * 8.0 + 1)
+   cr.set_source_rgb(1,1,1)   
+   size = int( 100 * f1)
+   if (size < 10):
+      size = 10 
+
+   if (GLB.xmode == 0):
+      # --- intersect in center
+      centx = 160
+      centy = 120
+   else :
+      # --- center open
+      centx = int(160 - (size * .5) )
+      centy = int(120 - (size * .5) )
+
+   for i in range(centy,240+size,size):
+      cr.move_to(0, i)
+      cr.line_to(320, i)
+   for i in range(centy,0-size, -size): 
+      cr.move_to(0, i )
+      cr.line_to(320, i )
+   
+   for i in range(centx, 320+size, size):
+      cr.move_to(i, 0)
+      cr.line_to(i, 240)
+   for i in range(centx, 0-size, -size):
+      cr.move_to(i, 0)
+      cr.line_to(i, 240)
+
+   cr.stroke()
+
+   if (acc):
+      cr.set_source_rgb(1,1,0)
+      if (GLB.xmode):
+         centx += int(size *.5)
+         centy += int(size *.5)
+      for i in range(1, 6):
+         cr.arc(centx, centy, (i*.35) * size , 0, 6.28318530)
+         cr.stroke()
+

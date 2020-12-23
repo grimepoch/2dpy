@@ -1,0 +1,94 @@
+def Init():
+   # --- author : rickb
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Speed")
+   STR.SetFParam2Name("Density")
+   # --- accent : Zoom Reverse
+   # --- trigger : Turn Off Orange
+
+   GLB.c     = 0
+   GLB.xmode = 0
+
+
+
+def Render(cr):
+   # --- grabbing copies of local variables and demonstrating our mix methods as well
+   f0 = STR.F0()
+   GLB.f1 = STR.F1mix(1.01,1.05)
+   GLB.f2 = STR.F2mix(1.,12.0)
+
+   t = STR.FT() + STR.IT()
+
+   t = t * 20
+
+   # --- trigger can only be checked once, as it resets the internal flag (accent can be called multiple times)
+   trig = STR.CheckTrigger()
+   acc = STR.CheckAccent()
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   sur2 = surface.create_similar(cairo.CONTENT_COLOR_ALPHA,320,240)
+   cr2 = cairo.Context(sur2)
+
+   sp = cairo.SurfacePattern(surface)
+   sp.set_filter(cairo.FILTER_GOOD)
+
+   ox = 1*sin(t*.3)
+   oy = 1*cos(t*.5)
+
+   m = cairo.Matrix()
+   m.translate(160+ox,120+oy)
+   if acc:
+      m.scale(1/GLB.f1,1/GLB.f1)
+   else:
+      m.scale(GLB.f1,GLB.f1)
+   m.rotate(.04*sin(t/20))
+   m.translate(-160+ox,-120+oy)
+   sp.set_matrix(m)
+
+   cr2.set_source(sp)
+   cr2.rectangle(0,0,320,240)
+   cr2.fill()
+
+   #cr.set_operator(cairo.OPERATOR_SOFT_LIGHT)
+
+   sp = cairo.SurfacePattern(sur2)
+   cr.set_source(sp)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   cr.set_source_rgba(0,0,0,f0)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+  
+   GLB.c = GLB.c + 1
+
+   #if GLB.c%10 == 0:
+
+   cr.set_line_width(8)
+   on = 0
+   x = 0
+   co = .35
+   for d in range(2):
+      for i in range(91):
+         if random.randint(0,15) < GLB.f2:
+            on = 1 if on == 0 else 0
+            if GLB.c%10 < 2:
+               if GLB.xmode:
+                  cr.set_source_rgb(0,0,0)
+               else:
+                  r,g,b = hsv_to_rgb(co+0.6,1,1)
+                  cr.set_source_rgb(g,b,r)
+            else:
+               if on:
+                  r,g,b = hsv_to_rgb(co+0.3,1,random.uniform(0.,1.))
+                  cr.set_source_rgb(g,b,r)
+               else:
+                  r,g,b = hsv_to_rgb(co+0,1,random.uniform(0.,1.))
+                  cr.set_source_rgb(g,b,r)
+            cr.arc(160,120,120*d,2*pi*x/90,2*pi*i/90)
+            x = i
+            #cr.fill()
+            cr.stroke()
+
+

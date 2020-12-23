@@ -1,0 +1,137 @@
+def Init():
+   # --- author : rickb
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Color Adjist")
+   STR.SetFParam2Name("Width")
+   # --- accent : Invert Color
+   # --- trigger : Rect Mode
+   
+   # --- Setup global variables for the scene.  GLB is reset every time a shader is loaded
+   #     or reset is called
+   GLB.a = 0
+   GLB.anim = 0
+   GLB.phase = 0
+   GLB.x = 160
+   GLB.y = 120
+   GLB.lx = 160
+   GLB.ly = 120
+   GLB.fcnt = 60
+   GLB.trans = -1
+   GLB.fcnt_snap = 0
+   GLB.p = 3
+   GLB.pd = .05
+   GLB.minp = 3
+   GLB.maxp = 9
+   GLB.xmode = 0
+
+   # --- Functions can be defined in Init, which after we assign to global.  We do this so when a new 
+   #     program is loaded, the old functions are cleaned out to save memory space 
+
+
+
+   def drawRings(x,y,rings,time, phase,cnt):
+      cr.set_line_width(GLB.f2)
+      if GLB.trans >= 0:
+         GLB.trans = GLB.trans-1
+
+      if(GLB.trans < 0 and (x != GLB.lx or y != GLB.ly)):
+         GLB.trans = cnt
+         GLB.fcnt_snap = cnt
+
+      if GLB.trans > 0:
+         #ease in out alg
+         m = (sin(-pi/2 + pi*(GLB.fcnt_snap-GLB.trans)/GLB.fcnt_snap)+1.)/2      
+   
+         lx = GLB.lx + (x-GLB.lx)*m
+         ly = GLB.ly + (y-GLB.ly)*m
+      else:
+         lx = x
+         ly = y
+
+      if GLB.trans == 0:
+         GLB.lx = x
+         GLB.ly = y
+
+      GLB.phase = time*16
+      cr.save()
+
+      cr.translate(lx,ly)
+      de = 1./rings
+      a = de
+      d = 70
+      p = GLB.p*pi/rings
+      
+      GLB.p = GLB.p + GLB.pd
+      if(GLB.p>=GLB.maxp):
+         GLB.pd = -0.05
+         GLB.minp = random.randint(3,5)
+      if(GLB.p<=GLB.minp):
+         GLB.pd =  0.05
+         GLB.maxp = random.randint(6,9)
+      po = 30
+      for i in range(rings):
+         r,g,b = hsv_to_rgb(GLB.f1+a/4,1,1)
+         if STR.CheckAccent():
+            cr.set_source_rgba(1.-b,1.-g,1.-r,1)
+         else:
+            cr.set_source_rgba(b,g,r,1)
+         o = 10*sin(GLB.phase)
+
+         angle = time*14+p*i
+
+         xn = cos(angle)*po - sin(angle)*po     
+         yn = sin(angle)*po + cos(angle)*po
+
+         cr.translate(xn,yn)
+
+         if GLB.xmode:
+            cr.rectangle( -1*(d+o),-1*(d+o),2*(d+o),2*(d+o))
+         else:
+            cr.arc( 0, 0 , d+o, 0, 2 * pi);
+         cr.stroke()
+         cr.scale(.90,.90)
+         a=a+de
+         GLB.phase = GLB.phase + 4.5
+         cr.translate(-xn,-yn)
+      cr.restore()
+
+   # --- Assigning of the function to global, you then call with GLB.drawLightening(args)
+   GLB.drawRings = drawRings
+
+
+
+def Render(cr):
+   # --- grabbing copies of local variables and demonstrating our mix methods as well
+   f0 = STR.F0()
+   GLB.f1 = STR.F1mix(0.0,0.5)
+   GLB.f2 = STR.F2mix(1.0,8.0)
+
+   t = STR.FT() + STR.IT()
+
+   # --- trigger can only be checked once, as it resets the internal flag (accent can be called multiple times)
+   trig = STR.CheckTrigger()
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   # ---- clear screen (color set above relative to trigger)
+   cr.set_source_rgba(0,0,0,f0)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   # ---- drawing routines
+
+
+   GLB.drawRings(GLB.x,GLB.y,10,t,0,GLB.fcnt)
+   if(GLB.fcnt > 0):
+      GLB.fcnt = GLB.fcnt-1
+   else:
+      h = 50
+      v = 30
+      GLB.x = random.randint(0+h,320-h)
+      GLB.y = random.randint(0+v,240-v)
+      GLB.fcnt = random.randint(60,240)
+
+   # --- Management of global variables
+   GLB.a=GLB.a+0.1
+   if GLB.a>1.0:
+      GLB.a=0

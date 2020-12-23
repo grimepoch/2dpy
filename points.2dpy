@@ -1,0 +1,164 @@
+def Init():
+   # --- author : rickb
+   STR.SetFParam0Name("Decay")
+   STR.SetFParam1Name("Repel X")
+   STR.SetFParam2Name("Repel Y")
+   
+   # --- accent : Turn Off Interact
+   # --- trigger : Repel / Attract  
+
+
+   GLB.mode = 0
+   GLB.delta = 0
+   GLB.x  = []
+   GLB.y  = []
+   GLB.dx = []
+   GLB.dy = []
+
+   GLB.REPELx = 160.0
+   GLB.REPELy = 120.0
+   GLB.REPELf = 1.0
+   GLB.REPELr = 100.0
+
+   GLB.pcnt = 150
+   GLB.maxspeed = 7
+
+   GLB.xmode = 0
+
+   for i in range(GLB.pcnt):
+      r = random.randint(0,3)
+      if r == 0:
+         # FROM BOTTOM
+         GLB.x.append(random.randint(0,319))
+         GLB.y.append(0)
+         GLB.dx.append((random.random()*2*GLB.maxspeed/4)-GLB.maxspeed/4)
+         GLB.dy.append(1.0+random.random()*(GLB.maxspeed-1))
+      elif r == 1:
+         # FROM TOP
+         GLB.x.append(random.randint(0,319))
+         GLB.y.append(239)
+         GLB.dx.append((random.random()*2*GLB.maxspeed/4)-GLB.maxspeed/4)
+         GLB.dy.append(-1.0+ -1.0*random.random()*(GLB.maxspeed-1))
+      elif r == 2:
+         # FROM LEFT
+         GLB.x.append(0)
+         GLB.y.append(random.randint(0,239))
+         
+         GLB.dy.append((random.random()*2*GLB.maxspeed/4)-GLB.maxspeed/4)
+         GLB.dx.append(1.0+random.random()*(GLB.maxspeed-1))
+         
+      else:
+         # FROM RIGHT
+         GLB.x.append(319)
+         GLB.y.append(random.randint(0,239))
+         GLB.dy.append((random.random()*2*GLB.maxspeed/4)-GLB.maxspeed/4)
+         GLB.dx.append(-1.0+ -1.0*random.random()*(GLB.maxspeed-1))
+
+
+
+
+
+def Render(cr):
+   # ---- clear screen
+   GLB.f0 = STR.F0mix(0,1)
+   GLB.f1 = STR.F1mix(0,1)
+   GLB.f2 = STR.F2()
+
+   GLB.REPELx = 320*GLB.f1
+   GLB.REPELy = 240*GLB.f2
+
+   cr.set_source_rgba(0,0,0,GLB.f0)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   cr.set_source_rgba(1,1,1,1)
+
+   cr.set_line_width(2)
+
+   if STR.CheckTrigger():
+      GLB.xmode = 0 if GLB.xmode else 1
+
+
+   for i in range(GLB.pcnt):
+
+      c = sqrt(GLB.dx[i]*GLB.dx[i] + GLB.dy[i]*GLB.dy[i])/(GLB.maxspeed/2)
+
+      cr.set_source_rgba(c,c,1,1)
+
+      cr.rectangle(GLB.x[i], GLB.y[i],4,4);
+
+      x1 = GLB.REPELx
+      y1 = GLB.REPELy
+
+      x2 = GLB.x[i]
+      y2 = GLB.y[i]
+
+      dist = sqrt((x2 - x1)**2 + (y2 - y1)**2)
+
+      force = 0
+
+      gf = GLB.REPELf;
+
+      if GLB.xmode:
+         gf = gf * -1
+
+
+      angle = atan2(y2-y1,x2-x1)
+
+      if STR.CheckAccent()==0:
+
+         # determine if we are in the sphere of influence
+         if dist < GLB.REPELr :
+            force = gf*(1.0-dist/GLB.REPELr)
+
+         # X Effects 
+         if x2 >= GLB.REPELx:
+            GLB.dx[i] = GLB.dx[i]+force*cos(angle)
+         else:
+            GLB.dx[i] = GLB.dx[i]+force*cos(angle)
+
+
+         # Y Effects   
+         if y2 >= GLB.REPELy:
+            GLB.dy[i] = GLB.dy[i]+force*sin(angle)
+         else:
+            GLB.dy[i] = GLB.dy[i]+force*sin(angle)
+
+      GLB.x[i] = GLB.x[i]+GLB.dx[i]
+      GLB.y[i] = GLB.y[i]+GLB.dy[i]
+
+
+      slow = 0.5
+
+      if GLB.x[i] < 0:
+         GLB.x[i] = -1 * GLB.x[i]
+         if abs(GLB.dx[i]) > 1 and abs(GLB.dy[i]) > 1:
+            GLB.dx[i] = GLB.dx[i] * -1 * slow
+         else:
+            GLB.dx[i] = GLB.dx[i] * -1.00
+            GLB.dy[i] = GLB.dy[i] + 0.1 if random.randint(0,2) else -0.2
+
+      if GLB.x[i] > 319:
+         GLB.x[i] = 638 - GLB.x[i]
+         if abs(GLB.dx[i]) > 1 and abs(GLB.dy[i]) > 1:
+            GLB.dx[i] = GLB.dx[i] * -1 * slow
+         else:
+            GLB.dx[i] = GLB.dx[i] * -1.00
+            GLB.dy[i] = GLB.dy[i] + 0.1 if random.randint(0,2) else -0.2
+
+      if GLB.y[i] < 0:
+         GLB.y[i] = -1 * GLB.y[i]
+         if abs(GLB.dx[i]) > 1 and abs(GLB.dy[i]) > 1:
+            GLB.dy[i] = GLB.dy[i] * -1 * slow
+         else:
+            GLB.dy[i] = GLB.dy[i] * -1.00
+            GLB.dx[i] = GLB.dx[i] + 0.1 if random.randint(0,2) else -0.2
+      if GLB.y[i] > 239:
+         GLB.y[i] = 478 - GLB.y[i]
+         if abs(GLB.dx[i]) > 1 and abs(GLB.dy[i]) > 1:
+            GLB.dy[i] = GLB.dy[i] * -1 * slow
+         else:
+            GLB.dy[i] = GLB.dy[i] * -1.00
+            GLB.dx[i] = GLB.dx[i] + 0.1 if random.randint(0,2) else -0.2
+
+      cr.fill()

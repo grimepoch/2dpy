@@ -1,0 +1,116 @@
+def Init():
+   # --- author : jamesc
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Size")
+   STR.SetFParam2Name("Speed")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : XOR Mode
+   # ---    trigger : toggle color/bw
+
+   GLB.char_set = "PACKMYBOXESWITHFIVEDOZENLIQUORJUGSEEEETTTAAIIINNOOSSSHHHRRSTRUCTURE"
+   GLB.char_num = 1
+
+   GLB.pad_x = 6
+   GLB.pad_y = 6
+
+
+   # --- speed control
+   GLB.timer_max = 30
+   GLB.timer = 0
+
+   # --- pick a font here
+   cr.select_font_face("mono", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+def Render(cr):
+   acc= STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0()
+   f1 = STR.F1()
+   f2 = STR.F2()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,f0)  
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   if (GLB.timer > GLB.timer_max) :
+
+      cr.set_source_rgb(1,1,1)
+      cr.scale(1.0, -1.0)
+      cr.set_font_size(30 * f1 + 6)
+
+      data_str = ""
+      for i in range(0, GLB.char_num):
+         rnd_char = np.random.randint(low=0,high=len(GLB.char_set)-1 )
+         my_char = GLB.char_set[rnd_char:rnd_char+1]
+         data_str += my_char
+
+      data_info = cr.text_extents("W" * GLB.char_num)
+      bx = data_info.width + GLB.pad_x
+      by = data_info.height + GLB.pad_y
+
+      grid_x = 320. / bx + 1
+      grid_y = 240. / by + 1
+
+      xp = np.random.randint(low=0, high=grid_x) * bx 
+      yp = np.random.randint(low=0, high=grid_y) * by
+
+      # --- default color
+      r1 = g1 = b1 = 1
+      r2 = g2 = b2 = 0
+
+      mixit = np.random.random()
+
+      if (mixit > .9) :
+         r1 = g1 = b1 = 0
+         r2 = g2 = b2 = 1
+         if GLB.xmode:
+            r2 = np.random.random()
+            g2 = np.random.random()
+            b2 = np.random.random()
+
+      if (mixit > .95) :
+         r1 = g1 = 0
+
+      if GLB.xmode:
+         r1 = np.random.random()
+         g1 = np.random.random()
+         b1 = np.random.random()
+
+
+      if ( mixit < .08 ) :
+         blx = np.random.randint(low=0, high=grid_x) * bx 
+         bly = np.random.randint(low=0, high=grid_y) * by
+
+         blwid = np.random.randint(low=0, high=grid_x * .3)
+         blhei = np.random.randint(low=0, high=grid_y * .3)
+
+         cr.set_source_rgb(0,0,0)
+         cr.rectangle(blx - (GLB.pad_x * .5) , bly * -1 + (GLB.pad_y * .5), blwid * bx, blhei * by * -1)
+         cr.fill()
+         
+      if (acc):
+         cr.set_operator(cairo.OPERATOR_XOR)
+      else :
+         cr.set_source_rgb(r2,g2,b2)
+         cr.rectangle(xp - (GLB.pad_x *.5) , yp * -1 + (GLB.pad_y * .5), bx, by * -1)
+         cr.fill()
+         cr.stroke()
+
+      cr.move_to(xp, yp * -1)
+      cr.set_source_rgb(r1,g1,b1)
+      cr.show_text(data_str )
+      GLB.timer = 0
+
+   GLB.timer = GLB.timer+ (10*f2)
+

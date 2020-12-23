@@ -1,0 +1,210 @@
+def Init():
+   # --- author : jamesc
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Size")
+   STR.SetFParam2Name("Speed")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : set color to white
+   # ---    trigger : random params
+
+   GLB.f2 = 0.0
+
+   # --- define screen size
+   GLB.resx = 320
+   GLB.resy = 240
+
+   # --- primary objects
+   GLB.NUM_OBJS = 12
+   GLB.objs = [{} for i in range(GLB.NUM_OBJS)]
+
+   # --- rand x,y position
+   def rnd_xy(x,y):
+      return(np.random.randint(x), np.random.randint(y))
+   GLB.rnd_xy = rnd_xy
+
+   # --- create random pallet
+   def rnd_pallet(): 
+      r1 = np.random.random()
+      g1 = np.random.random()
+      b1 = np.random.random()
+      return (r1, g1, b1)
+   GLB.rnd_pallet = rnd_pallet
+      
+   # --- create a random obj data
+   def rnd_obj(id):
+      size = np.random.randint(low=10, high=50)
+      (x, y) = rnd_xy(GLB.resx-size, GLB.resy-size)
+      (r, g, b) = rnd_pallet()
+
+      xd = np.random.random() * 2. + 1
+      if (np.random.random() < 0.5) : xd = xd * -1
+      yd = np.random.random() * 2. + 1
+      if (np.random.random() < 0.5) : yd = yd * -1
+      GLB.objs[id].update({'x':x, 'y':y, 'xdir':xd, 'ydir':yd, 'size':size, 'r':r, 'g':g, 'b': b } )
+   GLB.rnd_obj = rnd_obj
+
+   # --- movement of x,y
+   def move_obj(id):
+      myx = GLB.objs[id]['x']
+      myy = GLB.objs[id]['y']
+      myxd = GLB.objs[id]['xdir']
+      myyd = GLB.objs[id]['ydir']
+
+      myx = myx + (myxd * GLB.f2)
+      if (myx > GLB.resx) :
+         myxd = myxd * -1
+         myx = GLB.resx
+      elif (myx < 0 ):
+         myxd = myxd * -1
+         myx = 0
+
+      myy = myy + (myyd * GLB.f2)
+      if (myy > GLB.resx) :
+         myyd = myyd * -1
+         myy = GLB.resy
+      elif (myy < 0 ):
+         myyd = myyd * -1
+         myy = 0
+
+      GLB.objs[id]['x']   = myx
+      GLB.objs[id]['y']   = myy
+      GLB.objs[id]['xdir'] = myxd
+      GLB.objs[id]['ydir'] = myyd
+   GLB.move_obj = move_obj
+
+   # --- build list of dictionaries for notes
+   for i in range(GLB.NUM_OBJS):
+      rnd_obj(i) 
+
+   # --- number of characters to group together 
+   GLB.pad_x = 6
+   GLB.pad_y = 6
+
+   # --- speed control
+   GLB.timer_max = 30
+   GLB.timer = 0
+
+   # --- my preference for handling MIDI vs Audio vs Unknown
+   GLB.mode = "auto"
+   GLB.line = "?"
+   if (GLB.slots == 10) :
+      GLB.mode = "audio"
+      GLB.line = "]_[ <^> ..: :.. |+| {{{ }}} \V/ +M+ /\\/ ,;, @@@"
+   if (GLB.slots == 24) :
+      GLB.mode = "midi"
+      GLB.line = "C C# D D# E F F# G G# A A# B"
+
+   # --- space separated values of each note/bad - or override blow
+   # GLB.line = "<> >< [] ][ +=+ :*: ..: :.. _/\_ <^> \//\ -|-"
+   # GLB.line = "pack my box with five dozen liquor jugs the quick brown fox"    # --- 12 words
+   # GLB.line = "*"        # ---- one word, other slots will be filled w/character below
+
+   GLB.words = GLB.line.split()
+   # --- make sure we have enough items
+   while (len(GLB.words) < GLB.NUM_OBJS):
+      GLB.words.append("*")
+
+   # --- use the cairo toy font
+   cr.select_font_face("mono", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,GLB.resx,GLB.resy)
+   cr.fill()
+
+
+def Render(cr):
+   acc = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0()
+   f1 = STR.F1()
+   GLB.f2 = STR.F2()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,f0)
+   cr.rectangle(0,0,GLB.resx,GLB.resy)
+   cr.fill()
+
+   if (trig):
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+   
+   cr.set_source_rgb(1,1,1)
+   cr.scale(1.0, -1.0)
+
+   # --- capture incoming data:
+   if GLB.mode == "midi":
+      for i in range(GLB.slots):
+         (id,note,velo) = STR.GetSlotData(i)
+         if id != 0:
+            nn = note % 12
+            outline = GLB.words[nn]
+
+            cr.set_font_size(GLB.objs[nn]['size'] * f1 * (velo/127) + 20)
+
+            # --- print lien 
+            data_info = cr.text_extents("W" * len(outline) )
+            bx = data_info.width + GLB.pad_x
+            by = data_info.height + GLB.pad_y
+
+            # grid_x = GLB.resx / bx + 1
+            # grid_y = GLB.resy / by + 1
+
+            xp = GLB.objs[nn]['x'] - (bx * .5)
+            yp = GLB.objs[nn]['y'] - (by * .5)
+
+            r1 = GLB.objs[nn]['r']
+            g1 = GLB.objs[nn]['g']
+            b1 = GLB.objs[nn]['b']
+
+            if (acc):
+               r1 = g1 = b1 = 1.0
+
+            cr.move_to(xp, yp * -1)
+            cr.set_source_rgb(r1,g1,b1)
+            cr.show_text(outline)
+
+      for i in range(GLB.NUM_OBJS):
+         GLB.move_obj(i)
+
+   if GLB.mode == "audio":
+      for i in range(GLB.slots):
+         (id,note,velo) = STR.GetSlotData(i)
+
+         # --- copied above code 
+         nn = note
+         outline = GLB.words[nn]
+
+         cr.set_font_size(GLB.objs[nn]['size'] * f1 + (velo * .5)) 
+
+         # --- print line 
+         data_info = cr.text_extents("W" * len(outline) )
+         bx = data_info.width + GLB.pad_x
+         by = data_info.height + GLB.pad_y
+
+         xp = GLB.objs[nn]['x'] - (bx * .5)
+         yp = GLB.objs[nn]['y'] - (by * .5)
+
+         r1 = GLB.objs[nn]['r']
+         g1 = GLB.objs[nn]['g']
+         b1 = GLB.objs[nn]['b']
+
+         if (acc):
+            r1 = g1 = b1 = 1.0
+
+         cr.move_to(xp, yp * -1)
+         cr.set_source_rgb(r1,g1,b1)
+         cr.show_text(outline)
+
+   if (GLB.mode != "default"):
+      # --- move the objects
+      for i in range(GLB.NUM_OBJS):
+         GLB.move_obj(i)
+
+      # --- trigger randoms 
+      if (GLB.xmode):
+         for i in range(GLB.NUM_OBJS):
+            GLB.rnd_obj(i) 
+         GLB.xmode = 0
+

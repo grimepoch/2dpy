@@ -1,0 +1,159 @@
+def Init():
+   # --- author : rickb
+
+   # --- Set parameter names
+   STR.SetFParam0Name("Color")
+   STR.SetFParam1Name("Color Adjist")
+   STR.SetFParam2Name("Width")
+
+   # --- accent : Lift Pen
+   # --- trigger : Keep Drawing
+
+   GLB.xmode = 0
+   GLB.sr1 = cairo.ImageSurface.create_from_png("/home/pi/vid-base/2dpy/sand.png")
+   GLB.pt1 = cairo.SurfacePattern(GLB.sr1)
+   GLB.pt1.set_extend(cairo.EXTEND_REPEAT)
+   matrix = cairo.Matrix(xx=6.0,yy=6.0)
+   GLB.pt1.set_matrix(matrix)
+
+
+   def Reset():
+   
+      # --- Setup global variables for the scene.  GLB is reset every time a shader is loaded
+      #     or reset is called
+      GLB.mode   = 0
+      GLB.count  = 500
+      GLB.shapes = []
+      GLB.c = 0.0
+   
+      GLB.angle_1 = 0.0
+      GLB.angle_2 = 0.0
+      #GLB.arate_1 = 0.01
+      #GLB.arate_2 = 0.073
+      GLB.arate_1 = random.uniform(0.1,0.3) * ( -1 if random.randint(0,1) else 1 )
+      GLB.arate_2 = random.uniform(0.1,0.3) 
+      GLB.radius  = random.uniform(1.0,1.1)
+   
+      GLB.weight1 = random.uniform(0.0,1.)
+      GLB.weight2 = 1.0-GLB.weight1
+   
+      cr.set_source(GLB.pt1)
+      #cr.set_source_rgba(0.,0,0,1)
+      cr.rectangle(0,0,320,240)
+      cr.fill()
+
+      GLB.thickmult = random.uniform(.2,4)
+      GLB.radmultstart = random.uniform(0.7,0.996)
+      GLB.radmultinv = 1./GLB.radmultstart
+      GLB.radmult = GLB.radmultstart
+
+      GLB.scale   = random.uniform(1,1.5)
+      GLB.yrange  = random.randint(80,180)
+      GLB.yrange2 = random.randint(80,180)
+      GLB.xrange  = random.randint(80,180)
+
+      GLB.frame = 0
+   GLB.Reset = Reset
+   GLB.Reset()
+
+   def tmix(a,b,c,m):
+      if(m<=0.5):
+         m = m*2
+         return m*b+(1-m)*a
+      else:
+         m = (m-0.5)*2
+         return m*c+(1-m)*b
+   GLB.tmix = tmix
+   
+   def mix(a,b,m):
+      return m*b+(1-m)*a
+   GLB.mix = mix
+
+
+def Render(cr):
+   # --- grabbing copies of local variables and demonstrating our mix methods as well
+   GLB.f0 = STR.F0mix(0.0,1.0)
+   GLB.f1 = STR.F1mix(0.75,2.0)
+   GLB.f2 = STR.F2mix(0.0,1.0)
+
+   t = STR.FT() + STR.IT()
+
+   # --- trigger can only be checked once, as it resets the internal flag (accent can be called multiple times)
+   trig = STR.CheckTrigger()
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   if GLB.frame > 100 and not GLB.xmode:
+      GLB.Reset()
+   # Want to draw inbetween for faster speeds, we can auto determine by either angle rate
+
+   divs_1 = GLB.arate_1/0.01
+   divs_2 = GLB.arate_2/0.01
+
+   div = 2*int(divs_1 if divs_1>divs_2 else divs_2)
+
+   if div < 1:
+      div = 1
+
+   drate1 = GLB.arate_1/div
+   drate2 = GLB.arate_2/div
+   
+   cr.translate(160,120)
+   cr.scale(GLB.scale,GLB.scale * 1.3333)
+
+   if GLB.radius < 0.5:
+      GLB.radmult = GLB.radmultinv
+   if GLB.radius > 1.1:
+      GLB.radmult = GLB.radmultstart
+   GLB.nextradius  = GLB.radius*GLB.radmult
+
+   for i in range(div):
+
+      radius = GLB.radius + (GLB.nextradius-GLB.radius)*i/(div-1)
+
+
+      #cr.rotate(pi)
+      x =  radius*GLB.xrange*sin(GLB.angle_2)*cos(GLB.angle_1)+0.5*sin(8*GLB.angle_2)
+      y1 = radius*GLB.yrange*sin(GLB.angle_2)*sin(GLB.angle_1)+0.5*sin(8*GLB.angle_1)
+      #y2 = -160+320*GLB.angle_1/(2*pi)
+      y2 = -1*GLB.yrange2+2*GLB.yrange2*sin(GLB.angle_1/2)
+
+      y = (y1*GLB.weight1+y2*GLB.weight2)/2
+
+      pen_thick = GLB.tmix(1, 1+2*(sin(GLB.angle_1*GLB.thickmult)+1),5,GLB.f2)
+
+      if STR.CheckAccent():
+         pen_thick = 0
+
+      a = -0.96
+      cr.set_source_rgba(0.439,0.71+a,0.96+a,0.2)
+      r,g,b = hsv_to_rgb(sin(GLB.c),1,1)
+
+      r = GLB.tmix(0,r,1,GLB.f0)
+      g = GLB.tmix(0,g,1,GLB.f0)
+      b = GLB.tmix(0,b,1,GLB.f0)
+
+      cr.set_operator(cairo.OPERATOR_OVER)
+
+
+      r2 = cairo.RadialGradient(x, y,0, x, y,pen_thick*GLB.f1)
+      r2.add_color_stop_rgba(1,b,g,r,.1)
+      d = 0.5
+      r2.add_color_stop_rgba(0,b*d,g*d,r*d,.2)
+      cr.set_source(r2)
+
+      cr.arc(x,y,pen_thick,0,2*pi)
+
+      cr.fill()
+      GLB.angle_1 = (GLB.angle_1+drate1)%(2*pi)
+      GLB.angle_2 = (GLB.angle_2+drate2)%(2*pi)
+
+
+   # SLOW DOWN EACH RATE BY A SMALL AMOUNT
+   GLB.arate_1 = GLB.arate_1*0.9993
+   GLB.arate_2 = GLB.arate_2*0.9997
+   GLB.radius  = GLB.nextradius
+ 
+   GLB.c = (GLB.c + 0.01)%1.0
+
+   GLB.frame = GLB.frame + 1

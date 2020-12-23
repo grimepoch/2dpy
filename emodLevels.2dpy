@@ -1,0 +1,91 @@
+def Init():
+   # --- author : jamesc
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Height")
+   STR.SetFParam2Name("Width")
+   # ---    accent : toggle top bar color
+   # ---    trigger : full or just top
+
+   # --- if listening to PARAMS::ACTIONS::Extra Mod Type
+   # --- 10 slots = FFT analysis bins
+   # --- 24 slots = MIDI notes
+
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+
+   GLB.mode = "auto"
+   if (GLB.slots == 10) :
+      GLB.mode = "audio"
+   if (GLB.slots == 24) :
+      GLB.mode = "midi"
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+
+def Render(cr):
+   acc = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.03,1.0)
+   f1 = STR.F1()
+   f2 = STR.F2()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,f0) 
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+
+   # --- colors
+   lg3 = cairo.LinearGradient(0.0, 0.0, 0.0, 240.0)
+   lg3.add_color_stop_rgb(0.0, 1.0, 1.0, 1.0)    # --- white
+   lg3.add_color_stop_rgb(0.3, 0.3, 1.0, 1.0)    # --- yellow
+   lg3.add_color_stop_rgb(0.6, 0.2, 0.6, 1.0)    # --- orange
+   lg3.add_color_stop_rgb(1.0, 0.0, 0.0, 1.0)
+
+
+   maxH = 300 * f1
+   
+   # --- capture incoming data:
+   if GLB.mode == "midi":
+      w = int(280/12) * f2
+      for i in range(GLB.slots):
+         (id,note,velo) = STR.GetSlotData(i)
+         if id != 0:
+            cr.set_source(lg3)
+            cr.rectangle( w * int(note % 12)  + 20, 10, w-2, 10 + (velo/127*maxH) )
+            cr.fill()
+
+
+   if GLB.mode == "audio":
+      w = int(280/GLB.slots) * f2
+      startw = (320 - (w * GLB.slots)) * .5
+
+      for i in range(GLB.slots):
+         (id,note,velo) = STR.GetSlotData(i)
+
+         # --- segments
+         numSeg = 20 
+         segH = int(maxH / numSeg)
+   
+         drawSeg = int(velo/127 * numSeg)
+  
+         if (GLB.xmode):      # --- just the tops
+            j = drawSeg -1
+            cr.set_source_rgb(0.0, 0.0, 1.0)
+            cr.rectangle( w * i + startw, 10 + segH * j, w-2, segH - 2)
+            cr.fill()
+         else :
+            for j in range(drawSeg):
+               cr.set_source(lg3)
+               if ( (j == (drawSeg -1)) and acc ) :   # --- final pass
+                  cr.set_source_rgb(0.0, 0.0, 1.0)
+               cr.rectangle( w * i + startw, 10 + segH * j, w-2, segH - 2)
+               cr.fill()
+

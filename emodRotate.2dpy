@@ -1,0 +1,93 @@
+def Init():
+   # --- author : rickb
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Color")
+   STR.SetFParam2Name("Width")
+   # --- accent : Add Rand
+   # --- trigger : Rotate
+
+   GLB.xmode = 0
+   GLB.slots = STR.GetMaxSlots()
+
+   # mode is used to just return the calculated values so we can run again sorted
+   def drawBar(n,v,s,mode,data):
+      if mode:
+         phase = GLB.ftime*2*pi
+         delta = 2*pi/s;
+         x = 160 + GLB.f2*80*cos(phase+delta*n)
+      
+         a = sin(phase+delta*n)
+         y = 120 + 20*a
+
+         h = v/127 * 80
+         w = 5 + 2*a
+
+         if GLB.xmode:
+            tmp=x*3/4
+            x=y*4/3
+            y=tmp
+
+         return([x,y,a,w,h,n,v,s])
+      else:
+         (x,y,a,w,h,n,v,s) = data
+
+         r,g,b = hsv_to_rgb(GLB.f1+.25+v/(2.*127),1,1)
+
+         if STR.CheckAccent():
+            r1 = random.randint(0,30)-15
+            r2 = random.randint(0,30)-15
+         else:
+            r1 = 0
+            r2 = 0
+
+         cr.set_source_rgba(b,g,r,2.2-(a+1))
+         cr.move_to(r1+x-w,r2+y-h/2+5)
+         cr.line_to(r1+x-w,r2+y+h/2+5)
+         cr.line_to(r1+x+w,r2+y+h/2-5)
+         cr.line_to(r1+x+w,r2+y-h/2-5)
+         cr.close_path()
+         cr.fill()
+
+
+   GLB.drawBar = drawBar
+
+
+def Render(cr):
+   # ---- clear screen
+   GLB.f0 = STR.F0mix(0,1)
+   GLB.f1 = STR.F1mix(0,0.75)
+   GLB.f2 = STR.F2mix(0.25,1.5)
+
+   GLB.ftime = STR.FT()
+   
+
+   trig = STR.CheckTrigger()
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+   acc = STR.CheckAccent()
+
+   # - blank the screen
+   cr.set_source_rgba(0,0,0,GLB.f0)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   notes = []
+
+   slots = GLB.slots
+   if slots == 24:
+      slots=12
+
+   for i in range(GLB.slots):
+      (ids,note,velo) = STR.GetSlotData(i)
+      if GLB.slots == 24:
+         note = note%12
+      if ids!=0:
+         notes.append(GLB.drawBar(note,velo,slots,True,None))
+
+   for d in notes:
+      if(d[1]>=120):
+         GLB.drawBar(0,0,0,False,d)
+   for d in notes:
+      if(d[1]<120):
+         GLB.drawBar(0,0,0,False,d)
+

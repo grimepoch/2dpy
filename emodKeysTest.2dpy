@@ -1,0 +1,109 @@
+def Init():
+   # --- author : jamesc
+
+   STR.SetFParam0Name("Scale")
+   STR.SetFParam1Name("")
+   STR.SetFParam2Name("")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : 
+   # ---    trigger : 
+
+   # --- if listening to PARAMS::ACTIONS::Extra Mod Type
+   # ---  9 slots = FFT analysis bins
+   # --- 24 slots = MIDI notes
+   GLB.slots = STR.GetMaxSlots()
+
+   # --- basic kep proportions
+   GLB.keyw = 10
+   GLB.keyh = 55
+
+   GLB.scale = 4
+   
+   # --             C # D # E F # G # A # B
+   GLB.key_type  = [1,0,2,0,3,1,0,2,0,2,0,3]
+   GLB.wh_offset = [0,0,1,0,2,3,0,4,0,5,0,6]
+   GLB.bl_offset = [0,0,0,1,0,0,3,0,4,0,5,0]
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+
+   def draw_note(xpos, ypos, note_num, pal, scale):
+      # --- convert all notes in to 12 slots(keys)
+      note = note_num % 12 
+
+      if (GLB.key_type[note] == 0) :
+         # --- black key
+         if (pal == 0):
+            cr.set_source_rgb(0,0,0)
+         else :
+            r,g,b = hsv_to_rgb(note_num/128,1,1)
+            cr.set_source_rgb(b,g,r)
+
+         blkh = GLB.keyh * .5 * scale
+         cr.rectangle( xpos + GLB.keyw * GLB.bl_offset[note] * scale  + ((GLB.keyw - 3) *scale), ypos + blkh, 6 *scale, blkh  ) 
+         cr.fill() 
+      else :
+         # --- white key
+         if (pal == 0):
+            cr.set_source_rgb(1,1,1)
+         else :
+            r,g,b = hsv_to_rgb(note_num/128,1,1)
+            cr.set_source_rgb(b,g,r)
+
+         cr.rectangle(xpos + (GLB.wh_offset[note] * GLB.keyw * scale), ypos, (GLB.keyw * scale) - (1 * scale) , GLB.keyh * .5 * scale)
+         cr.fill() 
+      
+         # --- top half of the note - room for the black keys
+         x_orig = xpos + (GLB.wh_offset[note] * GLB.keyw * scale)
+         x_width = 0
+
+         if (GLB.key_type[note] == 1) :   # --- C,F
+            x_width = 7       
+         if (GLB.key_type[note] == 2) :   # --- D,G,A
+            x_width = 4
+            x_orig = x_orig + (3 * scale)
+         if (GLB.key_type[note] == 3) :   # --- E,B
+            x_width = 6       
+            x_orig = x_orig + (3 * scale)
+
+         x_width = x_width * scale
+
+         cr.rectangle(x_orig, ypos + (GLB.keyh *.5 * scale) - (1 * scale), x_width, GLB.keyh * .5 * scale)
+         cr.fill() 
+   GLB.draw_note = draw_note      
+
+
+   def draw_keybed(xpos, ypos, scale):
+      for i in range(12):
+         draw_note(xpos, ypos, i, 0, scale)
+   GLB.draw_keybed = draw_keybed 
+
+     
+
+def Render(cr):
+   f0 = STR.F0()
+   f1 = STR.F1()
+   f2 = STR.F2()
+
+   # ---- clear screen
+   cr.set_source_rgba(0,0,0,1) 
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   my_scale = GLB.scale * f0
+   xpos = 160 - (GLB.keyw * .5 * my_scale * 7 )   # --- draw 7 white keys
+   ypos = 120 - (GLB.keyh * .5 * my_scale )
+
+   GLB.draw_keybed(xpos,ypos,my_scale)
+
+   # --- capture incoming data:
+   for i in range(GLB.slots):
+      (id,note,velo) = STR.GetSlotData(i)
+
+      if id != 0:
+         GLB.draw_note(xpos, ypos, note, 1, my_scale)
+

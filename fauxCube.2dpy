@@ -1,0 +1,96 @@
+def Init():
+   # --- author : jamesc
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Thickness")
+   STR.SetFParam2Name("Speed")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : no bounce
+   # ---    trigger : toggle color
+
+
+   # --- connect 8 moving points in predetermined order to create a cube
+   # --- doesn't work, so that's why they use triangles instead! keeping b/c i like it
+
+   num_pts =8
+   GLB.objs = [{} for i in range(num_pts)]
+
+   for i in range(num_pts):
+      GLB.objs[i].update({'xpos' : np.random.randint(low=0, high=320), 'ypos' : np.random.randint(low=0, high=240), 'xdir' :np.random.random() * 8.0 - 4.0 , 'ydir' : np.random.random() * 8.0 - 4.0, 'size' : np.random.randint(low=4, high=32), 'r' : np.random.random(), 'g' : np.random.random(), 'b' : np.random.random()  }) 
+
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+     
+   def update(objs, f1, f2, a, xmode): 
+      cr.set_line_width(f1 * 8.0 + 2.)
+      cr.set_line_cap(cairo.LINE_CAP_ROUND)
+
+      pt_from = [0, 1, 2, 3, 0, 7, 4, 5, 6, 2]  #, 3, 2, 1]
+      pt_to   = [1, 2, 3, 0, 7, 4, 5, 6, 7, 5]  #, 4, 5, 6]
+
+      for i in range(len(pt_from)):
+         if (xmode):
+            cr.set_source_rgb(objs[pt_from[i]]['b'], objs[pt_from[i]]['g'], objs[pt_from[i]]['r'])
+         else :
+            cr.set_source_rgb(1, 1, 1)
+   
+         cr.move_to(objs[pt_from[i]]['xpos'] , objs[pt_from[i]]['ypos'])
+         cr.line_to(objs[pt_to[i]]['xpos'] , objs[pt_to[i]]['ypos'] )
+         cr.stroke()
+
+      # --- movement
+      for i in range(8):
+         # --- if accent is ON - wrap around instead of bounce
+         objs[i]['xpos'] = objs[i]['xpos'] + objs[i]['xdir'] * f2
+         if (objs[i]['xpos'] > 320) :
+            if (a) :
+               objs[i]['xpos'] = 0
+            else :
+               objs[i]['xpos'] = 320
+               objs[i]['xdir'] =  objs[i]['xdir'] * -1
+
+         elif (objs[i]['xpos'] < 0) :
+            if (a) :
+               objs[i]['xpos'] = 320
+            else :
+               objs[i]['xpos'] = 0
+               objs[i]['xdir'] =  objs[i]['xdir'] * -1
+            
+         objs[i]['ypos'] =  objs[i]['ypos'] + objs[i]['ydir'] * f2
+         if (objs[i]['ypos'] > 240) :
+            if (a) :
+               objs[i]['ypos'] = 0
+            else :
+               objs[i]['ypos'] =  240
+               objs[i]['ydir'] = objs[i]['ydir'] * -1
+         elif (objs[i]['ypos'] < 0) :
+            if (a) :
+               objs[i]['ypos'] = 240
+            else :
+               objs[i]['ypos'] = 0
+               objs[i]['ydir'] =  objs[i]['ydir'] * -1
+         
+   GLB.update = update
+
+def Render(cr):
+   acc = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0()
+   f1 = STR.F1()
+   f2 = STR.F2()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,f0) 
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   GLB.update(GLB.objs, f1, f2, acc, GLB.xmode)
+

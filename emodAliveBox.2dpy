@@ -1,0 +1,94 @@
+def Init():
+   # --- author : rickb
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Saturation")
+   STR.SetFParam2Name("Range")
+   # --- accent : XOR Off
+   # --- trigger : Line Mode 
+
+   GLB.xmode = 0
+   GLB.slots = STR.GetMaxSlots()
+
+def Render(cr):
+   # ---- clear screen
+   GLB.f0 = STR.F0mix(0,1)
+   GLB.f1 = STR.F1mix(0,1)
+   GLB.f2 = STR.F2mix(100,400)
+
+   GLB.time = STR.FT() + float(STR.IT())
+   
+
+   trig = STR.CheckTrigger()
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+   GLB.acc = STR.CheckAccent()
+
+   # - blank the screen
+   cr.set_source_rgba(0,0,0,GLB.f0)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   notes = []
+
+   slots = GLB.slots
+   if slots == 24:
+      tslots=24
+      slots=12
+      step=4
+   else:
+      tslots=9
+      slots=9
+      step=3
+
+
+   hbuff = 60
+   vbuff = 40
+
+   cr.set_line_width(10)
+
+   if not GLB.acc:
+      cr.set_operator(cairo.OPERATOR_XOR)
+
+   f = 0
+   for i in range(tslots):
+      (ids,note,velo) = STR.GetSlotData(i)
+      if ids != 0:
+         cr.save()
+         note = note%12
+         r = int(note/step)
+         c = note%step
+         v = velo/127.
+
+
+         wall = note%2
+
+         w1 = (note/11.)*GLB.f2*v+20*sin(v*GLB.time*5)
+         w2 = ((11-note)/11.)*GLB.f2*v+20*sin(v*GLB.time*5)
+
+         r,g,b = hsv_to_rgb(v+note/11.,GLB.f1,1)
+         cr.set_source_rgba(b,g,r,1)
+         if wall == 0:
+            #LEFT
+            cr.move_to(0,0)
+            cr.line_to(0,240)
+            cr.line_to(w1,240)
+            cr.line_to(w2,0)
+            cr.close_path()
+         elif wall == 1:
+            #RIGHT
+            cr.move_to(320,0)
+            cr.line_to(320,240)
+            cr.line_to(320-w1,240)
+            cr.line_to(320-w2,0)
+            cr.close_path()
+
+
+         if GLB.xmode:
+            cr.stroke()
+         else:
+            cr.fill()
+
+
+         cr.restore()  
+  
+

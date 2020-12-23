@@ -1,0 +1,84 @@
+def Init():
+   # --- author : rickb
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Bar Thickness")
+   STR.SetFParam2Name("White Opacity")
+   # --- accent : Full Rings
+   # --- trigger : Auto Rotate
+
+   GLB.xmode = 0
+   GLB.slots = STR.GetMaxSlots()
+
+   # mode is used to just return the calculated values so we can run again sorted
+   GLB.rot = 0
+
+def Render(cr):
+   # ---- clear screen
+   GLB.f0 = STR.F0mix(0,1)
+   GLB.f1 = int(STR.F1mix(1,30))
+   GLB.f2 = STR.F2mix(0,.50)
+
+   GLB.time = STR.FT() + float(STR.IT())
+   
+
+   trig = STR.CheckTrigger()
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+   GLB.acc = STR.CheckAccent()
+
+   # - blank the screen
+   cr.set_source_rgba(0,0,0,GLB.f0)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   notes = []
+
+   slots = GLB.slots
+   tslots = slots
+   if slots == 24:
+      tslots=24
+      slots=12
+
+
+   hbuff = 60
+   vbuff = 40
+
+   cr.save()
+   if GLB.xmode:
+      GLB.rot = GLB.rot + .025
+   cr.translate(160,120)
+   cr.rotate(GLB.rot)
+   cr.translate(-160,-120)
+
+   for i in range(tslots):
+      (ids,note,velo) = STR.GetSlotData(i)
+      if ids != 0:
+         note = note%12
+         v = velo/127.
+         a = 2*pi*note/(slots-1)
+         
+         cr.set_line_width(1)
+         cr.set_source_rgba(1,1,1,GLB.f2)
+         cr.move_to(160,120)
+         cr.arc(160,120,110,a,a+2*pi/(slots-1))
+         cr.close_path()
+         cr.stroke()
+         
+         if slots == 12:
+            d = 50+40*sin(5*v*GLB.time*2*pi)
+         else:
+            d = 10+80*v
+
+         cr.set_line_width(GLB.f1)
+         r,g,b = hsv_to_rgb(v+note/11.,1,1)
+         cr.set_source_rgba(b,g,r,1)
+         if GLB.acc:
+            cr.arc(160,120,d,a,a+2*pi)
+         else:
+            cr.arc(160,120,d,a,a+2*pi/(slots-1))
+         cr.stroke()
+
+
+   cr.restore()  
+  
+

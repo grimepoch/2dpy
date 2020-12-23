@@ -1,0 +1,153 @@
+def Init():
+   # --- author : jamesc
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Thickness")
+   STR.SetFParam2Name("Speed")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : flip order
+   # ---    trigger : 
+
+   GLB.f1 = 1.0
+
+   global NUM_OBJS
+   NUM_OBJS = 8
+   GLB.objs = []
+
+   def add_obj(objs):
+      objs.append({})
+
+      bigR        = np.random.randint(4,10)    # --- how far out the shapes are drawn
+      bigPoints   = np.random.randint(4, 10)   # --- number of polygons around center
+      smR         = np.random.randint(5, 20)   # --- radius of polygon
+      smSides     = np.random.randint(3,6)     # --- number of sides 
+      smThick     = np.random.randint(2,5)     # --- thickness of the line
+      grow        = np.random.randint(2,6)     # --- how fast does it approaches the screen ( bigR+smR+ 10 > 160)
+      degOff      = 360.0 / (bigPoints * 2)  * np.random.randint(bigPoints *2) 
+
+      r = np.random.random()
+      g = np.random.random()
+      b = np.random.random()
+      objs[-1].update( {'x':160, 'y':120, 'br':bigR, 'bp':bigPoints, 'sr':smR, 'ss':smSides, 'st':smThick,'r':r, 'g':g, 'b':b, 'grow':grow, 'degOff':degOff} )
+
+   GLB.add_obj = add_obj
+
+   for i in range(NUM_OBJS) :
+      add_obj(GLB.objs)
+
+   GLB.bp = 8
+   GLB.sp = 3
+   GLB.sthick = 2
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   def drawShapes(xCenter, yCenter, bigR, bigPoints, smR, smSides, smThick, r,g,b, degOff, ac) :
+      # x/y Center   - center of screen (320x240 for 640x480, etc…)
+      # bigR      - how far from the center to draw the polygons
+      # bigPoints - how many polygons to draw
+      # smR    - "radius" of polygon
+      # smSides   - number of sides on polygon
+      # smThick      - thickness of the pen
+      # ac - accent active ?
+
+      smDegrees = 0
+
+      if bigPoints > 0 :
+         for points in range(0, bigPoints ) :
+            if (GLB.xmode): 
+               myDegrees = 360.0 * points / bigPoints  + degOff
+            else :
+               myDegrees = 360.0 * points / bigPoints 
+
+            myRadians = radians(myDegrees)     
+
+            xSmall = xCenter + cos(myRadians) * bigR     # ---  find 'x' of center point for smShape
+            ySmall = yCenter  + sin(myRadians)  * bigR   # ---  find 'y' of center point for smShape
+
+            # --- this code creates an evolution of the polygon in many stages
+            myOffset = 0
+
+            if myDegrees < 180 :
+               myOffset = myDegrees + 180
+            else :
+               myOffset = myDegrees - 180
+
+            for ss in range (0, smSides ) :           # --- now draw the smaller shape
+               smDegrees = 360.0 * ss/smSides         # ---# yeah.. need a float value there
+
+               if (ac):
+                  # --- if you change the above lines to += and -=  it will change the order of the lines being drawn, sort of creates stars/spirographs...
+                  if myDegrees < 180 :
+                     smDegrees += 180
+                  else :
+                     smDegrees -= 180
+
+               smRadians = radians(smDegrees+myOffset)
+               xStart = xSmall + cos(smRadians) * smR
+               yStart = ySmall + sin(smRadians) * smR
+
+               if (ss + 1) == smSides :
+                  myNextPoint = 0
+               else :
+                  myNextPoint = ss + 1
+
+               # --- note to self - the diversity in the potential output is based on how the next angle (and subsequent x,y) is calculated
+               smDegreesNext  = (360.0 * myNextPoint  / smSides ) + myOffset 
+               smRadiansNext  = radians(smDegreesNext)
+               xEnd = xSmall + cos(smRadiansNext) * smR
+               yEnd = ySmall + sin(smRadiansNext) * smR
+
+               # --- ...and draw!
+               cr.set_source_rgb(r, g, b)
+               cr.set_line_cap(cairo.LINE_CAP_ROUND)
+               cr.set_line_width(smThick * GLB.f1)
+               cr.move_to(xStart, yStart)
+               cr.line_to(xEnd, yEnd)
+               cr.stroke()
+   GLB.drawShapes = drawShapes
+
+
+def Render(cr):
+
+   acc = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(1., .00001)
+   f1 = STR.F1mix( 0.5, 1.5)
+   f2 = STR.F2()
+
+   ftime = STR.FT()
+   itime = STR.IT() 
+
+   fade = 1. - ( .5 * log(f0) + 1  )
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,fade)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   GLB.f1 = f1
+
+   objs = GLB.objs
+   rm_objs = []
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+
+   for i in range(NUM_OBJS):
+      GLB.drawShapes(objs[i]['x'], objs[i]['y'], objs[i]['br'], objs[i]['bp'], objs[i]['sr'], objs[i]['ss'], objs[i]['st'], objs[i]['r'], objs[i]['g'], objs[i]['b'], objs[i]['degOff'], acc)
+      
+      # --- movement
+      objs[i]['br'] = objs[i]['br'] + objs[i]['grow'] * f2
+      if ( (objs[i]['br'] + objs[i]['sr']) > 180 ) :
+         rm_objs.append(i)
+
+   # --- add/remove objs
+   for i in range(len(rm_objs)):
+      del objs[rm_objs[i]]
+      GLB.add_obj(objs)
+      

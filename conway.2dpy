@@ -1,0 +1,120 @@
+def Init():
+   # --- author : rickb
+
+   # --- Set parameter names
+   STR.SetFParam0Name("Decay")
+   STR.SetFParam1Name("Dot Size")
+   STR.SetFParam2Name("Rand H/V")
+
+   # --- accent: Outline
+   # --- trigger: Grow Size
+   
+   
+   GLB.xmode = 0
+
+   GLB.N = 20
+   GLB.M = 15
+   GLB.FRAME = 0
+   GLB.grid = np.array([])
+   GLB.lastGrid = np.zeros(shape=(GLB.N,GLB.M))
+
+   # Put gosper/glider stuff here
+
+   def addGlider(i, j, grid): 
+      glider = np.array([[0,    0, 255],  
+                         [255,  0, 255],  
+                         [0,  255, 255]]) 
+      grid[i:i+3, j:j+3] = glider 
+
+   GLB.addGlider = addGlider
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   def randomGrid(N,M):
+      return np.random.choice([1,0], N*M, p=[0.2, 0.8]).reshape(N,M)
+
+   GLB.randomGrid = randomGrid
+
+     
+   def update(grid,N,M): 
+      GLB.FRAME = GLB.FRAME + 1
+      # copy grid since we require 8 neighbors  
+      # for calculation and we go line by line  
+      newGrid = grid.copy() 
+      for i in range(N): 
+         for j in range(M): 
+  
+            # compute 8-neghbor sum 
+            # using toroidal boundary conditions - x and y wrap around  
+            # so that the simulaton takes place on a toroidal surface. 
+            total = int(grid[i, (j-1)%M] + grid[i, (j+1)%M] + 
+                         grid[(i-1)%N, j] + grid[(i+1)%N, j] + 
+                         grid[(i-1)%N, (j-1)%M] + grid[(i-1)%N, (j+1)%M] + 
+                         grid[(i+1)%N, (j-1)%M] + grid[(i+1)%N, (j+1)%M]) 
+            
+
+            # apply Conway's rules 
+            if grid[i, j]  == 1: 
+                if (total < 2) or (total > 3): 
+                    newGrid[i, j] = 0 
+            else: 
+                if total == 3: 
+                    newGrid[i, j] = 1 
+            x = i*16
+            y = j*16
+
+            if GLB.f2 < 0:
+               x = x + random.randint(0,int(abs(GLB.f2)))
+            else:
+               y = y + random.randint(0,int(abs(GLB.f2)))
+
+
+            if newGrid[i,j] == 1:
+               cr.set_source_rgb(1,1,1)
+               if GLB.xmode:
+                  cr.rectangle(x-18,y-18,36,36)
+               else:
+                  w = GLB.f1*12
+                  cr.rectangle(x-w/2,y-w/2,6+w,6+w)
+      if STR.CheckAccent():
+         cr.stroke()
+      else:
+         cr.fill()
+      # update data
+
+      compa = grid == newGrid
+      compb = GLB.lastGrid == newGrid
+      
+      if compa.all() or compb.all() or GLB.FRAME==600:
+         GLB.FRAME=0
+         GLB.grid = GLB.randomGrid(GLB.N,GLB.M)
+
+      else:
+         if GLB.FRAME==300:
+            GLB.addGlider(0,0,GLB.grid)
+
+         GLB.lastGrid = grid.copy()
+         grid[:] = newGrid[:] 
+         
+   GLB.update = update
+
+   GLB.grid = GLB.randomGrid(GLB.N,GLB.M)
+
+
+def Render(cr):
+
+   trig = STR.CheckTrigger()
+   GLB.f0 = STR.F0()
+   GLB.f1 = STR.F1()
+   GLB.f2 = STR.F2mix(-4,4)
+   cr.set_source_rgba(0,0,0,GLB.f0)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+   
+   cr.set_source_rgb(1,1,1)
+   GLB.update(GLB.grid,GLB.N,GLB.M)

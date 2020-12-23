@@ -1,0 +1,109 @@
+# --- STR is the STRUCTURE object you talk with
+# STR.SetFParam0Name( 15 character max string ) : Sets the name shown in the parameters of STRUCTURE
+# STR.SetFParam1Name( 15 character max string ) : Sets the name shown in the parameters of STRUCTURE
+# STR.SetFParam2Name( 15 character max string ) : Sets the name shown in the parameters of STRUCTURE
+
+# STR.F0()                                      : Get the modulator value assigned to the parameter
+# STR.F1()                                      : Get the modulator value assigned to the parameter
+# STR.F2()                                      : Get the modulator value assigned to the parameter
+# STR.F0mix( val1 , val2 )                      : Interpolates a value between val1 and val2 relative to the float value of the parameter
+# STR.F1mix( val1 , val2 )                      : Interpolates a value between val1 and val2 relative to the float value of the parameter
+# STR.F2mix( val1 , val2 )                      : Interpolates a value between val1 and val2 relative to the float value of the parameter
+
+# STR.FT()                                      : Get float fractional time value
+# STR.IT()                                      : Get integer counter time value
+
+# STR.CheckAccent()                             : Returns the level of the accent
+# STR.CheckTrigger()                            : Checks to see if a trigger has happened, clears value so call once only in Render
+
+# STR.GetMaxSlots()                             : Used for modulation mode programs, tells you how many slots have data
+# STR.GetSlotData( slot number)                 : Returns all the data for the slot [ id, note, velocity ]
+
+def Init():
+   # --- author : rickb
+   # --- Set parameter names
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Color Adjist")
+   STR.SetFParam2Name("Width")
+   # --- accent : Widen 
+   # --- trigger : Flash
+   
+   # --- Setup global variables for the scene.  GLB is reset every time a shader is loaded
+   #     or reset is called
+   GLB.a = 0
+   GLB.anim = 0
+
+   # --- Functions can be defined in Init, which after we assign to global.  We do this so when a new 
+   #     program is loaded, the old functions are cleaned out to save memory space 
+
+   def drawLightning(x1,y1,x2,y2,displace,detailLevel,branchProbability):
+      if displace < detailLevel:
+         #white
+         if STR.CheckAccent():
+            cr.set_line_cap(cairo.LINE_CAP_ROUND); 
+            cr.set_line_width(7)
+         else:
+            cr.set_line_cap(cairo.LINE_CAP_BUTT); 
+            cr.set_line_width(2)
+
+         cr.move_to(x1,y1)
+         cr.line_to(x2,y2)
+      else:
+         mid_x = (x2+x1)/2
+         mid_y = (y2+y1)/2
+         mid_x += (random.random()-.5)*displace
+         mid_y += (random.random()-.5)*displace
+         drawLightning(x1,y1,mid_x,mid_y,displace/2,detailLevel,branchProbability)
+         drawLightning(mid_x,mid_y,x2,y2,displace/2,detailLevel,branchProbability)
+   
+      #lets maybe do some branching if Probability is > 0 (assuming lightning going down)
+      if branchProbability > 0 and (random.randint(0,100) < branchProbability):
+         xrand = x1+50-random.randint(0,100)
+         #yrand = y1+50+rand()%20;
+         yrand = 319
+         #original displace value hard coded to 100 for height of 320, so let's calculate height and use fractional
+         d = ((yrand-y1)*100)/320;
+         drawLightning(x1,y1,xrand,yrand,10,detailLevel,branchProbability*0.25)
+
+   # --- Assigning of the function to global, you then call with GLB.drawLightening(args)
+   GLB.drawLightning = drawLightning
+
+
+
+def Render(cr):
+   # --- grabbing copies of local variables and demonstrating our mix methods as well
+   f0 = STR.F0()
+   f1 = STR.F1()
+   f2 = STR.F2mix(0.0,1.0)
+
+   # --- trigger can only be checked once, as it resets the internal flag (accent can be called multiple times)
+   trig = STR.CheckTrigger()
+
+   if trig:
+      GLB.anim = 10;
+
+   if GLB.anim:
+      cr.set_operator(cairo.OPERATOR_XOR)
+      GLB.anim = GLB.anim-1
+      cr.set_source_rgba(0,1,1,1)
+   else:
+      cr.set_operator(cairo.OPERATOR_OVER)
+      cr.set_source_rgba(0,0,0,1.0-f0)
+   
+
+   # ---- clear screen (color set above relative to trigger)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   # ---- drawing routines
+   cr.set_source_rgb(random.random()+GLB.a,random.random()+f1,random.random()+f2)
+
+   x = (40+(120*(1.0-f2)))+random.randint(0,int(220*f2))
+
+   GLB.drawLightning(160,240,x,0,100,2,0)
+   cr.stroke()
+
+   # --- Management of global variables
+   GLB.a=GLB.a+0.1
+   if GLB.a>1.0:
+      GLB.a=0

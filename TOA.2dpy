@@ -1,0 +1,146 @@
+def Init():
+   # --- author : jamesc
+
+   STR.SetFParam0Name("Wobble")
+   STR.SetFParam1Name("")
+   STR.SetFParam2Name("Color Speed")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : random colors
+   # ---    trigger : toggle hue/gray
+
+   GLB.NUM_OBJS = 10 
+   GLB.objs = [{} for i in range(GLB.NUM_OBJS)]
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   GLB.phase = 0
+   GLB.gray = 0
+   GLB.graydir = 0.05 
+
+   GLB.f0 = 0.5
+   GLB.f2 = 1.0
+   GLB.acc = 0
+
+
+   # ---  b/c floats sort of float accuracy
+   def fequal(a,b):
+      tolerance = 0.005
+      if ( abs(a-b) < tolerance):
+         return 1
+      return 0
+
+   GLB.fequal = fequal
+
+
+   def chg_gray():
+      GLB.gray = GLB.gray + GLB.graydir * GLB.f2
+
+      if (GLB.gray > 1.) :
+         GLB.gray = .95
+         GLB.graydir = GLB.graydir * -1
+      if (GLB.gray < 0.05) :    
+         GLB.gray = abs(GLB.gray)
+         GLB.graydir = GLB.graydir * -1
+
+      return GLB.gray
+
+  
+   def add_obj(objs):
+      objs.append({})
+      gray = chg_gray()
+      objs[-1].update( {'x' : 30 * sin(GLB.phase), 'y' : 20 * cos(GLB.phase), 'w' : 320,  'h' : 240 , 'd' : 110 , 'r' : gray , 'g' : gray, 'b' : gray }  ) 
+      GLB.phase = GLB.phase + GLB.f0
+
+   GLB.add_obj = add_obj
+
+
+   def genAllObjs(objs):
+      for i in range(GLB.NUM_OBJS):
+         gray = chg_gray()
+         objs[i].update( {'x' : 30 * sin(GLB.phase), 'y' : 20 * cos(GLB.phase), 'w' : 320,  'h' : 240 , 'd' : i * 10 , 'r' : gray , 'g' : gray,  'b' : gray}  ) 
+         GLB.phase = GLB.phase +  GLB.f0
+
+   GLB.genAllObjs = genAllObjs
+   genAllObjs(GLB.objs)
+   
+
+   def draw_rect(ob):
+      cr.save()
+
+      if (GLB.xmode) :
+         cr.set_source_rgb(ob['b'], ob['g'], ob['r'])
+      else : 
+         r,g,b = hsv_to_rgb(ob['r'],1,1)
+         cr.set_source_rgb(b, g, r)
+
+      if (GLB.acc):
+         cr.set_source_rgb(np.random.random(), np.random.random(), np.random.random() )
+
+
+      scale = pow(1 - (ob['d'] / 410), 4)
+      if (scale <= 0):
+         cr.restore()
+         return
+      
+      cr.scale(scale,scale)
+
+      w = ob['w']
+      w *= .5 
+      x = ob['x'] - w
+
+      h = ob['h']
+      h *= .5 
+      y = ob['y']  - h 
+
+      cr.rectangle(x, y, w*2, h*2)
+      cr.fill()
+      cr.restore()
+
+   GLB.draw_rect = draw_rect
+
+
+def Render(cr):
+   acc = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0()
+   f1 = STR.F1()
+   f2 = STR.F2mix(0.25, 1.0)
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   cr.translate(160,120)
+
+   if (trig):
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   objs = GLB.objs
+
+   # --- track if we need to add or rm objects
+   remobj = 0
+   addobj = 0
+   
+   GLB.f0 = f0
+   GLB.f2 = f2
+   GLB.acc = acc
+
+   for i in objs:
+      GLB.draw_rect(i)
+      i['d'] = i['d'] - 2.0
+
+      if (i['d'] == 0):
+         addobj = 1
+      if (i['d'] < -50):
+         remobj = 1
+
+   if (addobj):
+      GLB.add_obj(objs)
+   if (remobj) :
+      objs.pop(0)
+
+   

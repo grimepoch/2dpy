@@ -1,0 +1,94 @@
+def Init():
+   # --- author : jamesc
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Orbit")
+   STR.SetFParam2Name("Speed+Direction")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : randomize
+   # ---    trigger : toggle outline
+
+   GLB.bp = 8
+   GLB.rotate = 0
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   def drawShapes(xCenter, yCenter, bigR, bigPoints, rotate,  r,g,b, ac, time) :
+      # --- x/y Center- center of screen (320x240 for 640x480, etc…)
+      # --- bigR      - how far from the center to draw the polygons
+      # --- bigPoints - how man circles to draw around the big circle 
+      # --- rotate    - how quickly the circles move
+      # --- ac - accent active ?
+
+      # ---  can be an incomming parameter, i choose to hardcode for this one
+      bigPoints = GLB.bp
+      indexOffset = 0
+
+      if bigPoints > 0 :
+         for points in range(0, bigPoints ) :
+            myDegrees = 360.0 * points / bigPoints + rotate 
+            myRadians = radians(myDegrees)     
+
+            xSmall = xCenter + cos(myRadians) * bigR     # ---  find 'x' of center point for smShape
+            ySmall = yCenter  + sin(myRadians)  * bigR   # ---  find 'y' of center point for smShape
+
+            # --- this code creates an evolution of the polygon in many stages
+            myOffset = 0
+
+            # --- draw sphere
+            myr = ( sin(time + points)   )
+            r,g,b = hsv_to_rgb( myr , 1., .8 )  
+
+            cr.set_source_rgb(b, g, r)
+            size = ( sin(time) * 50   ) + 5 
+
+            ymod = cos(time + (points/bigPoints * 2 * pi)  )  * 10
+            depth = ySmall / 100
+            cr.arc(xSmall,120 + (ymod * 4),  abs(size +ymod) * depth, 0, 6.28318530)
+            cr.fill()
+            
+            if (GLB.xmode) :
+               cr.set_line_width(3)
+               cr.set_source_rgb(0,0,0)
+               cr.arc(xSmall,120 + (ymod * 4),  abs(size +ymod) * depth, 0, 6.28318530)
+               cr.stroke()
+   GLB.drawShapes = drawShapes
+
+
+def Render(cr):
+   acc = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(1., .00001)
+   f1 = STR.F1()
+   f2 = STR.F2()
+
+   ftime = STR.FT()
+   itime = STR.IT() 
+   time = (itime *1.0)  + ftime
+
+   fade = 1. - ( .5 * log(f0) + 1  )
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,fade) 
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   if (acc):
+      GLB.bp = random.randint(3, 12)
+
+   if (f2 < 0.48):
+      GLB.rotate = GLB.rotate  -  (4. * (1. -f2 )  )
+   elif (f2 > 0.52):
+      GLB.rotate = GLB.rotate  +  (4. * f2 )
+       
+   myr = ( sin(time)  )
+   r,g,b = hsv_to_rgb( myr , 1., .8 )  
+   GLB.drawShapes(160, 120, int(100 * f1), GLB.bp, GLB.rotate, b, g, r, acc, time)
+
