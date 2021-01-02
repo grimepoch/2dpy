@@ -19,6 +19,8 @@ def Init():
    GLB.a=0
    GLB.xmode = 0
 
+   GLB.time = STR.FT() + STR.IT()
+
    def pipe(cx, cy, d):
       if d == 0:
          #left
@@ -89,6 +91,7 @@ def Init():
 
    GLB.pipe = pipe
 
+
 def Render(cr):
    # --- grabbing copies of local variables and demonstrating our mix methods as well
    GLB.f0 = STR.F0mix(-0.04,0.04)
@@ -99,7 +102,6 @@ def Render(cr):
    trig = STR.CheckTrigger()
    if trig:
       GLB.xmode = 1 if GLB.xmode==0 else 0
-
 
    cr.save()
 
@@ -119,6 +121,16 @@ def Render(cr):
    cr.rectangle(0,0,320,240)
    cr.fill()
    cr.restore()
+
+   new_time = STR.FT() + STR.IT()
+   #Now waits for time for incrementing visuals
+   if abs(new_time - GLB.time) > 0.005:
+      GLB.time = new_time
+   else:
+      return
+
+
+
    cr.set_operator(cairo.OPERATOR_MULTIPLY)
    cr.set_source_rgba((1.0-GLB.f1)*.97,0.97*sin(GLB.f1*pi),0.97*GLB.f1,1)
    cr.rectangle(0,0,320,240)
