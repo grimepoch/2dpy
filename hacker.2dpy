@@ -46,6 +46,9 @@ def Render(cr):
    cr.scale(1.0, -1.0)
    cr.set_font_size(30 * f1 + 6)
 
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
    if (GLB.timer > GLB.timer_max):
       data_str = ""
       for i in range(0, GLB.char_num):
@@ -79,9 +82,6 @@ def Render(cr):
 
       if (mixit > .95) :
          r1 = g1 = 0
-
-      if trig:
-         GLB.xmode = 1 if GLB.xmode==0 else 0
 
       if GLB.xmode:
          r1 = np.random.random()
