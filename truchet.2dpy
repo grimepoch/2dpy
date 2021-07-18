@@ -1,0 +1,295 @@
+def Init():
+   # --- author : jamesc
+
+   STR.SetFParam0Name("Levels")
+   STR.SetFParam1Name("Offset")
+   STR.SetFParam2Name("Shapes")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.twopi = 6.28318530
+   GLB.f0 = 0.5
+   GLB.f1 = 0.5
+   GLB.f2 = 0.5
+
+   # --- clear screen
+   cr.set_source_rgba(0.0,0.0,0.0,1)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   # mode is used for troubleshooting selection algorithm
+
+   def SetColor( foreground, level):
+      if foreground:
+         if level%2:
+            cr.set_source_rgb(1,1,1)
+         else:
+            cr.set_source_rgb(0,0,0)
+      else:
+         if level%2:
+            cr.set_source_rgb(0,0,0)
+         else:
+            cr.set_source_rgb(1,1,1)
+   GLB.SetColor = SetColor
+
+   def DrawShape( cx, cy, s, shape, level, mode):
+      if GLB.f2 > 0:
+         shape = (GLB.f1+shape%GLB.f2)%12
+      else:
+         shape = 14 if int(GLB.f1) > 14 else int(GLB.f1)
+      cx = cx + s/2
+      cy = cy + s/2
+      # Reference square
+
+      if mode == 3:
+         cr.set_source_rgb(1,0,0)
+         cr.rectangle(cx-s/2,cy-s/2,s,s)
+         cr.stroke()
+         return
+      if mode == 3:
+         cr.set_source_rgb(0,0,1)
+         cr.rectangle(cx-s/2,cy-s/2,s,s)
+         cr.stroke()
+         return
+
+      # Draw back
+      if shape==5:
+        GLB.SetColor(1,level)
+      else:
+        GLB.SetColor(0,level)
+      cr.rectangle(cx-s/2,cy-s/2,s,s)
+      cr.fill()
+
+      # Draw 4 corners
+
+      cr.save()
+      # Shape 11 - 14
+      if( shape >= 11 and shape <= 14 ):
+         if shape>11:
+             cr.translate(cx,cy)
+             if shape == 12:
+                 cr.rotate(GLB.twopi/2)
+             if shape == 13:
+                 cr.rotate(-GLB.twopi/4)
+             if shape == 14:
+                 cr.rotate(GLB.twopi/4)
+             cr.translate(-cx,-cy)
+         GLB.SetColor(1,level)
+         cr.rectangle(cx-s/2,cy-s/6,s,2*s/3);
+         cr.fill()
+         cr.arc(cx,cy+s/2,s/6,0,GLB.twopi)
+         cr.fill()
+         cr.arc(cx,cy-s/2,s/6,0,GLB.twopi)
+         cr.fill()
+         cr.set_line_cap(cairo.LINE_CAP_ROUND)
+         cr.set_line_width(s/3)
+         cr.move_to(cx-s/2,cy)
+         cr.line_to(cx+s/2,cy)
+         cr.stroke()
+
+      GLB.SetColor(0,level)
+      cr.arc(cx-s/2,cy+s/2,s/3,0,GLB.twopi)
+      cr.fill()
+      cr.arc(cx-s/2,cy-s/2,s/3,0,GLB.twopi)
+      cr.fill()
+      cr.arc(cx+s/2,cy+s/2,s/3,0,GLB.twopi)
+      cr.fill()
+      cr.arc(cx+s/2,cy-s/2,s/3,0,GLB.twopi)
+      cr.fill()
+      
+      # Shape 0 - 1
+      if( shape >= 0 and shape <= 1):
+         if(shape == 1):
+             cr.translate(cx,cy)
+             cr.rotate(GLB.twopi/4)
+             cr.translate(-cx,-cy)
+         cr.set_line_cap(cairo.LINE_CAP_ROUND)
+         GLB.SetColor(1,level)
+         cr.set_line_width(s/3)
+         cr.arc(cx-s/2,cy-s/2,s/2,0,GLB.twopi/4)
+         cr.stroke()
+         cr.arc(cx+s/2,cy+s/2,s/2,GLB.twopi/2,-GLB.twopi/4)
+         cr.stroke()
+      # Shape 2 - 3
+      if( shape >= 2 and shape <= 3):
+         if(shape == 3):
+             cr.translate(cx,cy)
+             cr.rotate(GLB.twopi/4)
+             cr.translate(-cx,-cy)
+         GLB.SetColor(1,level)
+         cr.arc(cx,cy+s/2,s/6,0,GLB.twopi)
+         cr.fill()
+         cr.arc(cx,cy-s/2,s/6,0,GLB.twopi)
+         cr.fill()
+         cr.set_line_cap(cairo.LINE_CAP_ROUND)
+         cr.set_line_width(s/3)
+         cr.move_to(cx-s/2,cy)
+         cr.line_to(cx+s/2,cy)
+         cr.stroke()
+      # Shape 4 - 5
+      if( shape >= 4 and shape <= 5 ):
+         GLB.SetColor(1,level)
+         cr.arc(cx,cy+s/2,s/6,0,GLB.twopi)
+         cr.fill()
+         cr.arc(cx,cy-s/2,s/6,0,GLB.twopi)
+         cr.fill()
+         cr.arc(cx-s/2,cy,s/6,0,GLB.twopi)
+         cr.fill()
+         cr.arc(cx+s/2,cy,s/6,0,GLB.twopi)
+         cr.fill()
+      # Shape 6
+      if( shape == 6 ):
+         GLB.SetColor(1,level)
+         cr.set_line_cap(cairo.LINE_CAP_ROUND)
+         cr.set_line_width(s/3)
+         cr.move_to(cx-s/2,cy)
+         cr.line_to(cx+s/2,cy)
+         cr.stroke()
+         cr.move_to(cx,cy-s/2)
+         cr.line_to(cx,cy+s/2)
+         cr.stroke()
+      # Shape 7 - 10
+      if( shape >= 7 and shape <= 10 ):
+         if shape>7:
+             cr.translate(cx,cy)
+             if shape == 8:
+                 cr.rotate(GLB.twopi/2)
+             if shape == 9:
+                 cr.rotate(GLB.twopi/4)
+             if shape == 10:
+                 cr.rotate(-GLB.twopi/4)
+             cr.translate(-cx,-cy)
+         GLB.SetColor(1,level)
+         cr.arc(cx-s/2,cy,s/6,0,GLB.twopi)
+         cr.fill()
+         cr.arc(cx,cy-s/2,s/6,0,GLB.twopi)
+         cr.fill()
+         cr.set_line_cap(cairo.LINE_CAP_ROUND)
+         cr.set_line_width(s/3)
+         cr.arc(cx+s/2,cy+s/2,s/2,GLB.twopi/2,-GLB.twopi/4)
+         cr.stroke()
+
+      # Shape 11 - 14
+      if( shape >= 11 and shape <= 14 ):
+         if shape>11:
+             cr.translate(cx,cy)
+             if shape == 8:
+                 cr.rotate(GLB.twopi/2)
+             if shape == 9:
+                 cr.rotate(GLB.twopi/4)
+             if shape == 10:
+                 cr.rotate(-GLB.twopi/4)
+             cr.translate(-cx,-cy)
+         GLB.SetColor(1,level)
+
+
+      if mode == 3:
+         cr.set_source_rgb(1,0,0)
+         cr.rectangle(cx-s/2,cy-s/2,s,s)
+         cr.stroke()
+      if mode == 4:
+         cr.set_source_rgb(0,0,1)
+         cr.rectangle(cx-s/2,cy-s/2,s,s)
+         cr.stroke()
+
+      cr.restore()
+   GLB.DrawShape = DrawShape
+
+
+def Render(cr):
+   acc = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   GLB.f0 = int(STR.F0()*4)
+   GLB.f1 = int(STR.F1()*14)
+   GLB.f2 = int(STR.F2()*14)
+
+   ftime = STR.FT()
+   itime = STR.IT()
+   time = (itime *1.0)  + ftime
+
+   # --- clear screen
+   cr.set_source_rgba(0.25,0.25,0.25,1)
+   #cr.set_source_rgba(0,0,0,f0) 
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   cr.set_antialias(cairo.ANTIALIAS_FAST)
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   cnt = 4
+   buf = 1
+   size = 240/(cnt + 2*buf)
+
+   # This resets the random to be the same each time, but relative to time 
+   random.seed(42+int(time*16.0))
+
+   div2list = []
+   for x in range(cnt):
+       for y in range(cnt):
+           # 40 is offset of difference in resolution
+           r = (random.random()*2)
+           if( r < 1 and GLB.f0 > 0 ):
+               div2list.append([40+buf*size + x*size,buf*size + y*size])
+           else:
+               GLB.DrawShape(40+buf*size + x*size,buf*size + y*size,size,int(random.random()*15)%15,0,1)
+
+   div = 2
+   div4list = []
+
+   for p in div2list:
+      x,y=p
+      for a in range(2):
+         for b in range(2):
+            r = (random.random()*8)
+            if( r < 1 and GLB.f0 > 1):
+               div4list.append([x+a*size/div,y+b*size/div])
+            else:
+               GLB.DrawShape(x + a*size/div,y + b*size/div,size/div,int(random.random()*15)%15,1,2)
+                  
+
+   div = 4
+   div8list = []
+
+   for p in div4list:
+      x,y=p
+      for a in range(2):
+         for b in range(2):
+            r = (random.random()*4)
+            if( r < 1 and GLB.f0 > 2):
+               div8list.append([x+a*size/div,y+b*size/div])
+            else:
+               GLB.DrawShape(x + a*size/div,y + b*size/div,size/div,int(random.random()*15)%15,2,2)
+                  
+
+
+   div = 8
+   for p in div8list:
+      x,y=p
+      for a in range(2):
+         for b in range(2):
+            GLB.DrawShape(x + a*size/div,y + b*size/div,size/div,int(random.random()*15)%15,3,2)
+
+#   div = 4
+#   div8list = []
+#
+#   for p in div4list:
+#      x,y=p
+#      r = (random.random()*2)
+#      if( r < 1 ):
+#          div8list.append([x,y])
+#      else:
+#         for a in range(2):
+#            for b in range(2):
+#               GLB.DrawShape(40+buf*size + x*size + a*size/div,buf*size + y*size + b*size/div,size/div,int(random.random()*15)%15,2,2)
+#   
+#   div = 8
+#   for p in div8list:
+#      x,y=p
+#      #r = (random.random()*2)
+#      #if( r < 1 ):
+#      #    div3list.append([x,y])
+#      #else:
+#      for a in range(2):
+#         for b in range(2):
+#            GLB.DrawShape(40+buf*size + x*size + a*size/div,buf*size + y*size + b*size/div,size/div,int(random.random()*15)%15,3,2)
