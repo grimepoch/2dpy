@@ -10,12 +10,6 @@ def Init():
    # --- trigger : Keep Drawing
 
    GLB.xmode = 0
-   GLB.sr1 = cairo.ImageSurface.create_from_png("/home/pi/vid-base/2dpy/sand.png")
-   GLB.pt1 = cairo.SurfacePattern(GLB.sr1)
-   #GLB.pt1.set_filter(cairo.FILTER_FAST);
-   GLB.pt1.set_extend(cairo.EXTEND_REPEAT)
-   #matrix = cairo.Matrix(xx=6.0,yy=6.0)
-   #GLB.pt1.set_matrix(matrix)
 
 
    def Reset():
@@ -38,8 +32,7 @@ def Init():
       GLB.weight1 = random.uniform(0.0,1.)
       GLB.weight2 = 1.0-GLB.weight1
    
-      cr.set_source(GLB.pt1)
-      #cr.set_source_rgba(0,0,0,1)
+      cr.set_source_rgba(0,0,0,1)
       cr.rectangle(0,0,320,240)
       cr.fill()
 
