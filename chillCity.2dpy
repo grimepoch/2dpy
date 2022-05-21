@@ -1,0 +1,153 @@
+def Init():
+   # --- author : jamesc
+   GLB.stime = STR.FT() + STR.IT()*1.0
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Speed")
+   STR.SetFParam2Name("")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : pass through
+   GLB.movement = True
+   # ---    trigger : toggle color
+
+   # code is prety ineffcient - refactor before release
+
+   # ---    determine number of buildings per layer
+   GLB.tot_bg   = np.random.randint(5, 8)
+   GLB.tot_mid  = np.random.randint(8, 12)
+   GLB.tot_fg   = np.random.randint(8, 14)
+
+   GLB.bg_objs = [{} for i in range(GLB.tot_bg)]
+   GLB.mid_objs = [{} for i in range(GLB.tot_mid)]
+   GLB.fg_objs = [{} for i in range(GLB.tot_fg)]
+
+   # ---    initialize globals
+   #GLB.NUM_OBJS = tot_bg + tot_mid + tot_fg
+   #GLB.objs = [{} for i in range(GLB.NUM_OBJS)]
+
+   #               white               world               bg                  mid                 fg                  water dark          water light         window light
+   GLB.colors = [ (255.0,255.0,255.0), (91.6, 10.4, 86.2), (58.7, 13.2, 61.7), (42.4, 13.5, 48.1), (27.3, 13.5, 37.7), (35.9, 31.4, 88.2), (25.4, 54.0, 98.7), (30.6,74.3,85.8) ]
+
+   GLB.threshold = 0.5
+
+   def randomAllObjs():
+      for i in range(GLB.tot_bg) :
+            GLB.bg_objs[i].update({'xpos' : np.random.randint(320), 'ypos' : 40, 'w' : np.random.randint(2,8) * 10, 'h' : np.random.randint(6,14) * 11, 'pal' : 2 }) 
+      for i in range(GLB.tot_mid) :
+            GLB.mid_objs[i].update({'xpos' : np.random.randint(320), 'ypos' : 40, 'w' : np.random.randint(4,7) * 10, 'h' : np.random.randint(4,18) * 10, 'pal' : 3 }) 
+      for i in range(GLB.tot_fg) :
+            GLB.fg_objs[i].update({'xpos' : np.random.randint(320), 'ypos' : 40, 'w' : np.random.randint(2,5) * 10, 'h' : np.random.randint(3,24) * 8,  'pal' : 4, 'lights' : [] }) 
+            num_lights = ( int(GLB.fg_objs[i]['w']/10) * int(GLB.fg_objs[i]['h']/10) )
+            my_lights = []
+            for nl in range(num_lights):
+               my_lights.append(np.random.random() )
+            GLB.fg_objs[i]['lights'] = my_lights
+   GLB.randomAllObjs = randomAllObjs
+   randomAllObjs()
+      
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   def update(f0, f1, f2, acc): 
+      GLB.laststime = GLB.stime
+      GLB.stime = STR.FT() + STR.IT()*1.0
+
+      mv_bg = -2 * f1
+      mv_mid = -4 * f1
+      #mv_fg = -7 * f1
+      mv_fg = -700 * f1 *(GLB.stime-GLB.laststime)
+
+      objs = GLB.bg_objs
+      for i in range(GLB.tot_bg):
+         # color in b g r format
+         pal = objs[i]['pal'] 
+         cr.set_source_rgb(GLB.colors[pal][2]/255.0, GLB.colors[pal][1]/255.0, GLB.colors[pal][0]/255.0)
+         if (GLB.movement):
+            objs[i]['xpos'] = objs[i]['xpos'] + mv_bg
+            if ( (objs[i]['xpos']+objs[i]['w'] ) < 0 ) :
+               GLB.bg_objs[i].update({'xpos' : 320 + np.random.randint(3,15), 'ypos' : 40, 'w' : np.random.randint(2,8) * 10, 'h' : np.random.randint(6,14) * 11, 'pal' : 2 })
+         cr.rectangle(objs[i]['xpos'], objs[i]['ypos'], objs[i]['w'], objs[i]['h'])
+         cr.fill()
+
+
+      objs = GLB.mid_objs
+      for i in range(GLB.tot_mid):
+         # color in b g r format
+         pal = objs[i]['pal'] 
+         cr.set_source_rgb(GLB.colors[pal][2]/255.0, GLB.colors[pal][1]/255.0, GLB.colors[pal][0]/255.0)
+         if (GLB.movement):
+            objs[i]['xpos'] = objs[i]['xpos'] + mv_mid
+            if ( (objs[i]['xpos']+objs[i]['w'] ) < 0 ) :
+               GLB.mid_objs[i].update({'xpos' : 320 + np.random.randint(3,15), 'ypos' : 40, 'w' : np.random.randint(4,7) * 10, 'h' : np.random.randint(4,18) * 10, 'pal' : 3 }) 
+         cr.rectangle(objs[i]['xpos'], objs[i]['ypos'], objs[i]['w'], objs[i]['h'])
+         cr.fill()
+
+
+      objs = GLB.fg_objs
+      for i in range(GLB.tot_fg):
+         # color in b g r format
+         pal = objs[i]['pal'] 
+         cr.set_source_rgb(GLB.colors[pal][2]/255.0, GLB.colors[pal][1]/255.0, GLB.colors[pal][0]/255.0)
+   
+         if (GLB.movement):
+            objs[i]['xpos'] = objs[i]['xpos'] + mv_fg
+            if ( (objs[i]['xpos']+objs[i]['w'] ) < 0 ) :
+               GLB.fg_objs[i].update({'xpos' : 320 + np.random.randint(3,15), 'ypos' : 40, 'w' : np.random.randint(2,5) * 10, 'h' : np.random.randint(3,24) * 8,  'pal' : 4, 'lights' : [] }) 
+               num_lights = ( int(GLB.fg_objs[i]['w']/10) * int(GLB.fg_objs[i]['h']/10) )
+               my_lights = []
+               for nl in range(num_lights):
+                  my_lights.append(np.random.random() )
+               GLB.fg_objs[i]['lights'] = my_lights
+
+         cr.rectangle(objs[i]['xpos'], objs[i]['ypos'], objs[i]['w'], objs[i]['h'])
+         cr.fill()
+
+         # draw windows
+         for xx in range(int(objs[i]['w']/10) ):
+            for yy in range(int(objs[i]['h']/10) ):
+               myval = objs[i]['lights'][xx+yy * int(objs[i]['w'] / 10)]
+               ##if  objs[i]['lights'][xx+yy * int(objs[i]['w'] / 10)] < f0  :
+               if ( (myval  < f0) and ( myval > f0 - 0.2)) :
+                  cr.set_source_rgb(0.8, 0.8, 0.2)
+                  cr.rectangle(objs[i]['xpos'] + (xx *10 + 2),  objs[i]['ypos'] + (yy * 10 + 2), 3, 3)
+         cr.fill()
+
+         cr.set_source_rgb(0.0, 0.0, 0.0)
+         cr.rectangle(objs[i]['xpos'], objs[i]['ypos'], objs[i]['w'], objs[i]['h'])
+         cr.set_line_width(1.0)
+         cr.stroke()
+
+      # --- movement
+      ##GLB.movement = True if (acc) else False
+          
+     
+
+   GLB.update = update
+
+
+def Render(cr):
+   acc = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0()
+   f1 = STR.F1()
+   f2 = STR.F2()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,320,240)
+   cr.fill()
+
+   if trig:
+      GLB.randomAllObjs()
+   
+   #start = time.time() 
+   GLB.update(f0, f1, f2, acc)
+   ####time.sleep(1.00)
+   #end = time.time()
+   ####print("%5.3f"%(1.0/(end - start)))
+   #v = 1.0/(end - start)
+
+   #print("%5d"%(int(v)) + "-"*int(v) + "#" )
