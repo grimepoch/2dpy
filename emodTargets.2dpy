@@ -28,7 +28,7 @@ def Render(cr):
 
    # - blank the screen
    cr.set_source_rgba(0,0,0,GLB.f0)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    notes = []
@@ -61,8 +61,8 @@ def Render(cr):
          note = note%12
          r = int(note/step)
          c = note%step
-         x = hbuff+c*(320-hbuff*2)/(step-1)
-         y = vbuff+r*(240-vbuff*2)/((slots/step)-1)
+         x = hbuff+c*(1280-hbuff*2)/(step-1)
+         y = vbuff+r*(720-vbuff*2)/((slots/step)-1)
          v = velo/127.
          sets.append([x,y,v])
 

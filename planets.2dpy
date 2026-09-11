@@ -14,7 +14,7 @@ def Init():
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,1)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    def drawShapes(xCenter, yCenter, bigR, bigPoints, rotate,  r,g,b, ac, time) :
@@ -74,7 +74,7 @@ def Render(cr):
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,fade) 
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    if trig:
@@ -90,5 +90,5 @@ def Render(cr):
        
    myr = ( sin(time)  )
    r,g,b = hsv_to_rgb( myr , 1., .8 )  
-   GLB.drawShapes(160, 120, int(100 * f1), GLB.bp, GLB.rotate, b, g, r, acc, time)
+   GLB.drawShapes(640, 360, int(100 * f1), GLB.bp, GLB.rotate, b, g, r, acc, time)
 

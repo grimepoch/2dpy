@@ -14,7 +14,7 @@ def Init():
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,1)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
      
@@ -31,7 +31,7 @@ def Render(cr):
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,f0) 
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    GLB.f1 = f1
@@ -42,7 +42,7 @@ def Render(cr):
    mysin = (sin(time) + 1 ) / 2
 
    cr.save()
-   cr.translate(160,120)
+   cr.translate(640,360)
    cr.rotate(GLB.deg*pi/180)
 
    if (GLB.xmode):
@@ -50,7 +50,7 @@ def Render(cr):
    else :
       cr.set_source_rgb(1,1,1)  
 
-   size =  40 * f2
+   size =  80 * f2
       
    if (acc):
       cr.set_operator(cairo.OPERATOR_XOR)
@@ -58,7 +58,7 @@ def Render(cr):
    cr.arc(size + sin(time) * .5, size + cos(time) * .5 , 120 * f1 , 0,pi*2)
 
    cr.stroke()
-   cr.translate(-160,-120)
+   cr.translate(-640,-360)
 
    cr.restore()
 

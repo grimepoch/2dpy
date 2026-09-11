@@ -29,7 +29,7 @@ def Init():
       r = np.random.random()
       g = np.random.random()
       b = np.random.random()
-      objs[-1].update( {'x':160, 'y':120, 'br':bigR, 'bp':bigPoints, 'sr':smR, 'ss':smSides, 'st':smThick,'r':r, 'g':g, 'b':b, 'grow':grow, 'degOff':degOff} )
+      objs[-1].update( {'x':640, 'y':360, 'br':bigR, 'bp':bigPoints, 'sr':smR, 'ss':smSides, 'st':smThick,'r':r, 'g':g, 'b':b, 'grow':grow, 'degOff':degOff} )
 
    GLB.add_obj = add_obj
 
@@ -42,7 +42,7 @@ def Init():
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,1)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    def drawShapes(xCenter, yCenter, bigR, bigPoints, smR, smSides, smThick, r,g,b, degOff, ac) :
@@ -126,7 +126,7 @@ def Render(cr):
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,fade)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    GLB.f1 = f1

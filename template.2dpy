@@ -43,7 +43,7 @@ def Render(cr):
 
    # --- Clear Screen
    cr.set_source_rgba(0,0,1,1)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
    
    # --- Generate some modulating parameters
@@ -51,6 +51,6 @@ def Render(cr):
    o2 = cos(GLB.t*10)
 
    cr.set_source_rgba(GLB.f0,GLB.f1,GLB.f2,1)
-   cr.rectangle(160+o1,120+o2,160*o2,120*o1)
+   cr.rectangle(640+o1,360+o2,640*o2,360*o1)
    cr.fill()
 

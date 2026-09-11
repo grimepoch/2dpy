@@ -16,7 +16,7 @@ def Init():
 
    # --- basic kep proportions
    GLB.keyw = 10
-   GLB.keyh = 55
+   GLB.keyh = 55 
 
    GLB.scale = 4
    
@@ -27,7 +27,7 @@ def Init():
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,1)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
 
@@ -91,12 +91,12 @@ def Render(cr):
 
    # ---- clear screen
    cr.set_source_rgba(0,0,0,1) 
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    my_scale = GLB.scale * f0
-   xpos = 160 - (GLB.keyw * .5 * my_scale * 7 )   # --- draw 7 white keys
-   ypos = 120 - (GLB.keyh * .5 * my_scale )
+   xpos = 640 - (GLB.keyw * .5 * my_scale * 7 )   # --- draw 7 white keys
+   ypos = 360 - (GLB.keyh * .5 * my_scale )
 
    GLB.draw_keybed(xpos,ypos,my_scale)
 

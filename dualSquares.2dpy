@@ -17,7 +17,7 @@ def Init():
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,1)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
 
@@ -30,7 +30,7 @@ def Render(cr):
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,f0) 
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    if trig:
@@ -42,8 +42,8 @@ def Render(cr):
       g = np.random.random()
       b = np.random.random()
 
-      x = np.random.randint(0, int(320/size) +1) * size
-      y = np.random.randint(0, int(240/size) +1) * size
+      x = np.random.randint(0, int(1280/size) +1) * size
+      y = np.random.randint(0, int(720/size) +1) * size
 
       if (GLB.xmode):
          gray = np.random.random()

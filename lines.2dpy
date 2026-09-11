@@ -12,11 +12,11 @@ def Init():
    GLB.NUM_OBJS = 12
    GLB.objs = [{} for i in range(GLB.NUM_OBJS)]
    for i in range(GLB.NUM_OBJS):
-      GLB.objs[i].update({'xpos' : np.random.randint(low=0, high=320), 'ypos' : np.random.randint(low=0, high=240), 'xdir' :np.random.random() * 8.0 - 4.0 , 'ydir' : np.random.random() * 8.0 - 4.0, 'size' : np.random.randint(low=2, high=32), 'r' : np.random.random(), 'g' : np.random.random(), 'b' : np.random.random() }  ) 
+      GLB.objs[i].update({'xpos' : np.random.randint(low=0, high=1280), 'ypos' : np.random.randint(low=0, high=720), 'xdir' :np.random.random() * 8.0 - 4.0 , 'ydir' : np.random.random() * 8.0 - 4.0, 'size' : np.random.randint(low=2, high=32), 'r' : np.random.random(), 'g' : np.random.random(), 'b' : np.random.random() }  ) 
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,1)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
      
 
@@ -45,8 +45,8 @@ def Init():
 
          # --- move objects
          objs[i]['xpos'] = objs[i]['xpos'] + objs[i]['xdir'] * f2
-         if (objs[i]['xpos'] > 320) :
-            objs[i]['xpos'] = 320
+         if (objs[i]['xpos'] > 1280) :
+            objs[i]['xpos'] = 1280
             objs[i]['xdir'] =  objs[i]['xdir'] * -1
             if (a):
                objs[i]['r'] = np.random.random()
@@ -57,8 +57,8 @@ def Init():
             objs[i]['xdir'] =  objs[i]['xdir'] * -1
             
          objs[i]['ypos'] =  objs[i]['ypos'] + objs[i]['ydir'] * f2
-         if (objs[i]['ypos'] > 240) :
-            objs[i]['ypos'] =  240
+         if (objs[i]['ypos'] > 720) :
+            objs[i]['ypos'] =  720
             objs[i]['ydir'] = objs[i]['ydir'] * -1
          elif (objs[i]['ypos'] < 0) :
             objs[i]['ypos'] = 0
@@ -75,7 +75,7 @@ def Render(cr):
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,f0) 
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    if trig:

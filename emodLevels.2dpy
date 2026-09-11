@@ -22,7 +22,7 @@ def Init():
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,1)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
 
@@ -35,7 +35,7 @@ def Render(cr):
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,f0) 
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    if trig:
@@ -43,18 +43,18 @@ def Render(cr):
 
 
    # --- colors
-   lg3 = cairo.LinearGradient(0.0, 0.0, 0.0, 240.0)
+   lg3 = cairo.LinearGradient(0.0, 0.0, 0.0, 720.0)
    lg3.add_color_stop_rgb(0.0, 1.0, 1.0, 1.0)    # --- white
    lg3.add_color_stop_rgb(0.3, 0.3, 1.0, 1.0)    # --- yellow
    lg3.add_color_stop_rgb(0.6, 0.2, 0.6, 1.0)    # --- orange
    lg3.add_color_stop_rgb(1.0, 0.0, 0.0, 1.0)
 
 
-   maxH = 300 * f1
+   maxH = 700 * f1
    
    # --- capture incoming data:
    if GLB.mode == "midi":
-      w = int(280/12) * f2
+      w = int(2500/12) * f2
       for i in range(GLB.slots):
          (id,note,velo) = STR.GetSlotData(i)
          if id != 0:
@@ -64,8 +64,8 @@ def Render(cr):
 
 
    if GLB.mode == "audio":
-      w = int(280/GLB.slots) * f2
-      startw = (320 - (w * GLB.slots)) * .5
+      w = int(2560/GLB.slots) * f2
+      startw = (1280 - (w * GLB.slots)) * .5
 
       for i in range(GLB.slots):
          (id,note,velo) = STR.GetSlotData(i)

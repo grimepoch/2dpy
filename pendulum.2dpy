@@ -58,32 +58,32 @@ def Render(cr):
    if trig:
       GLB.xmode = 1 if GLB.xmode==0 else 0
 
-   sur2 = surface.create_similar(cairo.CONTENT_COLOR_ALPHA,320,240)
+   sur2 = surface.create_similar(cairo.CONTENT_COLOR_ALPHA,1280,720)
    cr2 = cairo.Context(sur2)
 
    sp = cairo.SurfacePattern(surface)
    #sp.set_filter(cairo.FILTER_NEAREST)
 
    m = cairo.Matrix()
-   m.translate(160,120)
+   m.translate(640,360)
    m.scale(1.02,1.02)
    if GLB.xmode:
       m.rotate(.10)
-   m.translate(-160,-120)
+   m.translate(-640,-360)
    sp.set_matrix(m)
 
    cr2.set_source(sp)
-   cr2.rectangle(0,0,320,240)
+   cr2.rectangle(0,0,1280,720)
    cr2.fill()
 
    sp = cairo.SurfacePattern(sur2)
    #sp.set_filter(cairo.FILTER_NEAREST)
    cr.set_source(sp)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    cr.set_source_rgba(0,0,0,f0)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    # ---- drawing routines
@@ -108,7 +108,7 @@ def Render(cr):
 
    GLB.angle2 = (GLB.angle2+0.1*GLB.f2)%(2*pi)
 
-   GLB.drawArm(160,120,95,t,GLB.angle2,.5)
-   GLB.drawArm(160,120,80,t,GLB.angle,0)
+   GLB.drawArm(640,360,95,t,GLB.angle2,.5)
+   GLB.drawArm(640,360,80,t,GLB.angle,0)
 
 

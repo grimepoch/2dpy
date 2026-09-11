@@ -12,8 +12,8 @@ def Init():
    GLB.f2 = 0.0
 
    # --- define screen size
-   GLB.resx = 320
-   GLB.resy = 240
+   GLB.resx = 1280
+   GLB.resy = 720
 
    # --- primary objects
    GLB.NUM_OBJS = 12

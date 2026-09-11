@@ -24,38 +24,38 @@ def Render(cr):
    if trig:
       GLB.xmode = 1 if GLB.xmode==0 else 0
 
-   sur2 = surface.create_similar(cairo.CONTENT_COLOR_ALPHA,320,240)
+   sur2 = surface.create_similar(cairo.CONTENT_COLOR_ALPHA,1280,720)
    cr2 = cairo.Context(sur2)
 
    sp = cairo.SurfacePattern(surface)
    sp.set_filter(cairo.FILTER_NEAREST)
 
    m = cairo.Matrix()
-   m.translate(160,120)
+   m.translate(640,360)
    m.scale(0.96,0.96)
    m.rotate(sin(t))
-   m.translate(-160,-120)
+   m.translate(-640,-360)
    sp.set_matrix(m)
 
    cr2.set_source(sp)
-   cr2.rectangle(0,0,320,240)
+   cr2.rectangle(0,0,1280,720)
    cr2.fill()
 
    sp = cairo.SurfacePattern(sur2)
    sp.set_filter(cairo.FILTER_NEAREST)
    cr.set_source(sp)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    cr.set_source_rgba(0,0,0,f0)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    cr.set_line_width(GLB.f1)
 
    on = 0
    x = 0
-   for i in range(320):
+   for i in range(1280):
       if random.randint(0,15) < 3:
          on = 1 if on == 0 else 0
          if on:

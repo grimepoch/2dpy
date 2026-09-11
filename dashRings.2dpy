@@ -14,7 +14,7 @@ def Init():
 
    def randomAllObjs(objs):
       for i in range(GLB.NUM_OBJS):
-         objs[i].update({'xpos' : np.random.randint(low=0, high=320), 'ypos' : np.random.randint(low=0, high=240), 'xdir' :np.random.random() * 8.0 - 4.0 , 'ydir' : np.random.random() * 8.0 - 4.0, 'size' : np.random.randint(low=8, high=64), 'r' : np.random.random(), 'g' : np.random.random(), 'b' : np.random.random() }  ) 
+         objs[i].update({'xpos' : np.random.randint(low=0, high=1280), 'ypos' : np.random.randint(low=0, high=720), 'xdir' :np.random.random() * 8.0 - 4.0 , 'ydir' : np.random.random() * 8.0 - 4.0, 'size' : np.random.randint(low=8, high=64), 'r' : np.random.random(), 'g' : np.random.random(), 'b' : np.random.random() }  ) 
    
    GLB.randomAllObjs = randomAllObjs
    randomAllObjs(GLB.objs)
@@ -23,14 +23,14 @@ def Init():
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,1)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
      
    def update(objs, f1, f2, a, xmode): 
       for i in range(12):
          if (a):
-            cr.set_dash([np.random.randint(1,16), np.random.randint(1,16), np.random.randint(1,16)])
+            cr.set_dash([np.random.randint(1,32), np.random.randint(1,32), np.random.randint(1,32)])
          else :
             cr.set_dash([2.0])
 
@@ -41,30 +41,30 @@ def Init():
 
 
          objs[i]['xpos'] = objs[i]['xpos'] + objs[i]['xdir'] * f2
-         if (objs[i]['xpos'] > 320) :
+         if (objs[i]['xpos'] > 1280) :
             if (a) :
                objs[i]['xpos'] = 0
             else :
-               objs[i]['xpos'] = 320
+               objs[i]['xpos'] = 1280
                objs[i]['xdir'] =  objs[i]['xdir'] * -1
 
          elif (objs[i]['xpos'] < 0) :
             if (a) :
-               objs[i]['xpos'] = 320
+               objs[i]['xpos'] = 1280
             else :
                objs[i]['xpos'] = 0
                objs[i]['xdir'] =  objs[i]['xdir'] * -1
             
          objs[i]['ypos'] =  objs[i]['ypos'] + objs[i]['ydir'] * f2
-         if (objs[i]['ypos'] > 240) :
+         if (objs[i]['ypos'] > 720) :
             if (a) :
                objs[i]['ypos'] = 0
             else :
-               objs[i]['ypos'] =  240
+               objs[i]['ypos'] =  720
                objs[i]['ydir'] = objs[i]['ydir'] * -1
          elif (objs[i]['ypos'] < 0) :
             if (a) :
-               objs[i]['ypos'] = 240
+               objs[i]['ypos'] = 720
             else :
                objs[i]['ypos'] = 0
                objs[i]['ydir'] =  objs[i]['ydir'] * -1
@@ -80,7 +80,7 @@ def Render(cr):
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,f0) 
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    if trig:

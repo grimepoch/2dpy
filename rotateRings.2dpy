@@ -47,9 +47,9 @@ def Init():
          r = np.random.random()
          g = np.random.random()
          b = np.random.random()
-         objs[-1].update( {'x':0, 'y':0, 'w':320, 'h':240, 'd':110, 'r':r, 'g':g, 'b':b, 'thick':thick, 'arc_off':arc_off, 'arc_len':arc_len, 'arc_dir':arc_dir } ) 
+         objs[-1].update( {'x':0, 'y':0, 'w':1280, 'h':720, 'd':110, 'r':r, 'g':g, 'b':b, 'thick':thick, 'arc_off':arc_off, 'arc_len':arc_len, 'arc_dir':arc_dir } ) 
       else:
-         objs[-1].update( {'x':0, 'y':0, 'w':320, 'h':240, 'd':110, 'r':gray, 'g':gray, 'b':gray, 'thick':thick, 'arc_off':arc_off, 'arc_len':arc_len, 'arc_dir':arc_dir } ) 
+         objs[-1].update( {'x':0, 'y':0, 'w':1280, 'h':720, 'd':110, 'r':gray, 'g':gray, 'b':gray, 'thick':thick, 'arc_off':arc_off, 'arc_len':arc_len, 'arc_dir':arc_dir } ) 
 
       GLB.phase = GLB.phase + .5
    GLB.add_obj = add_obj
@@ -63,7 +63,7 @@ def Init():
          arc_len = np.random.random() * 180
          arc_dir = np.random.random() * 20 - 10.
 
-         objs[i].update( {'x':0, 'y':0, 'w':320, 'h':240, 'd':i*10, 'r':gray, 'g':gray, 'b':gray, 'thick':thick, 'arc_off':arc_off, 'arc_len':arc_len, 'arc_dir':arc_dir } ) 
+         objs[i].update( {'x':0, 'y':0, 'w':1280, 'h':720, 'd':i*10, 'r':gray, 'g':gray, 'b':gray, 'thick':thick, 'arc_off':arc_off, 'arc_len':arc_len, 'arc_dir':arc_dir } ) 
          GLB.phase = GLB.phase + .5
    GLB.randomAllObjs = randomAllObjs
 
@@ -74,7 +74,7 @@ def Init():
    
    # --- clear screen
    cr.set_source_rgba(0,0,0,1)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    def draw_circle(ob,f0,f1,f2):
@@ -94,7 +94,7 @@ def Init():
 
       h = ob['h']
       h *= .5 
-      y = ob['y'] + (f1 - .5) * 240.  
+      y = ob['y'] + (f1 - .5) * 720.  
 
       cr.set_line_width(ob['thick'])
 
@@ -117,10 +117,10 @@ def Render(cr):
 
    # ---- clear screen
    cr.set_source_rgba(0,0,0,f0) 
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
-   cr.translate(160,120)
+   cr.translate(640,360)
 
    if trig:
       GLB.xmode = 1 if GLB.xmode==0 else 0

@@ -60,9 +60,9 @@ def Init():
       if branchProbability > 0 and (random.randint(0,100) < branchProbability):
          xrand = x1+50-random.randint(0,100)
          #yrand = y1+50+rand()%20;
-         yrand = 319
+         yrand = 1279
          #original displace value hard coded to 100 for height of 320, so let's calculate height and use fractional
-         d = ((yrand-y1)*100)/320;
+         d = ((yrand-y1)*100)/1280;
          drawLightning(x1,y1,xrand,yrand,10,detailLevel,branchProbability*0.25)
 
    # --- Assigning of the function to global, you then call with GLB.drawLightening(args)
@@ -92,15 +92,15 @@ def Render(cr):
    
 
    # ---- clear screen (color set above relative to trigger)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    # ---- drawing routines
    cr.set_source_rgb(random.random()+GLB.a,random.random()+f1,random.random()+f2)
 
-   x = (40+(120*(1.0-f2)))+random.randint(0,int(220*f2))
+   x = (40+(640*(1.0-f2)))+random.randint(0,int(1280*f2))
 
-   GLB.drawLightning(160,240,x,0,100,2,0)
+   GLB.drawLightning(640,720,x,0,200,2,0)
    cr.stroke()
 
    # --- Management of global variables

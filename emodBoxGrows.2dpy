@@ -30,7 +30,7 @@ def Render(cr):
 
 
    cr.set_source_rgba(0,0,0,f0)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    # Only keeping 12 at time, if we get overlap, they replace
@@ -42,14 +42,14 @@ def Render(cr):
          GLB.n[ids] = note
          GLB.age[ids]=10
 
-   w = 20
+   w = 100
    i = 0
    keysRem = []
    for ids in GLB.d:
-      if GLB.age[ids]>0:
+      if GLB.age[ids]>-8:
          note = GLB.n[ids]
          x = 30 + note*(w+GLB.o) 
-         y = 50+130*(GLB.d[ids]/127.)
+         y = 50+290*(GLB.d[ids]/127.)
          if GLB.age[ids] == 10:
             #solid box
             h = 20*GLB.f1
@@ -66,9 +66,9 @@ def Render(cr):
                   c = GLB.d[ids]/127.
                   cr.set_source_rgb(0,1-c,c)
                cr.move_to(x,0)
-               cr.line_to(x,240)
+               cr.line_to(x,720)
                cr.move_to(x+w,0)
-               cr.line_to(x+w,240)
+               cr.line_to(x+w,720)
                cr.stroke()
 
             if GLB.slots==10:
@@ -80,8 +80,6 @@ def Render(cr):
                cr.stroke()
 
          else:
-            # growing larger box dropping down
-            #newY = (240-y)*(GLB.age[ids]/10)
             newY = y
             grow = pow((10-GLB.age[ids]),2)
             c = GLB.age[ids]/10.
@@ -91,7 +89,7 @@ def Render(cr):
             cr.stroke()
 
          GLB.age[ids] = GLB.age[ids]-.1
-         if GLB.age[ids] <= 0:
+         if GLB.age[ids] <= -8:
             keysRem.append(ids)
 
    for ids in keysRem:

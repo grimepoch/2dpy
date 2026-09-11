@@ -54,7 +54,7 @@ def Render(cr):
 
    # ---- clear screen (color set above relative to trigger)
    cr.set_source_rgba(0,0,0,f0)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    # ONLY THE LAST ARM CAN BE MOVING
@@ -67,7 +67,7 @@ def Render(cr):
          pts = []
          dirs = []
          for i in range(random.randint(4,8)):
-            pts.append([random.randint(0,320),random.randint(0,240)])
+            pts.append([random.randint(0,1280),random.randint(0,720)])
             dirs.append( random.uniform(0,2*pi))
          c = random.uniform(0.,1.)
          GLB.shapes.append([pts,dirs,c])
@@ -85,7 +85,7 @@ def Render(cr):
             oy = speed*sin(a)
             nx = ox+x
             ny = oy+y
-            if nx > 318 or nx < 1 or ny > 238 or ny < 1: 
+            if nx > 1278 or nx < 1 or ny > 718 or ny < 1: 
                #invert angle
                a = a + pi
                GLB.shapes[s][1][i]=a

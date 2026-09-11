@@ -15,7 +15,7 @@ def Init():
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,1)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
 def Render(cr):
@@ -34,7 +34,7 @@ def Render(cr):
    fade = 1. - ( .5 * log(f0) + 1  )
 
    cr.set_source_rgba(0,0,0,fade) 
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    baseR = 80
@@ -47,7 +47,7 @@ def Render(cr):
 
    if (acc):
       cr.set_source_rgba(0,0,0,1)
-      cr.rectangle(0,0,320,240)
+      cr.rectangle(0,0,1280,720)
       cr.fill()
       baseR = np.random.randint(40,200)
       baser = np.random.randint(5, 50)
@@ -78,20 +78,20 @@ def Render(cr):
    y = (R+r) * sin(GLB.timer) + a + r * sin((R+r) * GLB.timer / r)
 
    if (GLB.lastx >  1000) :
-      GLB.lastx = x + 160
-      GLB.lasty = y + 120
+      GLB.lastx = x + 640
+      GLB.lasty = y + 360
    else:   
       if (GLB.xmode == 0):
          cr.move_to(GLB.lastx, GLB.lasty)
-         cr.line_to(x+160, y+120)
+         cr.line_to(x+640, y+360)
          cr.set_line_width(np.random.randint(3,10))
       else:
          cr.set_line_width(np.random.randint(4) )
-         cr.arc(x+160,y+120,6, 0, 6.28318530)
+         cr.arc(x+640,y+360,6, 0, 6.28318530)
       cr.stroke()
 
-   GLB.lastx = x + 160
-   GLB.lasty = y + 120
+   GLB.lastx = x + 640
+   GLB.lasty = y + 360
 
    GLB.timer = GLB.timer + f2
 

@@ -14,8 +14,8 @@ def Init():
    GLB.f2 = 0.0
 
    # --- define screen size
-   GLB.resx = 320
-   GLB.resy = 240
+   GLB.resx = 1280
+   GLB.resy = 720
 
    # --- primary objects
    GLB.NUM_OBJS = 12
@@ -80,7 +80,7 @@ def Init():
       GLB.limbs['lk'] = { 'type':'l', 'sx':0,   'sy':0,    'ex':0, 'ey':0, 'len':20, 'a_cur':0,   'a_min':-45, 'a_max':45,  'a_dir':-1, 'a_def':0,  'd_def':-1, 'ext_mod':0 } 
 
    GLB.new_body = new_body
-   GLB.new_body(160, 120, 10)
+   GLB.new_body(640, 360, 10)
 
    def draw_limb(part, mod):
       # --- mod is in degrees, a_ is angle
@@ -229,7 +229,7 @@ def Init():
 
    GLB.draw_body = draw_body
 
-   new_body(160, 120, 0)
+   new_body(640, 360, 0)
 
 def Render(cr):
    acc = STR.CheckAccent()

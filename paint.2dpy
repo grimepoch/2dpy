@@ -10,7 +10,7 @@ def Init():
    # --- trigger : Keep Drawing
 
    GLB.xmode = 0
-   GLB.sr1 = cairo.ImageSurface.create_from_png("/home/pi/vid-base/2dpy/sand.png")
+   GLB.sr1 = cairo.ImageSurface.create_from_png("/home/orin/vid-base/2dpy/sand.png")
    GLB.pt1 = cairo.SurfacePattern(GLB.sr1)
    #GLB.pt1.set_filter(cairo.FILTER_FAST);
    GLB.pt1.set_extend(cairo.EXTEND_REPEAT)
@@ -40,7 +40,7 @@ def Init():
    
       cr.set_source(GLB.pt1)
       #cr.set_source_rgba(0,0,0,1)
-      cr.rectangle(0,0,320,240)
+      cr.rectangle(0,0,1280,720)
       cr.fill()
 
       GLB.thickmult = random.uniform(.2,4)
@@ -49,9 +49,9 @@ def Init():
       GLB.radmult = GLB.radmultstart
 
       GLB.scale   = random.uniform(1,1.5)
-      GLB.yrange  = random.randint(80,180)
-      GLB.yrange2 = random.randint(80,180)
-      GLB.xrange  = random.randint(80,180)
+      GLB.yrange  = random.randint(80,680)
+      GLB.yrange2 = random.randint(80,680)
+      GLB.xrange  = random.randint(80,680)
 
       GLB.frame = 0
    GLB.Reset = Reset
@@ -99,7 +99,7 @@ def Render(cr):
    drate1 = GLB.arate_1/div
    drate2 = GLB.arate_2/div
    
-   cr.translate(160,120)
+   cr.translate(640,360)
    cr.scale(GLB.scale,GLB.scale * 1.3333)
 
    if GLB.radius < 0.5:

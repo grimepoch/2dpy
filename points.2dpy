@@ -15,10 +15,10 @@ def Init():
    GLB.dx = []
    GLB.dy = []
 
-   GLB.REPELx = 160.0
-   GLB.REPELy = 120.0
+   GLB.REPELx = 640.0
+   GLB.REPELy = 360.0
    GLB.REPELf = 1.0
-   GLB.REPELr = 100.0
+   GLB.REPELr = 300.0
 
    GLB.pcnt = 150
    GLB.maxspeed = 7
@@ -29,28 +29,28 @@ def Init():
       r = random.randint(0,3)
       if r == 0:
          # FROM BOTTOM
-         GLB.x.append(random.randint(0,319))
+         GLB.x.append(random.randint(0,1279))
          GLB.y.append(0)
          GLB.dx.append((random.random()*2*GLB.maxspeed/4)-GLB.maxspeed/4)
          GLB.dy.append(1.0+random.random()*(GLB.maxspeed-1))
       elif r == 1:
          # FROM TOP
-         GLB.x.append(random.randint(0,319))
-         GLB.y.append(239)
+         GLB.x.append(random.randint(0,1279))
+         GLB.y.append(719)
          GLB.dx.append((random.random()*2*GLB.maxspeed/4)-GLB.maxspeed/4)
          GLB.dy.append(-1.0+ -1.0*random.random()*(GLB.maxspeed-1))
       elif r == 2:
          # FROM LEFT
          GLB.x.append(0)
-         GLB.y.append(random.randint(0,239))
+         GLB.y.append(random.randint(0,719))
          
          GLB.dy.append((random.random()*2*GLB.maxspeed/4)-GLB.maxspeed/4)
          GLB.dx.append(1.0+random.random()*(GLB.maxspeed-1))
          
       else:
          # FROM RIGHT
-         GLB.x.append(319)
-         GLB.y.append(random.randint(0,239))
+         GLB.x.append(1279)
+         GLB.y.append(random.randint(0,719))
          GLB.dy.append((random.random()*2*GLB.maxspeed/4)-GLB.maxspeed/4)
          GLB.dx.append(-1.0+ -1.0*random.random()*(GLB.maxspeed-1))
 
@@ -64,11 +64,11 @@ def Render(cr):
    GLB.f1 = STR.F1mix(0,1)
    GLB.f2 = STR.F2()
 
-   GLB.REPELx = 320*GLB.f1
-   GLB.REPELy = 240*GLB.f2
+   GLB.REPELx = 1280*GLB.f1
+   GLB.REPELy = 720*GLB.f2
 
    cr.set_source_rgba(0,0,0,GLB.f0)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    cr.set_source_rgba(1,1,1,1)
@@ -138,8 +138,8 @@ def Render(cr):
             GLB.dx[i] = GLB.dx[i] * -1.00
             GLB.dy[i] = GLB.dy[i] + 0.1 if random.randint(0,2) else -0.2
 
-      if GLB.x[i] > 319:
-         GLB.x[i] = 638 - GLB.x[i]
+      if GLB.x[i] > 1279:
+         GLB.x[i] = 1278 - GLB.x[i]
          if abs(GLB.dx[i]) > 1 and abs(GLB.dy[i]) > 1:
             GLB.dx[i] = GLB.dx[i] * -1 * slow
          else:
@@ -153,8 +153,8 @@ def Render(cr):
          else:
             GLB.dy[i] = GLB.dy[i] * -1.00
             GLB.dx[i] = GLB.dx[i] + 0.1 if random.randint(0,2) else -0.2
-      if GLB.y[i] > 239:
-         GLB.y[i] = 478 - GLB.y[i]
+      if GLB.y[i] > 719:
+         GLB.y[i] = 718 - GLB.y[i]
          if abs(GLB.dx[i]) > 1 and abs(GLB.dy[i]) > 1:
             GLB.dy[i] = GLB.dy[i] * -1 * slow
          else:

@@ -11,7 +11,7 @@ def Init():
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,1)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
 
@@ -28,7 +28,7 @@ def Render(cr):
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,f0) 
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    if trig:
@@ -42,26 +42,26 @@ def Render(cr):
 
    if (GLB.xmode == 0):
       # --- intersect in center
-      centx = 160
-      centy = 120
+      centx = 640
+      centy = 360
    else :
       # --- center open
-      centx = int(160 - (size * .5) )
-      centy = int(120 - (size * .5) )
+      centx = int(640 - (size * .5) )
+      centy = int(360 - (size * .5) )
 
-   for i in range(centy,240+size,size):
+   for i in range(centy,720+size,size):
       cr.move_to(0, i)
-      cr.line_to(320, i)
+      cr.line_to(1280, i)
    for i in range(centy,0-size, -size): 
       cr.move_to(0, i )
-      cr.line_to(320, i )
+      cr.line_to(1280, i )
    
-   for i in range(centx, 320+size, size):
+   for i in range(centx, 1280+size, size):
       cr.move_to(i, 0)
-      cr.line_to(i, 240)
+      cr.line_to(i, 720)
    for i in range(centx, 0-size, -size):
       cr.move_to(i, 0)
-      cr.line_to(i, 240)
+      cr.line_to(i, 720)
 
    cr.stroke()
 

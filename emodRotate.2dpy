@@ -14,19 +14,16 @@ def Init():
       if mode:
          phase = GLB.ftime*2*pi
          delta = 2*pi/s;
-         x = 160 + GLB.f2*80*cos(phase+delta*n)
+         x = 640 + GLB.f2*100*cos(phase+delta*n)
       
          a = sin(phase+delta*n)
-         y = 120 + 20*a
+         y = 360 + 100*a
 
          h = v/127 * 80
          w = 5 + 2*a
 
          if GLB.xmode:
-            tmp=x*3/4
-            x=y*4/3
-            y=tmp
-
+            h=h*10
          return([x,y,a,w,h,n,v,s])
       else:
          (x,y,a,w,h,n,v,s) = data
@@ -68,7 +65,7 @@ def Render(cr):
 
    # - blank the screen
    cr.set_source_rgba(0,0,0,GLB.f0)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    notes = []

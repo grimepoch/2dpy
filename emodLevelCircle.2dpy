@@ -23,7 +23,7 @@ def Init():
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,1)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
 
@@ -40,7 +40,7 @@ def Render(cr):
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,f0) 
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    if trig:
@@ -57,8 +57,8 @@ def Render(cr):
 
    # --- capture incoming data:
 
-   xCenter = 160
-   yCenter = 120
+   xCenter = 620
+   yCenter = 360
    lastVelo = 0
    useSlots = 10
 
@@ -84,7 +84,7 @@ def Render(cr):
 
       if (drawDot) :
          myRadians = radians(myDegrees)
-         myVelo = velo
+         myVelo = velo*2
          if (useSlots == 10) :    # --- audio
             if (note == (GLB.slots-1) ):  # --- amplify highest audio value
                myVelo = (velo + (lastVelo * .5) ) * .8 
@@ -109,10 +109,10 @@ def Render(cr):
          cr.set_source_rgb(b, g, r)
 
          if (acc) :
-            offset = 30 * f1 * .5
-            cr.rectangle(xSmall - offset, ySmall - offset, 20*f1, 20*f1)
+            offset = 40 * f1 * .5
+            cr.rectangle(xSmall - offset, ySmall - offset, 40*f1, 40*f1)
          else :
-            cr.arc(xSmall, ySmall,20 * f1, 0, 6.28318530)
+            cr.arc(xSmall, ySmall,40 * f1, 0, 6.28318530)
          cr.fill()
 
       if ( abs(f2) < 0.05) :      # --- 9oclock no rotate

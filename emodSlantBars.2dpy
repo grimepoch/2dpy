@@ -28,7 +28,7 @@ def Render(cr):
 
    # - blank the screen
    cr.set_source_rgba(0,0,0,GLB.f0)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    notes = []
@@ -49,19 +49,19 @@ def Render(cr):
       (ids,note,velo) = STR.GetSlotData(i)
       if ids != 0:
          note = note%12
-         y = vbuff+note*(240-vbuff*2)/(slots-1)
+         y = vbuff+note*(640-vbuff*2)/(slots-1)
          v = velo/127.
 
          r,g,b = hsv_to_rgb(v+note/11.,1,1)
          cr.set_source_rgba(b,g,r,1)
          cr.save()
-         cr.translate(160,y)
+         cr.translate(640,y)
          cr.rotate(sin(note/11*2*pi+GLB.ftime*2*pi)*GLB.f2)
          if GLB.xmode:
-            cr.rectangle(-160,-GLB.f1,v*160,GLB.f1*2)
-            cr.rectangle(160-v*160,-GLB.f1,v*160,GLB.f1*2)
+            cr.rectangle(-640,-GLB.f1,v*640,GLB.f1*2)
+            cr.rectangle(640-v*640,-GLB.f1,v*640,GLB.f1*2)
          else:
-            cr.rectangle(-v*160,-GLB.f1,2*v*160,GLB.f1*2)
+            cr.rectangle(-v*640,-GLB.f1,2*v*640,GLB.f1*2)
          cr.fill()
 
          if GLB.acc:

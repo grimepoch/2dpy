@@ -11,10 +11,10 @@ def Init():
    GLB.a = 0
    GLB.anim = 0
    GLB.phase = 0
-   GLB.x = 160
-   GLB.y = 120
-   GLB.lx = 160
-   GLB.ly = 120
+   GLB.x = 640
+   GLB.y = 360
+   GLB.lx = 640
+   GLB.ly = 360
    GLB.fcnt = 60
    GLB.trans = -1
    GLB.fcnt_snap = 0
@@ -115,7 +115,7 @@ def Render(cr):
 
    # ---- clear screen (color set above relative to trigger)
    cr.set_source_rgba(0,0,0,f0)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    # ---- drawing routines
@@ -127,9 +127,9 @@ def Render(cr):
    else:
       h = 50
       v = 30
-      GLB.x = random.randint(0+h,320-h)
-      GLB.y = random.randint(0+v,240-v)
-      GLB.fcnt = random.randint(60,240)
+      GLB.x = random.randint(0+h,1280-h)
+      GLB.y = random.randint(0+v,720-v)
+      GLB.fcnt = random.randint(60,720)
 
    # --- Management of global variables
    GLB.a=GLB.a+0.1

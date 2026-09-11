@@ -37,14 +37,14 @@ def Init():
 
    def genRand():
       if GLB.xmode:
-         return random.randint(0,20)-10
+         return random.randint(0,40)-20
       else:
          return 0
    GLB.genRand = genRand
 
    def genFakeText():
       t = []
-      for i in range(random.randint(0,20)):
+      for i in range(random.randint(0,60)):
          t.append( random.randint(0,1) )
          if random.randint(0,40)==0:
             t[-1] = 2
@@ -71,15 +71,15 @@ def Render(cr):
       GLB.xmode = 1 if GLB.xmode==0 else 0 
 
    if acc:
-      cr.set_operator(cairo.OPERATOR_EXCLUSION)
+      cr.set_operator(cairo.OPERATOR_ADD)
 
    # ---- clear screen (color set above relative to trigger)
    cr.set_source_rgba(0,0,0,f0)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    # LEFT
-   GLB.drawBorder(30+GLB.genRand(),15,160-35,239-30)
+   GLB.drawBorder(30+GLB.genRand(),15,640-35,719-30)
    cr.set_source_rgba(1,1,1,1)
    x = 40 + GLB.genRand()
    y = 30
@@ -87,15 +87,15 @@ def Render(cr):
       for p in l:
          if p == 1:
             cr.set_source_rgba(1,1,1,1)
-            cr.rectangle(x,y,5,5)
+            cr.rectangle(x,y,10,10)
             cr.fill()
          elif p == 2:
             cr.set_source_rgba(0,0,1,1)
-            cr.rectangle(x,y,5,5)
+            cr.rectangle(x,y,10,10)
             cr.fill()
-         x = x + 5
+         x = x + 10
       x = 40 + GLB.genRand()
-      y = y + 10
+      y = y + 38
 
    if GLB.count%10 == 0:
       if len(GLB.scroll) > 17:
@@ -103,7 +103,7 @@ def Render(cr):
       GLB.scroll.insert(0,GLB.genFakeText())   
 
    # RIGHT/BOTTOM 
-   GLB.drawBorder(165+GLB.genRand(),15,160-35,120-20)
+   GLB.drawBorder(645+GLB.genRand(),15,640-35,360-20)
 
    if GLB.count%190 == 0:
       GLB.graphs = []
@@ -116,37 +116,37 @@ def Render(cr):
          GLB.bars.append(random.uniform(0,10))
 
    cr.set_source_rgba(0,1,1,1)
-   x = 190 + GLB.genRand()
+   x = 670 + GLB.genRand()
    y = 30
    cr.move_to(x,y)
    for l in GLB.graphs:
-      cr.line_to(x,y+l*5)
-      x=x+10
+      cr.line_to(x,y+l*25)
+      x=x+70
    cr.line_to(x,y)
    cr.close_path()
    cr.fill()
    
    cr.set_source_rgba(0,1,0,1)
-   x = 190 + GLB.genRand()
+   x = 670 + GLB.genRand()
    y = 30
    for l in GLB.bars:
-      cr.rectangle(x,y,8,l*4*(1+sin(4*t+3*l)/2))
-      x = x + 20
+      cr.rectangle(x,y,64,l*16*(1+sin(4*t+3*l)/2))
+      x = x + 160
    cr.fill()
 
    cr.set_source_rgba(1,1,1,1)
-   cr.move_to(185+GLB.genRand(),100)
-   cr.line_to(185+GLB.genRand(),26)
-   cr.line_to(280+GLB.genRand(),26)
+   cr.move_to(665+GLB.genRand(),300)
+   cr.line_to(665+GLB.genRand(),26)
+   cr.line_to(1240+GLB.genRand(),26)
    cr.stroke()
 
    # RIGHT/TOP 
-   GLB.drawBorder(165+GLB.genRand(),126,160-35,120-25)
+   GLB.drawBorder(645+GLB.genRand(),366,640-35,360-25)
 
    cr.set_source_rgba(1,0,0,1)
    cr.set_line_width(3)
    for i in range(3):
-      cr.arc(227.5+GLB.genRand(),172.5,20*i,0,2*pi)
+      cr.arc(945+GLB.genRand(),535,60*i,0,2*pi)
       cr.stroke()
 
    # randomly add blips that are grey that come in and out
@@ -154,16 +154,16 @@ def Render(cr):
       GLB.blips = []
       d = 25
       for i in range(random.randint(2,5)):
-         b = [random.uniform(170+d,290-d),random.uniform(131+d,216-d)]
+         b = [random.uniform(845+d,1045-d),random.uniform(435+d,635-d)]
          GLB.blips.append(b)
    cr.set_source_rgba(.5,.5,.5,1)
    for b in GLB.blips:
-      cr.rectangle(b[0]+GLB.genRand(),b[1],5,5)
+      cr.rectangle(b[0]+GLB.genRand(),b[1],10,10)
       cr.fill()
 
    cr.set_source_rgba(1,1,1,1.0-GLB.f2)
-   cr.move_to(227.5,172.5)
-   cr.arc(227.5+GLB.genRand(),172.5,40,2*pi+GLB.count/70,2*pi+GLB.f2+GLB.count/70)
+   cr.move_to(945,535)
+   cr.arc(945+GLB.genRand(),535,115,2*pi+GLB.count/70,2*pi+GLB.f2+GLB.count/70)
    cr.fill()
 
 

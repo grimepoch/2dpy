@@ -33,7 +33,7 @@ def Render(cr):
    acc = STR.CheckAccent()
 
    cr.set_source_rgba(0,0,0,f0)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    # Only keeping 12 at time, if we get overlap, they replace
@@ -54,14 +54,14 @@ def Render(cr):
             GLB.age[ids]=10
             GLB.d[ids] = velo
 
-   w = 20
+   w = 120
    i = 0
    keysRem = []
    for ids in GLB.d:
-      if GLB.age[ids]>0:
+      if GLB.age[ids]>-8:
          note = GLB.n[ids]
          x = 30 + note*(w+GLB.o) 
-         y = 50+130*(GLB.d[ids]/127.)
+         y = 50+290*(GLB.d[ids]/127.)
          if GLB.age[ids] > 0:
             #solid box
             xl = x
@@ -98,15 +98,15 @@ def Render(cr):
                         if r%2:
                            if acc:
                               cr.set_source_rgb(0,0,1)
-                           cr.arc(xl,120,GLB.d[ids]/4*GLB.f1*(10+r*5),a*s+pi*2*ftime,(a+1)*s+pi*2*ftime)
+                           cr.arc(xl,360,GLB.d[ids]/4*GLB.f1*(10+r*5),a*s+pi*2*ftime,(a+1)*s+pi*2*ftime)
                         else:
-                           cr.arc(xl,120,GLB.d[ids]/4*GLB.f1*(10+r*5),a*s-pi*2*ftime,(a+1)*s-pi*2*ftime)
+                           cr.arc(xl,360,GLB.d[ids]/4*GLB.f1*(10+r*5),a*s-pi*2*ftime,(a+1)*s-pi*2*ftime)
                         cr.stroke()
 
 
 
          GLB.age[ids] = GLB.age[ids]-1
-         if GLB.age[ids] <= 0:
+         if GLB.age[ids] <= -8:
             keysRem.append(ids)
 
    for ids in keysRem:

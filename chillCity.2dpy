@@ -33,11 +33,11 @@ def Init():
 
    def randomAllObjs():
       for i in range(GLB.tot_bg) :
-            GLB.bg_objs[i].update({'xpos' : np.random.randint(320), 'ypos' : 40, 'w' : np.random.randint(2,8) * 10, 'h' : np.random.randint(6,14) * 11, 'pal' : 2 }) 
+            GLB.bg_objs[i].update({'xpos' : np.random.randint(1280), 'ypos' : 40, 'w' : np.random.randint(2,8) * 10, 'h' : np.random.randint(6,14) * 11, 'pal' : 2 }) 
       for i in range(GLB.tot_mid) :
-            GLB.mid_objs[i].update({'xpos' : np.random.randint(320), 'ypos' : 40, 'w' : np.random.randint(4,7) * 10, 'h' : np.random.randint(4,18) * 10, 'pal' : 3 }) 
+            GLB.mid_objs[i].update({'xpos' : np.random.randint(1280), 'ypos' : 40, 'w' : np.random.randint(4,7) * 10, 'h' : np.random.randint(4,18) * 10, 'pal' : 3 }) 
       for i in range(GLB.tot_fg) :
-            GLB.fg_objs[i].update({'xpos' : np.random.randint(320), 'ypos' : 40, 'w' : np.random.randint(2,5) * 10, 'h' : np.random.randint(3,24) * 8,  'pal' : 4, 'lights' : [] }) 
+            GLB.fg_objs[i].update({'xpos' : np.random.randint(1280), 'ypos' : 40, 'w' : np.random.randint(2,5) * 10, 'h' : np.random.randint(3,24) * 8,  'pal' : 4, 'lights' : [] }) 
             num_lights = ( int(GLB.fg_objs[i]['w']/10) * int(GLB.fg_objs[i]['h']/10) )
             my_lights = []
             for nl in range(num_lights):
@@ -48,7 +48,7 @@ def Init():
       
    # --- clear screen
    cr.set_source_rgba(0,0,0,1)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    def update(f0, f1, f2, acc): 
@@ -68,7 +68,7 @@ def Init():
          if (GLB.movement):
             objs[i]['xpos'] = objs[i]['xpos'] + mv_bg
             if ( (objs[i]['xpos']+objs[i]['w'] ) < 0 ) :
-               GLB.bg_objs[i].update({'xpos' : 320 + np.random.randint(3,15), 'ypos' : 40, 'w' : np.random.randint(2,8) * 10, 'h' : np.random.randint(6,14) * 11, 'pal' : 2 })
+               GLB.bg_objs[i].update({'xpos' : 1280 + np.random.randint(3,15), 'ypos' : 40, 'w' : np.random.randint(2,8) * 10, 'h' : np.random.randint(6,14) * 11, 'pal' : 2 })
          cr.rectangle(objs[i]['xpos'], objs[i]['ypos'], objs[i]['w'], objs[i]['h'])
          cr.fill()
 
@@ -81,7 +81,7 @@ def Init():
          if (GLB.movement):
             objs[i]['xpos'] = objs[i]['xpos'] + mv_mid
             if ( (objs[i]['xpos']+objs[i]['w'] ) < 0 ) :
-               GLB.mid_objs[i].update({'xpos' : 320 + np.random.randint(3,15), 'ypos' : 40, 'w' : np.random.randint(4,7) * 10, 'h' : np.random.randint(4,18) * 10, 'pal' : 3 }) 
+               GLB.mid_objs[i].update({'xpos' : 1280 + np.random.randint(3,15), 'ypos' : 40, 'w' : np.random.randint(4,7) * 10, 'h' : np.random.randint(4,18) * 10, 'pal' : 3 }) 
          cr.rectangle(objs[i]['xpos'], objs[i]['ypos'], objs[i]['w'], objs[i]['h'])
          cr.fill()
 
@@ -95,7 +95,7 @@ def Init():
          if (GLB.movement):
             objs[i]['xpos'] = objs[i]['xpos'] + mv_fg
             if ( (objs[i]['xpos']+objs[i]['w'] ) < 0 ) :
-               GLB.fg_objs[i].update({'xpos' : 320 + np.random.randint(3,15), 'ypos' : 40, 'w' : np.random.randint(2,5) * 10, 'h' : np.random.randint(3,24) * 8,  'pal' : 4, 'lights' : [] }) 
+               GLB.fg_objs[i].update({'xpos' : 1280 + np.random.randint(3,15), 'ypos' : 40, 'w' : np.random.randint(2,5) * 10, 'h' : np.random.randint(3,24) * 8,  'pal' : 4, 'lights' : [] }) 
                num_lights = ( int(GLB.fg_objs[i]['w']/10) * int(GLB.fg_objs[i]['h']/10) )
                my_lights = []
                for nl in range(num_lights):
@@ -137,7 +137,7 @@ def Render(cr):
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,1)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    if trig:

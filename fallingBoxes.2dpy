@@ -13,7 +13,7 @@ def Init():
    GLB.objs = [{} for i in range(GLB.NUM_OBJS)]
 
    for i in range(GLB.NUM_OBJS):
-      GLB.objs[i].update({'xpos' : np.random.randint(320), 'ypos' : np.random.randint(240), 'xdir' :np.random.random() * 8.0 + 2. , 'ydir' : np.random.random() * 8.0 + 2.0 , 'w' : np.random.randint(2,10) * 10, 'h' : np.random.randint(2,10) * 10, 'size' : np.random.randint(4, 32), 'r' : np.random.random(), 'g' : np.random.random(), 'b' : np.random.random()  }) 
+      GLB.objs[i].update({'xpos' : np.random.randint(1280), 'ypos' : np.random.randint(720), 'xdir' :np.random.random() * 8.0 + 2. , 'ydir' : np.random.random() * 8.0 + 2.0 , 'w' : np.random.randint(2,10) * 10, 'h' : np.random.randint(2,10) * 10, 'size' : np.random.randint(4, 32), 'r' : np.random.random(), 'g' : np.random.random(), 'b' : np.random.random()  }) 
       ysp = GLB.objs[i]['ydir']
       if ( abs(ysp) < 4. ):
          if (ysp < 0) :
@@ -24,7 +24,7 @@ def Init():
       
    # --- clear screen
    cr.set_source_rgba(0,0,0,1)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
 
@@ -47,12 +47,12 @@ def Init():
 
          if (objs[i]['ypos'] < (0 -  (2 * objs[i]['h']) ) ) :
             if (acc) :
-               objs[i]['ypos'] = 240
+               objs[i]['ypos'] = 720
             else :
-               objs[i]['w'] = np.random.randint(2,10) * 10         
-               objs[i]['ypos'] = 240 + ( 2 * objs[i]['h'] )
-               objs[i]['xpos'] = np.random.randint(0,320)
-               objs[i]['ydir'] = np.random.random() * 8.0  + 2.0
+               objs[i]['w'] = np.random.randint(2,20) * 10         
+               objs[i]['ypos'] = 720 + ( 2 * objs[i]['h'] )
+               objs[i]['xpos'] = np.random.randint(0,1280)
+               objs[i]['ydir'] = np.random.random() * 80.0  + 2.0
                objs[i]['r'] = np.random.random()
                objs[i]['g'] = np.random.random()
                objs[i]['b'] = np.random.random()
@@ -71,7 +71,7 @@ def Render(cr):
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,f0)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    if trig:

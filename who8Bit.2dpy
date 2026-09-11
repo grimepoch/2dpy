@@ -24,7 +24,7 @@ def Render(cr):
    if trig:
       GLB.xmode = 1 if GLB.xmode==0 else 0
 
-   sur2 = surface.create_similar(cairo.CONTENT_COLOR_ALPHA,320,240)
+   sur2 = surface.create_similar(cairo.CONTENT_COLOR_ALPHA,1280,720)
    cr2 = cairo.Context(sur2)
 
    sp = cairo.SurfacePattern(surface)
@@ -32,24 +32,24 @@ def Render(cr):
       sp.set_filter(cairo.FILTER_NEAREST)
 
    m = cairo.Matrix()
-   m.translate(160,120)
+   m.translate(640,360)
    m.scale(GLB.f2,GLB.f2)
    #m.rotate(sin(t))
-   m.translate(-160,-120)
+   m.translate(-640,-360)
    sp.set_matrix(m)
 
    cr2.set_source(sp)
-   cr2.rectangle(0,0,320,240)
+   cr2.rectangle(0,0,1280,720)
    cr2.fill()
 
    sp = cairo.SurfacePattern(sur2)
    sp.set_filter(cairo.FILTER_BEST)
    cr.set_source(sp)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    cr.set_source_rgba(0,0,0,GLB.f0)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    on = 0
@@ -67,16 +67,16 @@ def Render(cr):
             h = h + GLB.f1
             r,g,b = hsv_to_rgb(h,s,v)
             cr.set_source_rgb(b,g,r)
-         cr.arc(160,120,20,4*pi*x/180,4*pi*i/180)
+         cr.arc(640,360,20,4*pi*x/180,4*pi*i/180)
          x = i
          cr.stroke()
 
    if STR.CheckAccent():
       s = 30
-      cr.move_to(160,120+s)
-      cr.line_to(160+s,120)
-      cr.line_to(160,120-s)
-      cr.line_to(160-s,120)
+      cr.move_to(640,360+s)
+      cr.line_to(640+s,360)
+      cr.line_to(640,360-s)
+      cr.line_to(640-s,360)
       cr.close_path()
       cr.set_source_rgba(0,0,0,0.5)
       cr.fill()

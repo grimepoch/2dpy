@@ -9,8 +9,8 @@ def Init():
    GLB.mode   = 0
    GLB.count  = 0
    GLB.arms = []
-   GLB.lastx  = 160
-   GLB.lasty  = 120
+   GLB.lastx  = 640
+   GLB.lasty  = 360
    GLB.color  = 0
    GLB.xmode  = 0
 
@@ -76,12 +76,12 @@ def Render(cr):
    acc = STR.CheckAccent()
 
    cr.set_source_rgba(0,0,0,f0)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
-   cr.translate(160,120)
+   cr.translate(640,360)
    cr.rotate(t)
-   cr.translate(-160,-120)
+   cr.translate(-640,-360)
 
    mult = 16 
    mult_l = 4
@@ -123,8 +123,8 @@ def Render(cr):
 
    if GLB.count==0:
       GLB.mode = 0
-      GLB.lastx = 160
-      GLB.lasty = 120
+      GLB.lastx = 640
+      GLB.lasty = 360
       GLB.color = 0
    elif addNext == 1:
       GLB.mode = 1

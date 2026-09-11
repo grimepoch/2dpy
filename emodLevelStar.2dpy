@@ -25,7 +25,7 @@ def Init():
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,1)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
 
@@ -42,15 +42,15 @@ def Render(cr):
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,f0) 
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    if trig:
       GLB.xmode = 1 if GLB.xmode==0 else 0
 
    # --- capture incoming data:
-   xCenter = 160
-   yCenter = 120
+   xCenter = 640
+   yCenter = 360
    lastVelo = 0
    useSlots = 10
 
@@ -89,7 +89,7 @@ def Render(cr):
                myDegrees = (90.0 / useSlots * i ) + GLB.degOff + j * 90
 
             myRadians = radians(myDegrees)
-            myVelo = velo
+            myVelo = velo*2
 
             if (useSlots == 10) :   # --- audio
                if (note == (GLB.slots-1) ):

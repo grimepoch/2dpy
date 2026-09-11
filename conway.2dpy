@@ -12,8 +12,8 @@ def Init():
    
    GLB.xmode = 0
 
-   GLB.N = 20
-   GLB.M = 15
+   GLB.N = 40
+   GLB.M = 30
    GLB.FRAME = 0
    GLB.grid = np.array([])
    GLB.lastGrid = np.zeros(shape=(GLB.N,GLB.M))
@@ -29,7 +29,7 @@ def Init():
    GLB.addGlider = addGlider
 
    cr.set_source_rgba(0,0,0,1)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    def randomGrid(N,M):
@@ -62,8 +62,8 @@ def Init():
             else: 
                 if total == 3: 
                     newGrid[i, j] = 1 
-            x = i*16
-            y = j*16
+            x = i*32
+            y = j*24
 
             if GLB.f2 < 0:
                x = x + random.randint(0,int(abs(GLB.f2)))
@@ -74,9 +74,9 @@ def Init():
             if newGrid[i,j] == 1:
                cr.set_source_rgb(1,1,1)
                if GLB.xmode:
-                  cr.rectangle(x-18,y-18,36,36)
+                  cr.rectangle(x-18,y-18,30,22)
                else:
-                  w = GLB.f1*12
+                  w = GLB.f1*24
                   cr.rectangle(x-w/2,y-w/2,6+w,6+w)
       if STR.CheckAccent():
          cr.stroke()
@@ -110,7 +110,7 @@ def Render(cr):
    GLB.f1 = STR.F1()
    GLB.f2 = STR.F2mix(-4,4)
    cr.set_source_rgba(0,0,0,GLB.f0)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    if trig:

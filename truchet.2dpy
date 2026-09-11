@@ -209,7 +209,7 @@ def Render(cr):
    # --- clear screen
    cr.set_source_rgba(0.25,0.25,0.25,1)
    #cr.set_source_rgba(0,0,0,f0) 
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    cr.set_antialias(cairo.ANTIALIAS_FAST)
@@ -219,7 +219,7 @@ def Render(cr):
 
    cnt = 4
    buf = 1
-   size = 240/(cnt + 2*buf)
+   size = 720/(cnt + 2*buf)
 
    # This resets the random to be the same each time, but relative to time 
    random.seed(42+int(time*16.0))
@@ -230,9 +230,9 @@ def Render(cr):
            # 40 is offset of difference in resolution
            r = (random.random()*2)
            if( r < 1 and GLB.f0 > 0 ):
-               div2list.append([40+buf*size + x*size,buf*size + y*size])
+               div2list.append([280+buf*size + x*size,buf*size + y*size])
            else:
-               GLB.DrawShape(40+buf*size + x*size,buf*size + y*size,size,int(random.random()*15)%15,0,1)
+               GLB.DrawShape(280+buf*size + x*size,buf*size + y*size,size,int(random.random()*15)%15,0,1)
 
    div = 2
    div4list = []

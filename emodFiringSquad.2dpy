@@ -13,8 +13,8 @@ def Init():
    GLB.f2 = 0.0
 
    # --- define screen size
-   GLB.resx = 320
-   GLB.resy = 240
+   GLB.resx = 1280
+   GLB.resy = 720
 
    # --- primary objects
    GLB.NUM_OBJS = 12
@@ -38,7 +38,7 @@ def Init():
       degree_offset = 360 * np.random.random()
       move_speed = np.random.random() * 5
       if (np.random.random() < .5) : move_speed = move_speed * -1
-      radius = np.random.randint(20,120)
+      radius = np.random.randint(20,360)
       return (degree_offset, move_speed, radius)
    GLB.rnd_circleBits = rnd_circleBits
 

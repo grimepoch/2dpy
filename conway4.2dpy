@@ -10,8 +10,8 @@ def Init():
    # --- accent: Vert Lines
    # --- trigger: Line Width
    
-   GLB.N = 20
-   GLB.M = 15
+   GLB.N = 40
+   GLB.M = 30
    GLB.FRAME = 0
    GLB.grid = np.array([])
    GLB.lastGrid = np.zeros(shape=(GLB.N,GLB.M))
@@ -26,7 +26,7 @@ def Init():
    GLB.addGlider = addGlider
 
    cr.set_source_rgba(0,0,0,1)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    def randomGrid(N,M):
@@ -77,8 +77,8 @@ def Init():
                 if total == 3: 
                     newGrid[i, j] = 1 
                     GLB.color[i, j]=2
-            x = i*16 - 6
-            y = j*16 - 6
+            x = i*32 - 6
+            y = j*24 - 6
             cr.set_line_width(3)
             if newGrid[i,j] == 1:
                c = GLB.color[i,j]
@@ -89,28 +89,28 @@ def Init():
                   if GLB.xmode:
                      cr.set_line_width(10)
                   cr.move_to(x,y)
-                  cr.line_to(x+18,y+18)
+                  cr.line_to(x+32,y+24)
                   cr.stroke()
                elif c==2:
                   GLB.setColor(c)
                   if GLB.xmode:
                      cr.set_line_width(14)
-                  cr.move_to(x,y+18)
-                  cr.line_to(x+18,y)
+                  cr.move_to(x,y+32)
+                  cr.line_to(x+24,y)
                   cr.stroke()
                elif c==3:
                   GLB.setColor(c)
                   if GLB.xmode:
                      cr.set_line_width(6)
                   cr.move_to(x,y)
-                  cr.line_to(x+18,y)
+                  cr.line_to(x+24,y)
                   cr.stroke()
                else:
                   GLB.setColor(c)
                   if GLB.xmode:
                      cr.set_line_width(10)
                   cr.move_to(x,y)
-                  cr.line_to(x,y+18)
+                  cr.line_to(x,y+32)
                   cr.stroke()
       
       compa = grid == newGrid
@@ -139,7 +139,7 @@ def Render(cr):
    GLB.f1 = STR.F1mix(0,1)
    GLB.f2 = STR.F2mix(0,1)
    cr.set_source_rgba(0,0,0,GLB.f0)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    if trig:

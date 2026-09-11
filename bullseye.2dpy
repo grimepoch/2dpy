@@ -15,7 +15,7 @@ def Init():
 
    def randomAllObjs(objs):
       for i in range(NUM_OBJS):
-         objs[i].update( {'size' : np.random.randint(8,120), 'thick' : np.random.randint(4,20),  'r' : np.random.random(), 'g' : np.random.random(), 'b' : np.random.random(), 'd1' : np.random.randint(1,16), 'd2' : np.random.randint(1,16), 'd3' : np.random.randint(1,16), 'move' : np.random.randint(2,5) }  ) 
+         objs[i].update( {'size' : np.random.randint(8,360), 'thick' : np.random.randint(4,20),  'r' : np.random.random(), 'g' : np.random.random(), 'b' : np.random.random(), 'd1' : np.random.randint(1,16), 'd2' : np.random.randint(1,16), 'd3' : np.random.randint(1,16), 'move' : np.random.randint(2,5) }  ) 
          if (np.random.randint(2) ):
             objs[i]['move'] = objs[i]['move'] * -1
    
@@ -26,11 +26,11 @@ def Init():
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,1)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
      
    def update(objs, f1, f2, a, xmode, delta): 
-      cr.translate(160, 120) 
+      cr.translate(640, 360) 
       for i in range(NUM_OBJS):
          cr.set_line_width(objs[i]['thick'] * f2)
          cr.set_dash([objs[i]['d1'], objs[i]['d2'], objs[i]['d3'] ] )
@@ -50,7 +50,7 @@ def Render(cr):
    f1 = STR.F1()
    f2 = STR.F2mix(.05,1.)
    cr.set_source_rgba(0,0,0,f0) 
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    GLB.xmode = 1 if GLB.xmode==0 else 0

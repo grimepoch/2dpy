@@ -22,7 +22,7 @@ def Render(cr):
       cr.set_source_rgba(0,0,0,0)
    else:
       cr.set_source_rgba(0,0,0,f0)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    if acc:
@@ -40,7 +40,7 @@ def Render(cr):
       note = note%12
       if id != 0:
          if id not in GLB.d:
-            GLB.d[id] = (id,note,velo,320,0)
+            GLB.d[id] = (id,note,velo,1280,0)
          else:
             (id,note,velo_old,x,l) = GLB.d[id]
             if GLB.slots == 24:
@@ -50,7 +50,7 @@ def Render(cr):
                l=20
             GLB.d[id] = (id,note,velo,x,l)
    # dictionary should be sorted oldest first, so if we are larger that 12 notes we get rid of oldest
-   while(len(GLB.d)>36):
+   while(len(GLB.d)>360):
       l = sorted(list(GLB.d.keys()))
       del GLB.d[l[0]]
 
@@ -61,21 +61,21 @@ def Render(cr):
 
       cr.set_source_rgb(b,g,r)
       if GLB.slots == 24:
-         y = 20 + note*16.7
+         y = 20 + note*60
       else:
-         y = note*10+(velo/127.)*12*20
+         y = note*10+(velo/127.)*12*60
 
       if GLB.xmode:
-         cr.arc(x,y,l/2,0,2*pi)
+         cr.arc(x,y+15,l/2,0,2*pi)
          cr.stroke()
 
       else:
-         cr.rectangle(x,y,l,5)
+         cr.rectangle(x,y,l,30)
          cr.fill()
       if GLB.slots == 24:
          x = x-GLB.slide
       else:
-         x = x-6*(velo/127.)
+         x = x-1*(velo/127.)
       if x+l < 0:
          del GLB.d[i]
       else:

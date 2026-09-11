@@ -12,7 +12,7 @@ def Init():
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,1)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
 
@@ -26,13 +26,13 @@ def Render(cr):
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,f0) 
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    grid = int(40 * f1) + 1
 
-   xPos = random.randint(0,int(320/grid) )
-   yPos = random.randint(0,int(2400/grid) )
+   xPos = random.randint(0,int(1280/grid) )
+   yPos = random.randint(0,int(720/grid) )
 
    cr.set_line_width(3)
 

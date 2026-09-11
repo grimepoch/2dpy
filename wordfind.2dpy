@@ -25,7 +25,7 @@ def Init():
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,1)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
 def Render(cr):
@@ -37,7 +37,7 @@ def Render(cr):
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,f0)  
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    if trig:
@@ -59,8 +59,8 @@ def Render(cr):
       bx = data_info.width + GLB.pad_x
       by = data_info.height + GLB.pad_y
 
-      grid_x = 320. / bx + 1
-      grid_y = 240. / by + 1
+      grid_x = 1280. / bx + 1
+      grid_y = 720. / by + 1
 
       xp = np.random.randint(low=0, high=grid_x) * bx 
       yp = np.random.randint(low=0, high=grid_y) * by

@@ -28,7 +28,7 @@ def Render(cr):
 
    # - blank the screen
    cr.set_source_rgba(0,0,0,GLB.f0)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    notes = []
@@ -46,9 +46,9 @@ def Render(cr):
    cr.save()
    if GLB.xmode:
       GLB.rot = GLB.rot + .025
-   cr.translate(160,120)
+   cr.translate(640,360)
    cr.rotate(GLB.rot)
-   cr.translate(-160,-120)
+   cr.translate(-640,-360)
 
    for i in range(tslots):
       (ids,note,velo) = STR.GetSlotData(i)
@@ -59,8 +59,8 @@ def Render(cr):
          
          cr.set_line_width(1)
          cr.set_source_rgba(1,1,1,GLB.f2)
-         cr.move_to(160,120)
-         cr.arc(160,120,110,a,a+2*pi/(slots-1))
+         cr.move_to(640,360)
+         cr.arc(640,360,220,a,a+2*pi/(slots-1))
          cr.close_path()
          cr.stroke()
          
@@ -68,14 +68,14 @@ def Render(cr):
             d = 50+40*sin(5*v*GLB.time*2*pi)
          else:
             d = 10+80*v
-
+         d = d * 2
          cr.set_line_width(GLB.f1)
          r,g,b = hsv_to_rgb(v+note/11.,1,1)
          cr.set_source_rgba(b,g,r,1)
          if GLB.acc:
-            cr.arc(160,120,d,a,a+2*pi)
+            cr.arc(640,360,d,a,a+2*pi)
          else:
-            cr.arc(160,120,d,a,a+2*pi/(slots-1))
+            cr.arc(640,360,d,a,a+2*pi/(slots-1))
          cr.stroke()
 
 

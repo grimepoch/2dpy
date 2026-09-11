@@ -13,7 +13,7 @@ def Render(cr):
    # ---- clear screen
    GLB.f0 = STR.F0mix(0,1)
    GLB.f1 = STR.F1mix(0,1)
-   GLB.f2 = STR.F2mix(100,400)
+   GLB.f2 = STR.F2mix(100,1280)
 
    GLB.time = STR.FT() + float(STR.IT())
    
@@ -25,7 +25,7 @@ def Render(cr):
 
    # - blank the screen
    cr.set_source_rgba(0,0,0,GLB.f0)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    notes = []
@@ -40,9 +40,6 @@ def Render(cr):
       slots=9
       step=3
 
-
-   hbuff = 60
-   vbuff = 40
 
    cr.set_line_width(10)
 
@@ -70,16 +67,16 @@ def Render(cr):
          if wall == 0:
             #LEFT
             cr.move_to(0,0)
-            cr.line_to(0,240)
-            cr.line_to(w1,240)
+            cr.line_to(0,720)
+            cr.line_to(w1,720)
             cr.line_to(w2,0)
             cr.close_path()
          elif wall == 1:
             #RIGHT
-            cr.move_to(320,0)
-            cr.line_to(320,240)
-            cr.line_to(320-w1,240)
-            cr.line_to(320-w2,0)
+            cr.move_to(1280,0)
+            cr.line_to(1280,720)
+            cr.line_to(1280-w1,720)
+            cr.line_to(1280-w2,0)
             cr.close_path()
 
 

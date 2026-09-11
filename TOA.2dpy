@@ -14,7 +14,7 @@ def Init():
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,1)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    GLB.phase = 0
@@ -52,7 +52,7 @@ def Init():
    def add_obj(objs):
       objs.append({})
       gray = chg_gray()
-      objs[-1].update( {'x' : 30 * sin(GLB.phase), 'y' : 20 * cos(GLB.phase), 'w' : 320,  'h' : 240 , 'd' : 110 , 'r' : gray , 'g' : gray, 'b' : gray }  ) 
+      objs[-1].update( {'x' : 30 * sin(GLB.phase), 'y' : 20 * cos(GLB.phase), 'w' : 1280,  'h' : 720 , 'd' : 110 , 'r' : gray , 'g' : gray, 'b' : gray }  ) 
       GLB.phase = GLB.phase + GLB.f0
 
    GLB.add_obj = add_obj
@@ -61,7 +61,7 @@ def Init():
    def genAllObjs(objs):
       for i in range(GLB.NUM_OBJS):
          gray = chg_gray()
-         objs[i].update( {'x' : 30 * sin(GLB.phase), 'y' : 20 * cos(GLB.phase), 'w' : 320,  'h' : 240 , 'd' : i * 10 , 'r' : gray , 'g' : gray,  'b' : gray}  ) 
+         objs[i].update( {'x' : 30 * sin(GLB.phase), 'y' : 20 * cos(GLB.phase), 'w' : 1280,  'h' : 720 , 'd' : i * 10 , 'r' : gray , 'g' : gray,  'b' : gray}  ) 
          GLB.phase = GLB.phase +  GLB.f0
 
    GLB.genAllObjs = genAllObjs
@@ -111,10 +111,10 @@ def Render(cr):
    f2 = STR.F2mix(0.25, 1.0)
 
    cr.set_source_rgba(0,0,0,1)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
-   cr.translate(160,120)
+   cr.translate(640,360)
 
    if (trig):
       GLB.xmode = 1 if GLB.xmode==0 else 0

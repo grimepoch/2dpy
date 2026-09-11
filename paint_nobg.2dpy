@@ -33,7 +33,7 @@ def Init():
       GLB.weight2 = 1.0-GLB.weight1
    
       cr.set_source_rgba(0,0,0,1)
-      cr.rectangle(0,0,320,240)
+      cr.rectangle(0,0,1280,720)
       cr.fill()
 
       GLB.thickmult = random.uniform(.2,4)
@@ -42,9 +42,9 @@ def Init():
       GLB.radmult = GLB.radmultstart
 
       GLB.scale   = random.uniform(1,1.5)
-      GLB.yrange  = random.randint(80,180)
-      GLB.yrange2 = random.randint(80,180)
-      GLB.xrange  = random.randint(80,180)
+      GLB.yrange  = random.randint(80,520)
+      GLB.yrange2 = random.randint(80,520)
+      GLB.xrange  = random.randint(80,720)
 
       GLB.frame = 0
    GLB.Reset = Reset
@@ -81,8 +81,8 @@ def Render(cr):
       GLB.Reset()
    # Want to draw inbetween for faster speeds, we can auto determine by either angle rate
 
-   divs_1 = GLB.arate_1/0.01
-   divs_2 = GLB.arate_2/0.01
+   divs_1 = GLB.arate_1/0.003
+   divs_2 = GLB.arate_2/0.003
 
    div = 2*int(divs_1 if divs_1>divs_2 else divs_2)
 
@@ -92,7 +92,7 @@ def Render(cr):
    drate1 = GLB.arate_1/div
    drate2 = GLB.arate_2/div
    
-   cr.translate(160,120)
+   cr.translate(640,360)
    cr.scale(GLB.scale,GLB.scale * 1.3333)
 
    if GLB.radius < 0.5:

@@ -13,7 +13,7 @@ def Init():
    GLB.objs = [{} for i in range(GLB.NUM_OBJS)]
 
    for i in range(GLB.NUM_OBJS):
-      GLB.objs[i].update({'xpos' : np.random.randint(320), 'ypos' : np.random.randint(240), 'xdir' :np.random.random() * 8.0 - 4.0 , 'ydir' : np.random.random() * 8.0 - 4.0, 'w' : np.random.randint(2,10) * 10, 'h' : np.random.randint(2,10) * 10, 'size' : np.random.randint(4, 32), 'r' : np.random.random(), 'g' : np.random.random(), 'b' : np.random.random()  }) 
+      GLB.objs[i].update({'xpos' : np.random.randint(1280), 'ypos' : np.random.randint(720), 'xdir' :np.random.random() * 8.0 - 4.0 , 'ydir' : np.random.random() * 8.0 - 4.0, 'w' : np.random.randint(2,10) * 10, 'h' : np.random.randint(2,10) * 10, 'size' : np.random.randint(4, 32), 'r' : np.random.random(), 'g' : np.random.random(), 'b' : np.random.random()  }) 
       xsp = GLB.objs[i]['xdir']
       if ( abs(xsp) < 4. ):
          if (xsp < 0) :
@@ -24,7 +24,7 @@ def Init():
       
    # --- clear screen
    cr.set_source_rgba(0,0,0,1)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
 
@@ -43,13 +43,13 @@ def Init():
       for i in range(GLB.NUM_OBJS):
          # ---  if accent is ON - wrap around instead of bounce
          objs[i]['xpos'] = objs[i]['xpos'] + objs[i]['xdir'] * f2
-         if (objs[i]['xpos'] > 320) :
+         if (objs[i]['xpos'] > 1280) :
             if (acc) :
                objs[i]['xpos'] = 0
             else :
-               objs[i]['xpos'] = 320
+               objs[i]['xpos'] = 1280
                objs[i]['w'] = np.random.randint(2,10) * 10         
-               objs[i]['ypos'] = np.random.randint(0,240)
+               objs[i]['ypos'] = np.random.randint(0,720)
                objs[i]['xdir'] = np.random.random() * 8.0 - 4.0
                objs[i]['r'] = np.random.random()
                objs[i]['g'] = np.random.random()
@@ -60,11 +60,11 @@ def Init():
 
          elif (objs[i]['xpos'] < (0 - objs[i]['w']) ) :
             if (acc) :
-               objs[i]['xpos'] = 320
+               objs[i]['xpos'] = 1280
             else :
                objs[i]['w'] = np.random.randint(2,10) * 10         
                objs[i]['xpos'] = 0 - objs[i]['w']
-               objs[i]['ypos'] = np.random.randint(0,240)
+               objs[i]['ypos'] = np.random.randint(0,720)
                objs[i]['xdir'] = np.random.random() * 8.0 - 4.0
                objs[i]['r'] = np.random.random()
                objs[i]['g'] = np.random.random()
@@ -84,7 +84,7 @@ def Render(cr):
 
    # --- clear screen
    cr.set_source_rgba(0,0,0,f0)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    if trig:

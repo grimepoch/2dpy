@@ -170,7 +170,7 @@ def Render(cr):
 
    # ---- clear screen (color set above relative to trigger)
    cr.set_source_rgba(0,0,0,1)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    cr.save()
@@ -178,11 +178,11 @@ def Render(cr):
 
    size = GLB.f0*20
 
-   cr.translate(160,120)
+   cr.translate(640,360)
    cr.rotate(GLB.angle)
-   cr.translate(-160,-120)
+   cr.translate(-640,-360)
 
-   cr.translate(160-GLB.MoveX()*size,120-GLB.MoveY()*size)
+   cr.translate(640-GLB.MoveX()*size,360-GLB.MoveY()*size)
 
    for i in range(GLB.w):
       for j in range(GLB.h):
@@ -201,7 +201,7 @@ def Render(cr):
    cr.restore()
 
    cr.set_source_rgba(b,g,r,1)
-   cr.arc(160,120,size/2.2,0,2*pi)
+   cr.arc(640,360,size/2.2,0,2*pi)
    cr.fill()
 
    

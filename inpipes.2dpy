@@ -24,29 +24,29 @@ def Init():
          #1 or 3
          if  newy <= 20:
             newd = 1
-         elif newy >= 220:
+         elif newy >= 700:
             newd = 3
          else:
             newd = 1+(random.randint(0,1)*2)
       elif d == 2:
          #right
-         newx = 10+random.randint(cx,310)
+         newx = 10+random.randint(cx,1270)
          newy = cy
          #1 or 3
          if  newy <= 20:
             newd = 1
-         elif newy >= 220:
+         elif newy >= 700:
             newd = 3
          else:
             newd = 1+(random.randint(0,1)*2)
       elif d == 1:
          #bottom
          newx = cx
-         newy = 10+random.randint(cy,230)
+         newy = 10+random.randint(cy,710)
          #1 or 3
          if  newx <= 20:
             newd = 2
-         elif newx >= 300:
+         elif newx >= 1260:
             newd = 0
          else:
             newd = (random.randint(0,1)*2)
@@ -57,7 +57,7 @@ def Init():
          #1 or 3
          if  newx <= 20:
             newd = 2
-         elif newx >= 300:
+         elif newx >= 1260:
             newd = 0
          else:
             newd = (random.randint(0,1)*2)
@@ -98,36 +98,36 @@ def Render(cr):
    if trig:
       GLB.mode = 1 if GLB.mode == 0 else 0
 
-   sur2 = surface.create_similar(cairo.CONTENT_COLOR_ALPHA,320,240)
+   sur2 = surface.create_similar(cairo.CONTENT_COLOR_ALPHA,1280,720)
    cr2 = cairo.Context(sur2)
 
    sp = cairo.SurfacePattern(surface)
 
    m = cairo.Matrix()
-   m.translate(160,120)
+   m.translate(640,360)
    m.scale(.97,.97)
-   m.translate(-160,-120)
+   m.translate(-640,-360)
    sp.set_matrix(m)
 
    cr2.set_source(sp)
-   cr2.rectangle(0,0,320,240)
+   cr2.rectangle(0,0,1280,720)
    cr2.fill()
    if STR.CheckAccent():
       cr2.set_operator(cairo.OPERATOR_XOR)
    else:
       cr2.set_operator(cairo.OPERATOR_MULTIPLY)
    cr2.set_source_rgba((1.0-GLB.f1)*9.8,9.8*sin(GLB.f1*pi),9.8*GLB.f1,1)
-   cr2.rectangle(0,0,320,240)
+   cr2.rectangle(0,0,1280,720)
    cr2.fill()
 
    sp = cairo.SurfacePattern(sur2)
    cr.set_source(sp)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    cr.set_operator(cairo.OPERATOR_OVER)
    cr.set_source_rgba(0,0,0,0.05+GLB.f0)
-   cr.rectangle(0,0,320,240)
+   cr.rectangle(0,0,1280,720)
    cr.fill()
 
    new_time = STR.FT() + STR.IT()
