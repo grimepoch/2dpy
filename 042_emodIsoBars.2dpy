@@ -1,0 +1,132 @@
+def Init():
+   # --- author : claude
+   # --- an isometric bar chart of the slots, drawn back to front so the
+   # --- columns occlude each other properly
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Decay")
+   STR.SetFParam1Name("Height")
+   STR.SetFParam2Name("Hue")
+   # ---    accent : wireframe
+   # ---    trigger : single row <-> square floor
+
+   # --- 10 slots = FFT analysis bins, 24 slots = MIDI notes
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   GLB.n = 12 if GLB.slots == 24 else GLB.slots
+   GLB.lvl = []
+   GLB.hist = []
+   for i in range(GLB.n):
+      GLB.lvl.append(0.0)
+      col = []
+      for j in range(8):
+         col.append(0.0)
+      GLB.hist.append(col)
+   GLB.tw = 34.0
+   GLB.th = 19.0
+
+   def column(sx, sy, h, top, lft, rgt, wire):
+      tw = GLB.tw
+      th = GLB.th
+      cr.move_to(sx - tw, sy)
+      cr.line_to(sx, sy - th)
+      cr.line_to(sx, sy - th + h)
+      cr.line_to(sx - tw, sy + h)
+      cr.close_path()
+      cr.set_source_rgb(lft[2], lft[1], lft[0])
+      if wire:
+         cr.stroke()
+      else:
+         cr.fill()
+      cr.move_to(sx + tw, sy)
+      cr.line_to(sx, sy - th)
+      cr.line_to(sx, sy - th + h)
+      cr.line_to(sx + tw, sy + h)
+      cr.close_path()
+      cr.set_source_rgb(rgt[2], rgt[1], rgt[0])
+      if wire:
+         cr.stroke()
+      else:
+         cr.fill()
+      cr.move_to(sx - tw, sy + h)
+      cr.line_to(sx, sy - th + h)
+      cr.line_to(sx + tw, sy + h)
+      cr.line_to(sx, sy + th + h)
+      cr.close_path()
+      cr.set_source_rgb(top[2], top[1], top[0])
+      if wire:
+         cr.stroke()
+      else:
+         cr.fill()
+   GLB.column = column
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.70, 0.97)
+   f1 = STR.F1mix(40.0, 300.0)
+   f2 = STR.F2()
+
+   itime = STR.IT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   n = GLB.n
+   for k in range(n):
+      GLB.lvl[k] = GLB.lvl[k] * f0
+
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if ids == 0:
+         continue
+      k = (note % 12) if GLB.mode == "midi" else i
+      if k < n:
+         v = velo / 127.0
+         if v > GLB.lvl[k]:
+            GLB.lvl[k] = v
+
+   # --- push the current frame into the history trail
+   for k in range(n):
+      col = GLB.hist[k]
+      for j in range(7, 0, -1):
+         col[j] = col[j - 1]
+      col[0] = GLB.lvl[k]
+
+   cr.set_source_rgb(0.02, 0.01, 0.03)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cr.set_line_width(1.5)
+   depth = 8 if GLB.xmode else 1
+
+   # --- back to front: far rows first, then nearer ones over the top
+   for j in range(depth - 1, -1, -1):
+      for k in range(n - 1, -1, -1):
+         u = k - (n - 1) * 0.5
+         v = j - (depth - 1) * 0.5
+         sx = 640 + (u - v) * GLB.tw
+         sy = 300 - (u + v) * GLB.th
+         lv = GLB.hist[k][j]
+         h = 6.0 + f1 * lv
+         dim = 1.0 - j / (depth * 1.4)
+         hue = (f2 + k / (n * 1.0) * 0.55) % 1.0
+         top = hsv_to_rgb(hue, 0.55, 1.00 * dim)
+         lft = hsv_to_rgb(hue, 0.75, 0.50 * dim)
+         rgt = hsv_to_rgb(hue, 0.68, 0.75 * dim)
+         if acc:
+            GLB.column(sx, sy, h, top, top, top, 1)
+         else:
+            GLB.column(sx, sy, h, top, lft, rgt, 0)

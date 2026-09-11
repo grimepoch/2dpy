@@ -1,0 +1,81 @@
+def Init():
+   # --- author : claude
+   # --- rings rushing past the camera down a tunnel whose mouth drifts around
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Speed")
+   STR.SetFParam2Name("Sides")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : strobe every other ring
+   # ---    trigger : reverse, fly backwards
+
+   GLB.z    = 0.0
+   GLB.dir  = 1.0
+   GLB.hue  = 0.0
+   GLB.rings = 26
+
+   def ngon(cx, cy, rad, n, rot):
+      if n < 3:
+         cr.new_sub_path()
+         cr.arc(cx, cy, rad, 0, 2 * pi)
+         return
+      cr.move_to(cx + rad * cos(rot), cy + rad * sin(rot))
+      for k in range(1, n):
+         a = rot + k * 2.0 * pi / n
+         cr.line_to(cx + rad * cos(a), cy + rad * sin(a))
+      cr.close_path()
+   GLB.ngon = ngon
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.2, 1.0)
+   f1 = STR.F1mix(0.004, 0.055)
+   f2 = STR.F2mix(2.0, 9.0)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.dir = -GLB.dir
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,f0)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   GLB.z   = (GLB.z + f1 * GLB.dir) % 1.0
+   GLB.hue = (GLB.hue + 0.004) % 1.0
+
+   sides = int(f2)
+   # --- the vanishing point wanders, which is what makes it feel like flying
+   cx = 640 + 210 * sin(time * 0.23)
+   cy = 360 + 120 * cos(time * 0.31)
+
+   cr.set_line_cap(cairo.LINE_CAP_ROUND)
+
+   for i in range(GLB.rings):
+      # --- depth 0 = at the camera, 1 = far away
+      d = ((i / (GLB.rings * 1.0)) + GLB.z) % 1.0
+      zz = 0.04 + d * d * 3.2
+      rad = 90.0 / zz
+      if rad > 1800:
+         continue
+      near = 1.0 - d
+      r,g,b = hsv_to_rgb((GLB.hue + d * 0.8) % 1.0, 0.8, near * near)
+      if acc and i % 2 == 0:
+         r = g = b = near
+      cr.set_source_rgb(b, g, r)
+      cr.set_line_width(1.0 + 16.0 * near * near)
+      # --- rings further away lag behind the mouth's drift, giving the bend
+      GLB.ngon(cx * near + 640 * d, cy * near + 360 * d, rad, sides,
+               time * 0.5 + d * (5.0 if GLB.xmode else 1.2))
+      cr.stroke()

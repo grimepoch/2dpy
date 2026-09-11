@@ -1,0 +1,127 @@
+def Init():
+   # --- author : claude
+   # --- magnetField crossed with flowRibbons : motes are carried along the
+   # --- field lines rather than the lines being drawn as static curves
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Speed")
+   STR.SetFParam2Name("Poles")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : show the poles
+   # ---    trigger : new arrangement
+
+   GLB.n = 300
+   GLB.maxp = 6
+
+   def seed():
+      GLB.q = []
+      for i in range(GLB.maxp):
+         GLB.q.append([160.0 + np.random.random() * 960.0,
+                       120.0 + np.random.random() * 480.0,
+                       1.0 if i % 2 == 0 else -1.0,
+                       np.random.random() * 6.28])
+      GLB.px = np.random.random(GLB.n) * 1280.0
+      GLB.py = np.random.random(GLB.n) * 720.0
+      GLB.hu = np.random.random(GLB.n) * 0.25
+   GLB.seed = seed
+   GLB.seed()
+   GLB.fr = 0
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.03, 0.45)
+   f1 = STR.F1mix(1.0, 9.0)
+   f2 = STR.F2mix(2.0, 6.0)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.seed()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   GLB.fr = GLB.fr + 1
+   if GLB.fr % 2 == 0:
+      cr.set_source_rgba(0, 0, 0, min(1.0, f0 * 1.8))
+      cr.rectangle(0,0,1280,720)
+      cr.fill()
+
+   npole = int(f2)
+   qx = np.zeros(npole)
+   qy = np.zeros(npole)
+   qs = np.zeros(npole)
+   for i in range(npole):
+      q = GLB.q[i]
+      qx[i] = q[0] + 70.0 * sin(time * 0.23 + q[3])
+      qy[i] = q[1] + 50.0 * cos(time * 0.31 + q[3])
+      qs[i] = q[2]
+
+   ox = GLB.px.copy()
+   oy = GLB.py.copy()
+
+   # --- the whole cloud is advected in one numpy pass
+   ex = np.zeros(GLB.n)
+   ey = np.zeros(GLB.n)
+   for j in range(npole):
+      dx = GLB.px - qx[j]
+      dy = GLB.py - qy[j]
+      d2 = dx * dx + dy * dy + 80.0
+      f = qs[j] / (d2 * np.sqrt(d2))
+      ex = ex + dx * f
+      ey = ey + dy * f
+   m = np.sqrt(ex * ex + ey * ey) + 1e-12
+   GLB.px = GLB.px + ex / m * f1
+   GLB.py = GLB.py + ey / m * f1
+
+   # --- respawn anything that fell into a sink or left the frame
+   dead = (GLB.px < -20) | (GLB.px > 1300) | (GLB.py < -20) | (GLB.py > 740)
+   for j in range(npole):
+      if qs[j] < 0:
+         dead = dead | (((GLB.px - qx[j]) ** 2 + (GLB.py - qy[j]) ** 2) < 400.0)
+   idx = np.nonzero(dead)[0]
+   if len(idx):
+      GLB.px[idx] = np.random.random(len(idx)) * 1280.0
+      GLB.py[idx] = np.random.random(len(idx)) * 720.0
+      ox[idx] = GLB.px[idx]
+      oy[idx] = GLB.py[idx]
+
+   lx = GLB.px.tolist()
+   ly = GLB.py.tolist()
+   oxl = ox.tolist()
+   oyl = oy.tolist()
+   hl = GLB.hu.tolist()
+
+   cr.set_line_cap(cairo.LINE_CAP_ROUND)
+   bands = 6
+   for b in range(bands):
+      t = b / (bands - 1.0)
+      if GLB.xmode:
+         c = hsv_to_rgb((t * 0.8 + time * 0.02) % 1.0, 0.8, 1.0)
+      else:
+         c = hsv_to_rgb((0.55 + t * 0.2) % 1.0, 0.6, 0.45 + 0.55 * t)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      cr.set_line_width(1.0 + 2.4 * t)
+      i = b
+      while i < GLB.n:
+         cr.move_to(oxl[i], oyl[i])
+         cr.line_to(lx[i], ly[i])
+         i = i + bands
+      cr.stroke()
+
+   if acc:
+      for i in range(npole):
+         if qs[i] > 0:
+            cr.set_source_rgb(1.0, 0.4, 0.2)
+         else:
+            cr.set_source_rgb(0.2, 0.4, 1.0)
+         cr.new_sub_path()
+         cr.arc(qx[i], qy[i], 12, 0, 2 * pi)
+         cr.fill()

@@ -1,0 +1,81 @@
+def Init():
+   # --- author : claude
+   # --- two gratings counter-rotating against each other -> moire interference
+   # --- physical moire is "A and not B", so plate A is drawn white and plate B
+   # --- black straight over it.  Same picture as an XOR but ~15x cheaper here.
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Pitch")
+   STR.SetFParam2Name("Twist")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : add a third plate
+   # ---    trigger : straight grating <-> ring grating
+
+   GLB.ang = 0.0
+
+   def plate(cx, cy, pitch, ang, rings, duty):
+      # --- one grating as a single path; aliased on purpose, it keeps the
+      # --- fringes crisp and costs a fraction of an antialiased stroke
+      cr.save()
+      cr.rectangle(0,0,1280,720)
+      cr.clip()
+      cr.set_antialias(cairo.ANTIALIAS_NONE)
+      cr.translate(cx, cy)
+      cr.rotate(ang)
+      cr.set_line_width(pitch * duty)
+      if rings:
+         r = pitch
+         while r < 900:
+            cr.new_sub_path()
+            cr.arc(0, 0, r, 0, 2 * pi)
+            r = r + pitch
+      else:
+         x = -820.0
+         while x < 820:
+            cr.move_to(x, -820)
+            cr.line_to(x, 820)
+            x = x + pitch
+      cr.stroke()
+      cr.restore()
+   GLB.plate = plate
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.3, 1.0)
+   f1 = STR.F1mix(18.0, 70.0)
+   f2 = STR.F2mix(0.0, 0.55)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,f0)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   GLB.ang = GLB.ang + 0.004
+   pitch = f1
+   drift = 160 * sin(time * 0.25)
+
+   # --- plate A lays down the light
+   cr.set_source_rgb(1,1,1)
+   GLB.plate(640, 360, pitch, GLB.ang, GLB.xmode, 0.5)
+
+   # --- plate B takes it away again wherever its bars fall
+   cr.set_source_rgb(0,0,0)
+   GLB.plate(640 + drift, 360, pitch, -GLB.ang + f2 * sin(time * 0.5), GLB.xmode, 0.5)
+
+   if acc:
+      GLB.plate(640 - drift, 360 + 90 * cos(time * 0.25), pitch * 1.07,
+                GLB.ang * 1.7, 1 - GLB.xmode, 0.42)

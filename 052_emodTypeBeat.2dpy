@@ -1,0 +1,117 @@
+def Init():
+   # --- author : claude
+   # --- a word whose letters are each wired to a slot.  Loud slots push
+   # --- their letter bigger, brighter and off the baseline.
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Decay")
+   STR.SetFParam1Name("Text Size")
+   STR.SetFParam2Name("Throw")
+   # ---    accent : letters invert onto slabs
+   # ---    trigger : next word
+
+   # --- 10 slots = FFT analysis bins, 24 slots = MIDI notes
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   GLB.words = ["STRUCTURE","RESONANCE","MODULATE","THRESHOLD","HARMONIC",
+                "FEEDBACK","OSCILLATE","AMPLITUDE"]
+   GLB.w = 0
+   GLB.lvl = []
+   for i in range(16):
+      GLB.lvl.append(0.0)
+
+   def text(x, y, s):
+      cr.save()
+      cr.translate(x, y)
+      cr.scale(1.0, -1.0)
+      cr.move_to(0, 0)
+      cr.show_text(s)
+      cr.restore()
+   GLB.text = text
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.78, 0.98)
+   f1 = STR.F1mix(60.0, 130.0)
+   f2 = STR.F2mix(0.0, 150.0)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.w = (GLB.w + 1) % len(GLB.words)
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   s = GLB.words[GLB.w]
+   n = len(s)
+
+   for k in range(16):
+      GLB.lvl[k] = GLB.lvl[k] * f0
+
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if ids == 0:
+         continue
+      k = (note % n) if GLB.mode == "midi" else int(i * n / GLB.slots)
+      if k < 16:
+         v = velo / 127.0
+         if v > GLB.lvl[k]:
+            GLB.lvl[k] = v
+
+   cr.set_source_rgb(0.03, 0.02, 0.05)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cr.select_font_face("sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+
+   # --- measure at the base size so the word stays centred while it jumps
+   cr.set_font_size(f1)
+   widths = []
+   tot = 0.0
+   for i in range(n):
+      e = cr.text_extents(s[i])
+      widths.append(e.x_advance)
+      tot = tot + e.x_advance
+   x = 640.0 - tot * 0.5
+
+   for i in range(n):
+      v = GLB.lvl[i] if i < 16 else 0.0
+      sz = f1 * (1.0 + 0.55 * v)
+      dy = v * f2 * (1.0 if i % 2 == 0 else -1.0)
+      r,g,b = hsv_to_rgb((i / (n * 1.0) * 0.45 + time * 0.03) % 1.0, 0.75,
+                         0.35 + 0.65 * v)
+      cx = x + widths[i] * 0.5
+
+      cr.set_font_size(sz)
+      e = cr.text_extents(s[i])
+      bx = cx - e.width * 0.5 - e.x_bearing
+      by = 360.0 - e.height * 0.5 + dy
+
+      if acc:
+         cr.set_source_rgb(b, g, r)
+         cr.rectangle(cx - widths[i] * 0.52, by - sz * 0.22, widths[i] * 1.04, sz * 1.05)
+         cr.fill()
+         cr.set_source_rgb(0.05, 0.04, 0.06)
+      else:
+         cr.set_source_rgb(b, g, r)
+      GLB.text(bx, by, s[i])
+
+      # --- level bar under the letter
+      cr.set_source_rgba(b, g, r, 0.7)
+      cr.rectangle(cx - widths[i] * 0.34, 150.0, widths[i] * 0.68, 6.0 + 90.0 * v)
+      cr.fill()
+
+      x = x + widths[i]

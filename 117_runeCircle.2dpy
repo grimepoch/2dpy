@@ -1,0 +1,105 @@
+def Init():
+   # --- author : claude
+   # --- a summoning circle : concentric bands of glyphs turning against each
+   # --- other, with dashed guide rings between them
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Spin")
+   STR.SetFParam1Name("Rings")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : inner star wakes up
+   # ---    trigger : new inscription
+
+   GLB.set = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789*+-/\\|<>~^"
+   GLB.maxr = 5
+
+   def build():
+      GLB.rings = []
+      for k in range(GLB.maxr):
+         n = 18 + k * 9
+         s = ""
+         for i in range(n):
+            s = s + GLB.set[np.random.randint(0, len(GLB.set))]
+         GLB.rings.append(s)
+   GLB.build = build
+   GLB.build()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(-0.5, 0.5)
+   f1 = STR.F1mix(2.0, 5.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.build()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   cr.set_source_rgb(0.03, 0.02, 0.05)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   nr = int(f1)
+   cr.select_font_face("serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+
+   cr.save()
+   cr.translate(640, 360)
+
+   for k in range(nr):
+      rad = 70.0 + k * 62.0
+      s = GLB.rings[k]
+      n = len(s)
+      spin = time * f0 * (1.0 if k % 2 == 0 else -1.0) * (1.0 + k * 0.2)
+      t = k / (nr * 1.0)
+      r,g,b = hsv_to_rgb((f2 + t * 0.35) % 1.0, 0.7, 1.0)
+      cr.set_source_rgb(b, g, r)
+      cr.set_font_size(30.0 - k * 2.0)
+      # --- one extents call per ring, not one per glyph: measuring every
+      # --- character was costing more than drawing them
+      half = cr.text_extents("M").width * 0.5
+      for i in range(n):
+         a = i * 2.0 * pi / n + spin
+         cr.save()
+         cr.translate(cos(a) * rad, sin(a) * rad)
+         # --- the display is y-up, so the glyph is turned the other way
+         cr.rotate(-a - pi * 0.5)
+         cr.scale(1.0, -1.0)
+         cr.move_to(-half, 0)
+         cr.show_text(s[i])
+         cr.restore()
+
+      # --- dashed guide ring
+      cr.set_source_rgba(b, g, r, 0.45)
+      cr.set_line_width(1.6)
+      cr.set_dash([9.0, 7.0], time * 12.0)
+      cr.new_sub_path()
+      cr.arc(0, 0, rad - 26.0, 0, 2 * pi)
+      cr.stroke()
+      cr.set_dash([])
+
+   if acc:
+      # --- pentagram in the middle
+      r,g,b = hsv_to_rgb((f2 + 0.5) % 1.0, 0.85, 1.0)
+      cr.set_source_rgb(b, g, r)
+      cr.set_line_width(3)
+      rad = 56.0
+      for i in range(6):
+         a = (i * 2) * 2.0 * pi / 5.0 - pi * 0.5 + time * 0.2
+         if i == 0:
+            cr.move_to(cos(a) * rad, sin(a) * rad)
+         else:
+            cr.line_to(cos(a) * rad, sin(a) * rad)
+      cr.stroke()
+
+   cr.restore()

@@ -1,0 +1,129 @@
+def Init():
+   # --- author : claude
+   # --- flocking : separation, alignment and cohesion, with the neighbour
+   # --- search done as one numpy pairwise pass rather than a python loop
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Cohesion")
+   STR.SetFParam1Name("Alignment")
+   STR.SetFParam2Name("Separation")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : draw the flock's bounding links
+   # ---    trigger : scatter the flock
+
+   # --- the pairwise pass is O(n^2); 84 birds still reads as a flock
+   GLB.n = 84
+   GLB.fr = 0
+
+   def scatter():
+      GLB.px = np.random.random(GLB.n) * 1280.0
+      GLB.py = np.random.random(GLB.n) * 720.0
+      a = np.random.random(GLB.n) * 2.0 * pi
+      GLB.vx = np.cos(a) * 3.0
+      GLB.vy = np.sin(a) * 3.0
+      GLB.hu = np.random.random(GLB.n) * 0.2
+   GLB.scatter = scatter
+   GLB.scatter()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 0.02)
+   f1 = STR.F1mix(0.0, 0.14)
+   f2 = STR.F2mix(0.0, 2.6)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.scatter()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   # --- a full screen alpha fill is the single most expensive call here,
+   # --- so wash on alternate frames at double strength
+   GLB.fr = GLB.fr + 1
+   if GLB.fr % 2 == 0:
+      cr.set_source_rgba(0,0,0,0.55)
+      cr.rectangle(0,0,1280,720)
+      cr.fill()
+
+   n = GLB.n
+   px = GLB.px
+   py = GLB.py
+
+   dx = px.reshape(n, 1) - px.reshape(1, n)
+   dy = py.reshape(n, 1) - py.reshape(1, n)
+   d2 = dx * dx + dy * dy
+   near = (d2 < 9000.0)
+   close = (d2 < 700.0) & (d2 > 0.0)
+
+   cnt = np.sum(near, axis=1)
+   cnt = np.where(cnt < 1, 1, cnt)
+
+   # --- cohesion : steer at the local centre of mass
+   cx = np.dot(near, px) / cnt
+   cy = np.dot(near, py) / cnt
+   # --- alignment : match the local average heading
+   ax = np.dot(near, GLB.vx) / cnt
+   ay = np.dot(near, GLB.vy) / cnt
+   # --- separation : push off anything too close
+   sx = np.sum(np.where(close, dx, 0.0), axis=1)
+   sy = np.sum(np.where(close, dy, 0.0), axis=1)
+
+   GLB.vx = GLB.vx + (cx - px) * f0 + (ax - GLB.vx) * f1 + sx * f2 * 0.004
+   GLB.vy = GLB.vy + (cy - py) * f0 + (ay - GLB.vy) * f1 + sy * f2 * 0.004
+
+   sp = np.sqrt(GLB.vx * GLB.vx + GLB.vy * GLB.vy) + 0.0001
+   lim = 5.5
+   GLB.vx = GLB.vx / sp * lim
+   GLB.vy = GLB.vy / sp * lim
+
+   GLB.px = np.mod(px + GLB.vx, 1280.0)
+   GLB.py = np.mod(py + GLB.vy, 720.0)
+
+   # --- pull the arrays into python lists ONCE.  Indexing a numpy array a
+   # --- few hundred times per frame costs far more than the drawing does.
+   lx = GLB.px.tolist()
+   ly = GLB.py.tolist()
+   la = np.arctan2(GLB.vy, GLB.vx).tolist()
+
+   if acc:
+      # --- neighbour links, found by numpy on a subsampled matrix instead
+      # --- of an n-squared python loop
+      sub = near[::3, ::3]
+      ii, jj = np.nonzero(np.triu(sub, 1))
+      cr.set_source_rgba(0.4, 0.7, 1.0, 0.16)
+      cr.set_line_width(1)
+      cnt2 = len(ii)
+      if cnt2 > 260:
+         cnt2 = 260
+      il = ii.tolist()
+      jl = jj.tolist()
+      for k in range(cnt2):
+         a = il[k] * 3
+         b2 = jl[k] * 3
+         cr.move_to(lx[a], ly[a])
+         cr.line_to(lx[b2], ly[b2])
+      cr.stroke()
+
+   # --- one fill per hue band keeps the state changes down
+   bands = 5
+   for b in range(bands):
+      t = b / (bands - 1.0)
+      r,g,bl = hsv_to_rgb((time * 0.03 + t * 0.25) % 1.0, 0.75 if GLB.xmode else 0.4, 1.0)
+      cr.set_source_rgb(bl, g, r)
+      for i in range(b, n, bands):
+         a = la[i]
+         x = lx[i]
+         y = ly[i]
+         cr.move_to(x + cos(a) * 11, y + sin(a) * 11)
+         cr.line_to(x + cos(a + 2.5) * 7, y + sin(a + 2.5) * 7)
+         cr.line_to(x + cos(a - 2.5) * 7, y + sin(a - 2.5) * 7)
+         cr.close_path()
+      cr.fill()

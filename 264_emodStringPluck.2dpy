@@ -1,0 +1,97 @@
+def Init():
+   # --- author : claude
+   # --- strings, plucked and left to ring.  Each string is its own little
+   # --- wave equation, so a pluck puts a real travelling kink on it that
+   # --- reflects off both bridges and decays - the harmonics come out of the
+   # --- physics rather than being drawn as sine waves.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Tension")
+   STR.SetFParam1Name("Sustain")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : bow them instead of plucking
+   # ---    trigger : damp everything
+
+   GLB.ns = 14
+   GLB.np_ = 220
+   GLB.u = np.zeros((GLB.ns, GLB.np_), dtype=np.float32)
+   GLB.p = np.zeros((GLB.ns, GLB.np_), dtype=np.float32)
+   GLB.prev = np.zeros(GLB.slots, dtype=np.float32)
+   GLB.hue = np.random.random(GLB.ns)
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.06, 0.32)
+   f1 = STR.F1mix(0.985, 0.9998)
+   f2 = STR.F2()
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.u = GLB.u * 0.0
+      GLB.p = GLB.p * 0.0
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   u = GLB.u
+   p = GLB.p
+   # --- two sub-steps, so a high string still resolves its own period
+   for k in range(2):
+      lap = np.zeros((GLB.ns, GLB.np_), dtype=np.float32)
+      lap[:, 1:-1] = u[:, :-2] + u[:, 2:] - 2.0 * u[:, 1:-1]
+      nxt = (2.0 * u - p + f0 * lap) * f1
+      p = u
+      u = nxt
+      # --- clamped at the nut and the bridge
+      u[:, 0] = 0.0
+      u[:, -1] = 0.0
+
+   for i in range(GLB.slots):
+      d = STR.GetSlotData(i)
+      vel = d[2] * 1.0
+      if d[0] != 0 and vel > GLB.prev[i] + 5.0:
+         n = int(d[1])
+         s = n % GLB.ns
+         # --- where along the string it is plucked sets the timbre
+         pos = 0.12 + ((n // GLB.ns) % 5) * 0.16
+         c = int(pos * GLB.np_)
+         a = (vel / 127.0) * 26.0
+         w = 12
+         for j in range(-w, w + 1):
+            k = c + j
+            if 1 <= k < GLB.np_ - 1:
+               u[s, k] = u[s, k] - a * (1.0 - abs(j) / (w + 1.0))
+      GLB.prev[i] = vel
+
+   if acc:
+      # --- a bow keeps feeding energy in at one point
+      s = int(time * 3.0) % GLB.ns
+      c = int(GLB.np_ * 0.3)
+      u[s, c] = u[s, c] + sin(time * 40.0) * 7.0
+
+   np.clip(u, -60.0, 60.0, out=u)
+   GLB.u = u
+   GLB.p = p
+
+   cr.set_source_rgba(0, 0, 0, 1)
+   cr.rectangle(0, 0, 1280, 720)
+   cr.fill()
+
+   sh = 720.0 / (GLB.ns + 1)
+   cr.set_line_width(1.8)
+   for s in range(GLB.ns):
+      y0 = (s + 1) * sh
+      amp = np.abs(u[s]).max()
+      lum = min(0.25 + amp * 0.09, 1.0)
+      c = hsv_to_rgb((GLB.hue[s] * 0.4 + f2) % 1.0, 0.70, lum)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      cr.move_to(0, y0 + u[s, 0])
+      for j in range(1, GLB.np_):
+         cr.line_to(j * (1280.0 / (GLB.np_ - 1.0)), y0 + u[s, j])
+      cr.stroke()

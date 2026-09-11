@@ -1,0 +1,99 @@
+def Init():
+   # --- author : claude
+   # --- the wave equation, run on the canvas itself.  Two buffers are kept -
+   # --- now and a moment ago - because acceleration needs both, and that
+   # --- second buffer is the whole reason ripples carry on travelling after
+   # --- the thing that made them has stopped.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Tension")
+   STR.SetFParam1Name("Damping")
+   STR.SetFParam2Name("Sources")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : drop a stone
+   # ---    trigger : move the emitters
+
+   GLB.res = 3
+   GLB.nx = 1280 // GLB.res
+   GLB.ny = 720 // GLB.res
+   GLB.small = cairo.ImageSurface(cairo.FORMAT_ARGB32, GLB.nx, GLB.ny)
+   GLB.sst = GLB.small.get_stride() // 4
+   GLB.sv = np.ndarray(shape=(GLB.ny, GLB.sst, 4), dtype=np.uint8,
+                       buffer=GLB.small.get_data())
+   GLB.u = np.zeros((GLB.ny, GLB.nx), dtype=np.float32)
+   GLB.p = np.zeros((GLB.ny, GLB.nx), dtype=np.float32)
+   GLB.lap = np.zeros((GLB.ny, GLB.nx), dtype=np.float32)
+   GLB.nb = 160
+   GLB.pal = np.zeros((GLB.nb, 3), dtype=np.float32)
+   for i in range(GLB.nb):
+      c = hsv_to_rgb(0.54 + 0.30 * (i / (GLB.nb * 1.0)), 0.80, 1.0)
+      GLB.pal[i, 0] = c[0] * 255.0
+      GLB.pal[i, 1] = c[1] * 255.0
+      GLB.pal[i, 2] = c[2] * 255.0
+
+   def moveem():
+      GLB.ex = np.random.randint(GLB.nx // 6, GLB.nx - GLB.nx // 6, 4)
+      GLB.ey = np.random.randint(GLB.ny // 6, GLB.ny - GLB.ny // 6, 4)
+      GLB.ef = np.random.random(4) * 0.5 + 0.25
+   GLB.moveem = moveem
+   GLB.moveem()
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.12, 0.40)
+   f1 = STR.F1mix(0.9900, 0.9995)
+   f2 = STR.F2mix(1.0, 4.99)
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.moveem()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   u = GLB.u
+   p = GLB.p
+   lap = GLB.lap
+   lap[:, :] = 0.0
+   np.add(lap[1:], u[:-1], out=lap[1:])
+   np.add(lap[:-1], u[1:], out=lap[:-1])
+   np.add(lap[:, 1:], u[:, :-1], out=lap[:, 1:])
+   np.add(lap[:, :-1], u[:, 1:], out=lap[:, :-1])
+   np.subtract(lap, u * 4.0, out=lap)
+
+   # --- u_next = 2u - u_prev + c^2 * laplacian, then bled off by damping
+   nxt = (2.0 * u - p + f0 * lap) * f1
+   GLB.p = u
+   u = nxt
+
+   for k in range(int(f2)):
+      a = 1.0 * sin(time * (2.0 + GLB.ef[k] * 5.0))
+      u[GLB.ey[k]-1:GLB.ey[k]+2, GLB.ex[k]-1:GLB.ex[k]+2] = a
+   if acc:
+      sx = np.random.randint(6, GLB.nx - 6)
+      sy = np.random.randint(6, GLB.ny - 6)
+      u[sy-3:sy+4, sx-3:sx+4] = -3.2
+
+   np.clip(u, -4.0, 4.0, out=u)
+   GLB.u = u
+
+   q = np.clip((u * 0.5 + 0.5) * GLB.nb, 0, GLB.nb - 1).astype(np.int32)
+   c = GLB.pal[q]
+   amp = np.clip(np.abs(u) * 1.5 + 0.12, 0.0, 1.0)
+   GLB.sv[:, :GLB.nx, 0] = np.clip(c[:, :, 0] * amp, 0, 255).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 1] = np.clip(c[:, :, 1] * amp, 0, 255).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 2] = np.clip(c[:, :, 2] * amp, 0, 255).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 3] = 255
+   GLB.small.mark_dirty()
+   pat = cairo.SurfacePattern(GLB.small)
+   pat.set_filter(cairo.FILTER_NEAREST)
+   m = cairo.Matrix()
+   m.scale(1.0 / GLB.res, 1.0 / GLB.res)
+   pat.set_matrix(m)
+   cr.set_source(pat)
+   cr.paint()

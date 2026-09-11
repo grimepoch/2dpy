@@ -1,0 +1,120 @@
+def Init():
+   # --- author : claude
+   # --- a meteor shower.  The Earth runs into a stream of debris all moving
+   # --- the same way, so the trails all appear to come from one point -
+   # --- perspective, nothing more.  The radiant drifts with the night and
+   # --- the stream never runs out.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Rate")
+   STR.SetFParam1Name("Persistence")
+   STR.SetFParam2Name("Stars")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : an outburst, and a few fireballs
+   # ---    trigger : new radiant
+
+   GLB.st = surface.get_stride() // 4
+   GLB.rx = 400.0
+   GLB.ry = 260.0
+   GLB.cap = 90
+   GLB.n = 0
+   GLB.mx = np.zeros(GLB.cap)
+   GLB.my = np.zeros(GLB.cap)
+   GLB.ma = np.zeros(GLB.cap)
+   GLB.mv = np.zeros(GLB.cap)
+   GLB.ml = np.zeros(GLB.cap)
+   GLB.mb = np.zeros(GLB.cap)
+
+   def sky():
+      k = 260
+      GLB.sx = np.random.random(k) * 1280.0
+      GLB.sy = np.random.random(k) * 720.0
+      GLB.ss = np.random.random(k) ** 3
+   GLB.sky = sky
+   GLB.sky()
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.02, 0.55)
+   f1 = STR.F1mix(2.0, 5.0)
+   f2 = STR.F2mix(0.1, 1.0)
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.rx = 200.0 + np.random.random() * 880.0
+      GLB.ry = 120.0 + np.random.random() * 380.0
+      GLB.sky()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8,
+                  buffer=surface.get_data())
+   np.subtract(v, np.right_shift(v, int(f1)), out=v)
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   # --- the sky turns, so the radiant tracks across the night
+   GLB.rx = GLB.rx + 0.12
+   if GLB.rx > 1380.0:
+      GLB.rx = -100.0
+
+   cr.set_source_rgb(0.85, 0.90, 1.0)
+   for i in range(len(GLB.sx)):
+      s = GLB.ss[i] * f2
+      if s < 0.05:
+         continue
+      cr.rectangle(GLB.sx[i], GLB.sy[i], 1.0 + s * 2.0, 1.0 + s * 2.0)
+   cr.fill()
+
+   rate = f0 * (5.0 if acc else 1.0)
+   while np.random.random() < rate and GLB.n < GLB.cap:
+      j = GLB.n
+      # --- every trail points away from the radiant; only the distance
+      # --- from it and the speed differ
+      a = np.random.random() * 6.2831853
+      d0 = 30.0 + np.random.random() * 260.0
+      GLB.mx[j] = GLB.rx + cos(a) * d0
+      GLB.my[j] = GLB.ry + sin(a) * d0
+      GLB.ma[j] = a
+      GLB.mv[j] = 7.0 + np.random.random() * 16.0
+      GLB.ml[j] = 14.0 + np.random.random() * 30.0
+      GLB.mb[j] = 0.35 + np.random.random() * 0.65
+      if acc and np.random.random() < 0.18:
+         GLB.mb[j] = 1.6
+         GLB.mv[j] = GLB.mv[j] * 0.6
+      GLB.n = j + 1
+
+   cr.set_line_cap(cairo.LINE_CAP_ROUND)
+   i = 0
+   while i < GLB.n:
+      x0 = GLB.mx[i]
+      y0 = GLB.my[i]
+      GLB.mx[i] = x0 + cos(GLB.ma[i]) * GLB.mv[i]
+      GLB.my[i] = y0 + sin(GLB.ma[i]) * GLB.mv[i]
+      GLB.ml[i] = GLB.ml[i] - 1.0
+      b = GLB.mb[i] * min(GLB.ml[i] / 14.0, 1.0)
+      cr.set_source_rgba(min(b * 0.75, 1.0), min(b * 0.92, 1.0),
+                         min(b, 1.0), 0.95)
+      cr.set_line_width(1.0 + b * 2.6)
+      cr.move_to(x0, y0)
+      cr.line_to(GLB.mx[i], GLB.my[i])
+      cr.stroke()
+      if GLB.ml[i] <= 0.0 or GLB.mx[i] < -60 or GLB.mx[i] > 1340 or \
+         GLB.my[i] < -60 or GLB.my[i] > 780:
+         last = GLB.n - 1
+         GLB.mx[i] = GLB.mx[last]
+         GLB.my[i] = GLB.my[last]
+         GLB.ma[i] = GLB.ma[last]
+         GLB.mv[i] = GLB.mv[last]
+         GLB.ml[i] = GLB.ml[last]
+         GLB.mb[i] = GLB.mb[last]
+         GLB.n = GLB.n - 1
+      else:
+         i = i + 1

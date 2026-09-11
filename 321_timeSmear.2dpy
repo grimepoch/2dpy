@@ -1,0 +1,91 @@
+def Init():
+   # --- author : claude
+   # --- time displacement : every row of the standing image is scrolled by a
+   # --- different amount, so different parts of the picture are at different
+   # --- ages.  Nothing is redrawn - only the old pixels are moved.
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Spread")
+   STR.SetFParam1Name("Profile")
+   STR.SetFParam2Name("Decay")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : mirror the profile
+   # ---    trigger : rows <-> columns
+
+   GLB.st = surface.get_stride() // 4
+   GLB.rows = np.arange(720)
+   GLB.cols = np.arange(GLB.st)
+   GLB.vert = 0
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 8.0)
+   f1 = STR.F1()
+   f2 = STR.F2mix(3.0, 9.0)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.vert = 1 - GLB.vert
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8, buffer=surface.get_data())
+   np.subtract(v, np.right_shift(v, int(f2)), out=v)
+
+   # --- banded slice shifts, not a 2D gather (32ms -> under 1ms)
+   nb = 60
+   if GLB.vert:
+      bw = GLB.st // nb
+      for b in range(nb):
+         x0 = b * bw
+         x1 = x0 + bw
+         u = x0 / (GLB.st * 1.0)
+         pr = 1.0 - abs(u * 2.0 - 1.0) if acc else sin(u * pi * (1.0 + f1 * 4.0))
+         sft = int(pr * f0)
+         if sft > 0:
+            v[:-sft, x0:x1] = v[sft:, x0:x1]
+            v[-sft:, x0:x1] = 0
+         elif sft < 0:
+            k = -sft
+            v[k:, x0:x1] = v[:-k, x0:x1]
+            v[:k, x0:x1] = 0
+   else:
+      bh = 720 // nb
+      for b in range(nb):
+         y0 = b * bh
+         y1 = y0 + bh
+         u = y0 / 720.0
+         pr = 1.0 - abs(u * 2.0 - 1.0) if acc else sin(u * pi * (1.0 + f1 * 4.0))
+         sft = int(pr * f0)
+         if sft > 0:
+            v[y0:y1, :-sft] = v[y0:y1, sft:]
+            v[y0:y1, -sft:] = 0
+         elif sft < 0:
+            k = -sft
+            v[y0:y1, k:] = v[y0:y1, :-k]
+            v[y0:y1, :k] = 0
+
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   # --- a compact source, so the smear does all the composition
+   c = hsv_to_rgb((time * 0.05) % 1.0, 0.8, 1.0)
+   cr.set_source_rgb(c[2], c[1], c[0])
+   if GLB.xmode:
+      cr.set_line_width(30)
+      cr.set_line_cap(cairo.LINE_CAP_ROUND)
+      cr.move_to(640 - 120, 360 + 200 * sin(time))
+      cr.line_to(640 + 120, 360 + 200 * sin(time + 1.0))
+      cr.stroke()
+   else:
+      cr.new_sub_path()
+      cr.arc(640 + 220 * sin(time * 0.9), 360 + 200 * cos(time * 1.4), 44, 0, 2 * pi)
+      cr.fill()

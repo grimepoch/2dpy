@@ -1,0 +1,99 @@
+def Init():
+   # --- author : claude
+   # --- Langton's ants.  Turn right on white, left on black, flip the cell,
+   # --- step forward.  Chaos for ten thousand steps, then a highway.
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Speed")
+   STR.SetFParam1Name("Ants")
+   STR.SetFParam2Name("Cell Size")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : show the ants
+   # ---    trigger : wipe the board
+
+   GLB.cw = 8
+   GLB.nmax = 6
+
+   def reset(cw):
+      GLB.cw = cw
+      GLB.nx = int(1280 / cw)
+      GLB.ny = int(720 / cw)
+      GLB.g = np.zeros((GLB.ny, GLB.nx), dtype=np.int32)
+      GLB.ax = []
+      GLB.ay = []
+      GLB.ad = []
+      GLB.ah = []
+      for i in range(GLB.nmax):
+         GLB.ax.append(GLB.nx // 2 + np.random.randint(-14, 15))
+         GLB.ay.append(GLB.ny // 2 + np.random.randint(-14, 15))
+         GLB.ad.append(np.random.randint(0, 4))
+         GLB.ah.append(np.random.random())
+      GLB.wipe = 1
+   GLB.reset = reset
+   GLB.reset(8)
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(1.0, 260.0)
+   f1 = STR.F1mix(1.0, 6.0)
+   f2 = STR.F2mix(4.0, 16.0)
+
+   time = STR.IT() + STR.FT()
+
+   cw = int(f2)
+   if trig or cw != GLB.cw:
+      GLB.reset(cw)
+      if trig:
+         GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   # --- the board is only ever drawn where it changed, so it accumulates
+   # --- on the persistent surface instead of being redrawn every frame
+   if GLB.wipe:
+      GLB.wipe = 0
+      cr.set_source_rgb(0.02, 0.02, 0.03)
+      cr.rectangle(0,0,1280,720)
+      cr.fill()
+
+   dx = [1, 0, -1, 0]
+   dy = [0, 1, 0, -1]
+   n = int(f1)
+   steps = int(f0)
+
+   for a in range(n):
+      x = GLB.ax[a]
+      y = GLB.ay[a]
+      d = GLB.ad[a]
+      r,g,b = hsv_to_rgb((GLB.ah[a] + time * 0.02) % 1.0, 0.75 if GLB.xmode else 0.0,
+                         1.0 if GLB.xmode else 1.0)
+      onc = (b, g, r)
+      for s in range(steps):
+         v = GLB.g[y][x]
+         if v:
+            d = (d + 3) % 4
+            GLB.g[y][x] = 0
+            cr.set_source_rgb(0.02, 0.02, 0.03)
+         else:
+            d = (d + 1) % 4
+            GLB.g[y][x] = 1
+            cr.set_source_rgb(onc[0], onc[1], onc[2])
+         cr.rectangle(x * cw, y * cw, cw, cw)
+         cr.fill()
+         x = (x + dx[d]) % GLB.nx
+         y = (y + dy[d]) % GLB.ny
+      GLB.ax[a] = x
+      GLB.ay[a] = y
+      GLB.ad[a] = d
+
+   if acc:
+      cr.set_source_rgb(0.2, 0.2, 1.0)
+      for a in range(n):
+         cr.rectangle(GLB.ax[a] * cw - 2, GLB.ay[a] * cw - 2, cw + 4, cw + 4)
+      cr.fill()

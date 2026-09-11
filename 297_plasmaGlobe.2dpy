@@ -1,0 +1,101 @@
+def Init():
+   # --- author : claude
+   # --- a plasma globe.  Filaments are struck from the electrode toward the
+   # --- glass and left to decay in place, so the discharge you see is
+   # --- several frames deep - a single frame's worth of lightning looks thin
+   # --- and dead, it is the afterimage that makes it look hot.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Discharge")
+   STR.SetFParam1Name("Afterglow")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : a finger on the glass
+   # ---    trigger : reseat the electrode
+
+   GLB.st = surface.get_stride() // 4
+   GLB.parity = 0
+   GLB.ox = 640.0
+   GLB.oy = 360.0
+   GLB.tx = 1000.0
+   GLB.ty = 360.0
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(1.0, 7.99)
+   f1 = STR.F1mix(2.0, 5.0)
+   f2 = STR.F2()
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.ox = 400.0 + np.random.random() * 480.0
+      GLB.oy = 220.0 + np.random.random() * 280.0
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8,
+                  buffer=surface.get_data())
+   np.subtract(v, np.right_shift(v, int(f1)), out=v)
+   GLB.parity = GLB.parity + 1
+   # --- a dilate that always writes into the LEFT slice walks the whole
+   # --- image leftward a pixel at a time, so the two directions alternate
+   if GLB.parity % 4 == 0:
+      np.maximum(v[:, :-1], v[:, 1:], out=v[:, :-1])
+   elif GLB.parity % 4 == 2:
+      np.maximum(v[:, 1:], v[:, :-1], out=v[:, 1:])
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   rad = 330.0
+   # --- the touch point the filaments prefer
+   GLB.tx = GLB.tx + (640.0 + cos(time * 0.6) * rad - GLB.tx) * 0.08
+   GLB.ty = GLB.ty + (360.0 + sin(time * 0.6) * rad * 0.72 - GLB.ty) * 0.08
+
+   nf = int(f0)
+   cr.set_line_cap(cairo.LINE_CAP_ROUND)
+   for k in range(nf):
+      if acc and (k % 2) == 0:
+         a = atan2(GLB.ty - GLB.oy, GLB.tx - GLB.ox)
+         a = a + (np.random.random() - 0.5) * 0.35
+      else:
+         a = np.random.random() * 6.2831853
+      x = GLB.ox
+      y = GLB.oy
+      seg = 16
+      step = rad / seg
+      c = hsv_to_rgb((f2 + np.random.random() * 0.12) % 1.0, 0.55, 1.0)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      cr.set_line_width(2.6)
+      cr.move_to(x, y)
+      for s in range(seg):
+         a = a + (np.random.random() - 0.5) * 0.42
+         x = x + cos(a) * step
+         y = y + sin(a) * step
+         dx = x - 640.0
+         dy = (y - 360.0) / 0.72
+         if dx * dx + dy * dy > rad * rad:
+            break
+         cr.line_to(x, y)
+      cr.stroke()
+
+   # --- the glass and the electrode, so the globe reads as an object
+   cr.set_source_rgb(0.55, 0.40, 0.22)
+   cr.set_line_width(3.0)
+   cr.save()
+   cr.translate(640, 360)
+   cr.scale(1.0, 0.72)
+   cr.new_sub_path()
+   cr.arc(0, 0, rad, 0, 6.2831853)
+   cr.restore()
+   cr.stroke()
+   cr.set_source_rgb(1.0, 0.95, 0.85)
+   cr.new_sub_path()
+   cr.arc(GLB.ox, GLB.oy, 13.0, 0, 6.2831853)
+   cr.fill()

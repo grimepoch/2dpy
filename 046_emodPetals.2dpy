@@ -1,0 +1,111 @@
+def Init():
+   # --- author : claude
+   # --- a flower with one petal per slot.  Each petal opens with its own
+   # --- level, so chords bloom and single notes poke out on their own.
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Decay")
+   STR.SetFParam1Name("Reach")
+   STR.SetFParam2Name("Hue")
+   # ---    accent : outline the petals
+   # ---    trigger : one layer <-> three layers
+
+   # --- 10 slots = FFT analysis bins, 24 slots = MIDI notes
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   GLB.n = 12 if GLB.slots == 24 else GLB.slots
+   GLB.lvl = []
+   for i in range(GLB.n):
+      GLB.lvl.append(0.0)
+
+   def petal(L, W):
+      # --- one petal along +x, built from two mirrored beziers
+      cr.move_to(0, 0)
+      cr.curve_to(L * 0.30, W, L * 0.72, W, L, 0)
+      cr.curve_to(L * 0.72, -W, L * 0.30, -W, 0, 0)
+      cr.close_path()
+   GLB.petal = petal
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.80, 0.985)
+   f1 = STR.F1mix(90.0, 330.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   n = GLB.n
+   for k in range(n):
+      GLB.lvl[k] = GLB.lvl[k] * f0
+
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if ids == 0:
+         continue
+      k = (note % 12) if GLB.mode == "midi" else i
+      if k < n:
+         v = velo / 127.0
+         if v > GLB.lvl[k]:
+            GLB.lvl[k] = v
+
+   cr.set_source_rgb(0.02, 0.02, 0.04)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   layers = 3 if GLB.xmode else 1
+
+   cr.save()
+   cr.translate(640, 360)
+   cr.rotate(time * 0.08)
+
+   for ly in range(layers):
+      sc = 1.0 - ly * 0.28
+      spin = time * (0.25 if ly % 2 else -0.25) * (ly * 0.6)
+      for k in range(n):
+         v = GLB.lvl[k]
+         L = (30.0 + f1 * v) * sc
+         W = L * 0.34
+         a = k * 2.0 * pi / n + spin + ly * 0.25
+         t = k / (n * 1.0)
+         r,g,b = hsv_to_rgb((f2 + t * 0.55 + ly * 0.08) % 1.0, 0.80,
+                            0.30 + 0.70 * v)
+         cr.save()
+         cr.rotate(a)
+         GLB.petal(L, W)
+         cr.restore()
+         if acc:
+            cr.set_source_rgb(b, g, r)
+            cr.set_line_width(2.0)
+            cr.stroke()
+         else:
+            cr.set_source_rgba(b, g, r, 0.85)
+            cr.fill()
+
+   # --- the eye of the flower
+   tot = 0.0
+   for k in range(n):
+      tot = tot + GLB.lvl[k]
+   tot = tot / n
+   r,g,b = hsv_to_rgb((f2 + 0.5) % 1.0, 0.6, 0.5 + 0.5 * tot)
+   cr.set_source_rgb(b, g, r)
+   cr.new_sub_path()
+   cr.arc(0, 0, 16.0 + 40.0 * tot, 0, 2 * pi)
+   cr.fill()
+
+   cr.restore()

@@ -1,0 +1,110 @@
+def Init():
+   # --- author : claude
+   # --- a colony on a plate with limited food.  The bacteria eat what is
+   # --- under them and can only grow into food that is left, so the colony
+   # --- cannot fill in behind itself - it has to branch, and the branching
+   # --- gets finer the poorer the plate is.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Nutrient")
+   STR.SetFParam1Name("Motility")
+   STR.SetFParam2Name("Stain")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : feed the plate
+   # ---    trigger : new plate
+
+   GLB.res = 3
+   GLB.nx = 1280 // GLB.res
+   GLB.ny = 720 // GLB.res
+   GLB.small = cairo.ImageSurface(cairo.FORMAT_ARGB32, GLB.nx, GLB.ny)
+   GLB.sst = GLB.small.get_stride() // 4
+   GLB.sv = np.ndarray(shape=(GLB.ny, GLB.sst, 4), dtype=np.uint8,
+                       buffer=GLB.small.get_data())
+   GLB.nb = np.zeros((GLB.ny, GLB.nx), dtype=np.float32)
+   GLB.age = 0
+
+   def plate():
+      GLB.c = np.zeros((GLB.ny, GLB.nx), dtype=np.float32)
+      GLB.f = np.ones((GLB.ny, GLB.nx), dtype=np.float32)
+      GLB.t = np.zeros((GLB.ny, GLB.nx), dtype=np.float32)
+      for k in range(3):
+         px = np.random.randint(GLB.nx // 4, GLB.nx - GLB.nx // 4)
+         py = np.random.randint(GLB.ny // 4, GLB.ny - GLB.ny // 4)
+         GLB.c[py-1:py+2, px-1:px+2] = 1.0
+      GLB.age = 0
+   GLB.plate = plate
+   GLB.plate()
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.10, 0.85)
+   f1 = STR.F1mix(0.04, 0.55)
+   f2 = STR.F2()
+
+   c = GLB.c
+   f = GLB.f
+   t = GLB.t
+
+   if trig or (c[2, :].any() or c[-3, :].any()):
+      GLB.plate()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+      c = GLB.c
+      f = GLB.f
+      t = GLB.t
+
+   nb = GLB.nb
+   nb[:, :] = 0.0
+   np.maximum(nb[1:], c[:-1], out=nb[1:])
+   np.maximum(nb[:-1], c[1:], out=nb[:-1])
+   np.maximum(nb[:, 1:], c[:, :-1], out=nb[:, 1:])
+   np.maximum(nb[:, :-1], c[:, 1:], out=nb[:, :-1])
+
+   # --- food diffuses in slowly from the rest of the plate
+   k = 0.16
+   f[1:] = f[1:] + (f[:-1] - f[1:]) * k
+   f[:-1] = f[:-1] + (f[1:] - f[:-1]) * k
+   f[:, 1:] = f[:, 1:] + (f[:, :-1] - f[:, 1:]) * k
+   f[:, :-1] = f[:, :-1] + (f[:, 1:] - f[:, :-1]) * k
+   if acc:
+      np.add(f, 0.02, out=f)
+      np.clip(f, 0.0, 1.0, out=f)
+
+   # --- growth needs a neighbour AND food, and eating uses the food up
+   p = np.where((c < 0.02) & (nb > 0.4), f * f0 * (0.2 + f1), 0.0)
+   go = p > np.random.random((GLB.ny, GLB.nx))
+   c[go] = 1.0
+   GLB.age = GLB.age + 1
+   t[go] = GLB.age
+   np.subtract(f, c * 0.05, out=f)
+   np.clip(f, 0.0, 1.0, out=f)
+   GLB.c = c
+   GLB.f = f
+   GLB.t = t
+
+   live = c > 0.5
+   rel = np.clip(t / (GLB.age + 1.0), 0.0, 1.0)
+   col = hsv_to_rgb(f2 % 1.0, 0.70, 1.0)
+   # --- the agar darkens where the food has been eaten
+   agar = f * 0.5
+   red = np.where(live, col[0] * (90.0 + 165.0 * rel), 18.0 + agar * 44.0)
+   grn = np.where(live, col[1] * (90.0 + 165.0 * rel), 26.0 + agar * 60.0)
+   blu = np.where(live, col[2] * (90.0 + 165.0 * rel), 20.0 + agar * 40.0)
+   GLB.sv[:, :GLB.nx, 0] = np.clip(red, 0, 255).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 1] = np.clip(grn, 0, 255).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 2] = np.clip(blu, 0, 255).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 3] = 255
+   GLB.small.mark_dirty()
+   pat = cairo.SurfacePattern(GLB.small)
+   pat.set_filter(cairo.FILTER_NEAREST)
+   m = cairo.Matrix()
+   m.scale(1.0 / GLB.res, 1.0 / GLB.res)
+   pat.set_matrix(m)
+   cr.set_source(pat)
+   cr.paint()

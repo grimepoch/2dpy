@@ -1,0 +1,124 @@
+def Init():
+   # --- author : claude
+   # --- a leaded window whose glass will not stay put.  The colour field
+   # --- diffuses every frame so neighbouring panes bleed into each other,
+   # --- while each pane keeps pulling back toward its own hue - the picture
+   # --- is the argument between those two, and the came is redrawn crisp on
+   # --- top so the drawing never dissolves.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Bleed")
+   STR.SetFParam1Name("Recover")
+   STR.SetFParam2Name("Hue Turn")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : sunlight through
+   # ---    trigger : recut the window
+
+   GLB.res = 4
+   GLB.nx = 1280 // GLB.res
+   GLB.ny = 720 // GLB.res
+   GLB.small = cairo.ImageSurface(cairo.FORMAT_ARGB32, GLB.nx, GLB.ny)
+   GLB.sst = GLB.small.get_stride() // 4
+   GLB.sv = np.ndarray(shape=(GLB.ny, GLB.sst, 4), dtype=np.uint8,
+                       buffer=GLB.small.get_data())
+   yy, xx = np.meshgrid(np.arange(GLB.ny), np.arange(GLB.nx), indexing="ij")
+   GLB.iy = yy.astype(np.float32)
+   GLB.ix = xx.astype(np.float32)
+
+   def recut():
+      n = 46
+      sx = np.random.random(n) * GLB.nx
+      sy = np.random.random(n) * GLB.ny
+      # --- site by site, keeping the running nearest.  Broadcasting all 46
+      # --- at once and taking an argmin reads better but allocates two
+      # --- 46 x 240 x 426 float arrays and measured twice as slow.
+      best = np.full((GLB.ny, GLB.nx), 1e18, dtype=np.float32)
+      lab = np.zeros((GLB.ny, GLB.nx), dtype=np.int32)
+      for i in range(n):
+         d = (GLB.ix - sx[i]) ** 2 + (GLB.iy - sy[i]) ** 2
+         closer = d < best
+         best = np.where(closer, d, best)
+         lab = np.where(closer, i, lab)
+      GLB.lab = lab
+      GLB.n = n
+      # --- an analogous palette, not uniform random : bleeding two
+      # --- complementary hues into each other only ever makes grey
+      GLB.hue = (np.random.random() + np.random.random(n) * 0.42) % 1.0
+      # --- the came : any cell whose neighbour belongs to another pane
+      edge = np.zeros((GLB.ny, GLB.nx), dtype=bool)
+      edge[1:] = edge[1:] | (lab[1:] != lab[:-1])
+      edge[:-1] = edge[:-1] | (lab[:-1] != lab[1:])
+      edge[:, 1:] = edge[:, 1:] | (lab[:, 1:] != lab[:, :-1])
+      edge[:, :-1] = edge[:, :-1] | (lab[:, :-1] != lab[:, 1:])
+      GLB.came = edge
+      GLB.r = np.zeros((GLB.ny, GLB.nx), dtype=np.float32)
+      GLB.g = np.zeros((GLB.ny, GLB.nx), dtype=np.float32)
+      GLB.b = np.zeros((GLB.ny, GLB.nx), dtype=np.float32)
+   GLB.recut = recut
+   GLB.recut()
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.01, 0.14)
+   f1 = STR.F1mix(0.06, 0.40)
+   f2 = STR.F2mix(0.0, 0.012)
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.recut()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   GLB.hue = (GLB.hue + f2) % 1.0
+   # --- each pane's own colour, looked up per cell through the label map
+   tr = np.zeros(GLB.n, dtype=np.float32)
+   tg = np.zeros(GLB.n, dtype=np.float32)
+   tb = np.zeros(GLB.n, dtype=np.float32)
+   sat = 0.62 if acc else 0.95
+   val = 1.0 if acc else 0.92
+   for i in range(GLB.n):
+      c = hsv_to_rgb(GLB.hue[i], sat, val)
+      tr[i] = c[0]
+      tg[i] = c[1]
+      tb[i] = c[2]
+
+   r = GLB.r
+   g = GLB.g
+   b = GLB.b
+   k = f0
+   # --- bleed : 4-neighbour diffusion, in place
+   for ch in (r, g, b):
+      ch[1:] = ch[1:] + (ch[:-1] - ch[1:]) * k
+      ch[:-1] = ch[:-1] + (ch[1:] - ch[:-1]) * k
+      ch[:, 1:] = ch[:, 1:] + (ch[:, :-1] - ch[:, 1:]) * k
+      ch[:, :-1] = ch[:, :-1] + (ch[:, 1:] - ch[:, :-1]) * k
+   # --- recover : pull back toward the pane's own colour
+   np.add(r, (tr[GLB.lab] - r) * f1, out=r)
+   np.add(g, (tg[GLB.lab] - g) * f1, out=g)
+   np.add(b, (tb[GLB.lab] - b) * f1, out=b)
+   GLB.r = r
+   GLB.g = g
+   GLB.b = b
+
+   came = GLB.came
+   GLB.sv[:, :GLB.nx, 0] = np.clip(np.where(came, 0.06, r) * 255.0,
+                                   0, 255).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 1] = np.clip(np.where(came, 0.05, g) * 255.0,
+                                   0, 255).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 2] = np.clip(np.where(came, 0.05, b) * 255.0,
+                                   0, 255).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 3] = 255
+   GLB.small.mark_dirty()
+   pat = cairo.SurfacePattern(GLB.small)
+   pat.set_filter(cairo.FILTER_NEAREST)
+   m = cairo.Matrix()
+   m.scale(1.0 / GLB.res, 1.0 / GLB.res)
+   pat.set_matrix(m)
+   cr.set_source(pat)
+   cr.paint()

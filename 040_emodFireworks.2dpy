@@ -1,0 +1,133 @@
+def Init():
+   # --- author : claude
+   # --- every note launches a shell.  It climbs, stalls, and bursts into
+   # --- sparks that fall and burn out.
+   # --- note : screen y=0 is the BOTTOM, so gravity is NEGATIVE y
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Burst Size")
+   STR.SetFParam2Name("Gravity")
+   # ---    accent : willow, long trailing sparks
+   # ---    trigger : fire one now
+
+   # --- 10 slots = FFT analysis bins, 24 slots = MIDI notes
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   GLB.shells = []
+   GLB.sparks = []
+   GLB.prev = []
+   for i in range(24):
+      GLB.prev.append(0)
+   GLB.fr = 0
+
+   def launch(hue, velo):
+      x = 160.0 + np.random.random() * 960.0
+      GLB.shells.append([x, 0.0, 7.0 + velo * 5.0, hue, 260.0 + np.random.random() * 260.0])
+      if len(GLB.shells) > 10:
+         del GLB.shells[0]
+   GLB.launch = launch
+
+   def burst(x, y, hue, n, willow):
+      for i in range(n):
+         a = np.random.random() * 2.0 * pi
+         sp = (1.0 + np.random.random() * 6.0)
+         if willow:
+            sp = sp * 0.7
+         GLB.sparks.append([x, y, cos(a) * sp, sin(a) * sp,
+                            1.0, (hue + np.random.random() * 0.08) % 1.0])
+      while len(GLB.sparks) > 520:
+         del GLB.sparks[0]
+   GLB.burst = burst
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.08, 0.7)
+   f1 = STR.F1mix(14.0, 70.0)
+   f2 = STR.F2mix(0.04, 0.35)
+
+   if trig:
+      GLB.launch(np.random.random(), 1.0)
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if GLB.mode == "midi":
+         if ids != 0 and GLB.prev[i] != ids:
+            GLB.launch((note % 12) / 12.0, velo / 127.0)
+         GLB.prev[i] = ids
+      else:
+         if velo > 80 and GLB.prev[i] <= 80:
+            GLB.launch(i / (GLB.slots * 1.0), velo / 127.0)
+         GLB.prev[i] = velo
+
+   GLB.fr = GLB.fr + 1
+   if GLB.fr % 2 == 0:
+      cr.set_source_rgba(0, 0, 0, f0)
+      cr.rectangle(0,0,1280,720)
+      cr.fill()
+
+   # --- shells
+   dead = []
+   for i in range(len(GLB.shells)):
+      s = GLB.shells[i]
+      s[1] = s[1] + s[2]
+      s[2] = s[2] - f2 * 1.2
+      r,g,b = hsv_to_rgb(s[3], 0.4, 1.0)
+      cr.set_source_rgb(b, g, r)
+      cr.rectangle(s[0] - 2.5, s[1] - 2.5, 5, 5)
+      cr.fill()
+      if s[2] <= 0 or s[1] > s[4]:
+         GLB.burst(s[0], s[1], s[3], int(f1), acc)
+         dead.append(i)
+   dead.reverse()
+   for i in dead:
+      del GLB.shells[i]
+
+   # --- sparks, banded by hue so this is a handful of fills
+   dead = []
+   bands = 6
+   buckets = []
+   for b in range(bands):
+      buckets.append([])
+   for i in range(len(GLB.sparks)):
+      p = GLB.sparks[i]
+      p[2] = p[2] * 0.985
+      p[3] = p[3] - f2
+      p[0] = p[0] + p[2]
+      p[1] = p[1] + p[3]
+      p[4] = p[4] - (0.008 if acc else 0.018)
+      if p[4] <= 0 or p[1] < -20:
+         dead.append(i)
+         continue
+      bi = int(p[5] * bands) % bands
+      buckets[bi].append(p)
+
+   for b in range(bands):
+      bk = buckets[b]
+      if len(bk) == 0:
+         continue
+      hue = (b + 0.5) / bands
+      r,g,bl = hsv_to_rgb(hue, 0.85, 1.0)
+      cr.set_source_rgb(bl, g, r)
+      for p in bk:
+         sz = 1.5 + 2.5 * p[4]
+         cr.rectangle(p[0] - sz * 0.5, p[1] - sz * 0.5, sz, sz)
+      cr.fill()
+
+   dead.reverse()
+   for i in dead:
+      del GLB.sparks[i]

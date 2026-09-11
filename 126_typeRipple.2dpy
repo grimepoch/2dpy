@@ -1,0 +1,104 @@
+def Init():
+   # --- author : claude
+   # --- a grid of type with a wave running under it.  Each cell's size,
+   # --- weight and brightness follow the height of the wave at that point.
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Wavelength")
+   STR.SetFParam1Name("Amount")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : wave becomes a ring from the centre
+   # ---    trigger : new letters
+
+   GLB.cols = 30
+   GLB.rows = 14
+   GLB.set = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+   def build():
+      GLB.g = []
+      for j in range(GLB.rows):
+         row = ""
+         for i in range(GLB.cols):
+            row = row + GLB.set[np.random.randint(0, 26)]
+         GLB.g.append(row)
+   GLB.build = build
+   GLB.build()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.002, 0.02)
+   f1 = STR.F1mix(0.0, 1.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.build()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   cr.set_source_rgb(0.03, 0.02, 0.04)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cr.select_font_face("mono", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+
+   cw = 1280.0 / GLB.cols
+   ch = 720.0 / GLB.rows
+
+   # --- flip once for the whole grid
+   cr.save()
+   cr.scale(1.0, -1.0)
+
+   # --- Quantise the wave into a fixed number of steps and group the cells
+   # --- by step.  set_font_size throws away cairo's scaled font cache, so
+   # --- calling it per glyph (420 times) cost more than the drawing did.
+   steps = 10
+   buckets = []
+   for b in range(steps):
+      buckets.append([])
+
+   for j in range(GLB.rows):
+      row = GLB.g[j]
+      y = (j + 0.72) * ch
+      for i in range(GLB.cols):
+         x = (i + 0.5) * cw
+         if acc:
+            d = sqrt((x - 640.0) ** 2 + (y - 360.0) ** 2)
+            v = sin(d * f0 * 2.0 - time * 2.6)
+         else:
+            v = sin((x + y * 0.6) * f0 - time * 1.9)
+         v = 0.5 + 0.5 * v
+         b = int(v * steps)
+         if b > steps - 1:
+            b = steps - 1
+         buckets[b].append([x, y, row[i]])
+
+   amt = f1
+   for b in range(steps):
+      bk = buckets[b]
+      if len(bk) == 0:
+         continue
+      t = (b + 0.5) / steps
+      size = ch * (0.30 + 0.62 * t * amt + 0.24 * (1.0 - amt))
+      if GLB.xmode:
+         r,g,bl = hsv_to_rgb((f2 + t * 0.6) % 1.0, 0.85, 0.25 + 0.75 * t)
+      else:
+         r,g,bl = hsv_to_rgb((f2 + t * 0.14) % 1.0, 0.55, 0.18 + 0.82 * t)
+      cr.set_source_rgb(bl, g, r)
+      cr.set_font_size(size)
+      off = size * 0.3
+      for q in bk:
+         cr.move_to(q[0] - off, -q[1])
+         cr.show_text(q[2])
+
+   cr.restore()

@@ -1,0 +1,167 @@
+def Init():
+   # --- author : claude
+   # --- head up display : artificial horizon with a pitch ladder, rolling
+   # --- heading tape and speed and altitude readouts
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Pitch")
+   STR.SetFParam1Name("Roll")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : lock on, target box
+   # ---    trigger : declutter
+
+   GLB.spd = 240.0
+   GLB.alt = 12000.0
+
+   def text(x, y, s):
+      cr.save()
+      cr.translate(x, y)
+      cr.scale(1.0, -1.0)
+      cr.move_to(0, 0)
+      cr.show_text(s)
+      cr.restore()
+   GLB.text = text
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(-1.0, 1.0)
+   f1 = STR.F1mix(-1.0, 1.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   pitch = f0 * 30.0 + 8.0 * sin(time * 0.4)
+   roll = f1 * 0.7 + 0.25 * sin(time * 0.27)
+   hdg = (time * 6.0) % 360.0
+   GLB.spd = 240.0 + 70.0 * sin(time * 0.33)
+   GLB.alt = 12000.0 + 2200.0 * sin(time * 0.21)
+
+   cr.set_source_rgb(0.02, 0.03, 0.02)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   c = hsv_to_rgb(f2, 0.85, 1.0)
+   cr.set_source_rgb(c[2], c[1], c[0])
+   cr.select_font_face("mono", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+   cr.set_font_size(20)
+   cr.set_line_width(2)
+
+   ppd = 9.0
+
+   # --- horizon and pitch ladder, inside the rolled frame
+   cr.save()
+   cr.rectangle(190, 110, 900, 500)
+   cr.clip()
+   cr.translate(640, 360)
+   cr.rotate(roll)
+   cr.translate(0, -pitch * ppd)
+
+   cr.move_to(-520, 0)
+   cr.line_to(-70, 0)
+   cr.move_to(70, 0)
+   cr.line_to(520, 0)
+   cr.stroke()
+
+   for k in range(-8, 9):
+      if k == 0:
+         continue
+      d = k * 5
+      y = d * ppd
+      w = 130.0 if k % 2 == 0 else 70.0
+      cr.set_line_width(2)
+      if d < 0:
+         cr.set_dash([10.0, 8.0])
+      cr.move_to(-w, y)
+      cr.line_to(-30, y)
+      cr.move_to(30, y)
+      cr.line_to(w, y)
+      cr.stroke()
+      cr.set_dash([])
+      if k % 2 == 0:
+         GLB.text(-w - 44, y - 7, "%2d" % abs(d))
+         GLB.text(w + 10, y - 7, "%2d" % abs(d))
+   cr.restore()
+
+   # --- boresight
+   cr.set_line_width(3)
+   cr.move_to(590, 360)
+   cr.line_to(620, 360)
+   cr.line_to(640, 340)
+   cr.line_to(660, 360)
+   cr.line_to(690, 360)
+   cr.stroke()
+
+   if not GLB.xmode:
+      # --- speed tape
+      cr.set_line_width(2)
+      cr.rectangle(150, 230, 90, 260)
+      cr.stroke()
+      for k in range(-5, 6):
+         v = int(GLB.spd / 10) * 10 + k * 10
+         y = 360 - (v - GLB.spd) * 5.0
+         if y < 236 or y > 484:
+            continue
+         cr.move_to(228, y)
+         cr.line_to(240, y)
+         cr.stroke()
+         GLB.text(160, y - 7, "%3d" % v)
+      # --- altitude tape
+      cr.rectangle(1040, 230, 110, 260)
+      cr.stroke()
+      for k in range(-5, 6):
+         v = int(GLB.alt / 200) * 200 + k * 200
+         y = 360 - (v - GLB.alt) * 0.25
+         if y < 236 or y > 484:
+            continue
+         cr.move_to(1040, y)
+         cr.line_to(1052, y)
+         cr.stroke()
+         GLB.text(1060, y - 7, "%5d" % v)
+
+   # --- heading tape
+   cr.set_line_width(2)
+   cr.move_to(340, 620)
+   cr.line_to(940, 620)
+   cr.stroke()
+   for k in range(-6, 7):
+      h = (int(hdg / 10) * 10 + k * 10)
+      x = 640 + (h - hdg) * 5.0
+      if x < 344 or x > 936:
+         continue
+      h = h % 360
+      cr.move_to(x, 620)
+      cr.line_to(x, 634)
+      cr.stroke()
+      GLB.text(x - 18, 642, "%03d" % h)
+   cr.move_to(640, 600)
+   cr.line_to(630, 585)
+   cr.line_to(650, 585)
+   cr.close_path()
+   cr.fill()
+
+   cr.set_font_size(24)
+   GLB.text(150, 520, "%3d KT" % int(GLB.spd))
+   GLB.text(1040, 520, "%5d FT" % int(GLB.alt))
+   GLB.text(150, 150, "G %.1f" % (1.0 + abs(roll) * 2.2))
+
+   if acc:
+      tx = 640 + 250 * sin(time * 0.7)
+      ty = 360 + 130 * cos(time * 0.9)
+      cr.set_source_rgb(0.2, 0.2, 1.0)
+      cr.set_line_width(3)
+      cr.rectangle(tx - 40, ty - 40, 80, 80)
+      cr.stroke()
+      GLB.text(tx - 38, ty + 50, "LOCK")

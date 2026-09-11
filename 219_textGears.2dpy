@@ -1,0 +1,121 @@
+def Init():
+   # --- author : claude
+   # --- gearTrain crossed with textOnPath : the words are set round the gear
+   # --- rims, so the type turns with the mechanism
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Speed")
+   STR.SetFParam1Name("Module")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : show the teeth
+   # ---    trigger : new train
+
+   GLB.words = ["TURNING","RATIO","MESHING","TORQUE","ESCAPE","DRIVEN"]
+
+   def build():
+      GLB.g = []
+      teeth = np.random.randint(13, 22)
+      GLB.g.append([640.0, 360.0, teeth, 1.0, 0.0, 0])
+      ang = np.random.random() * 2.0 * pi
+      for i in range(1, 5):
+         prev = GLB.g[i - 1]
+         t2 = np.random.randint(11, 26)
+         ang = ang + (np.random.random() - 0.5) * 2.0
+         GLB.g.append([0.0, 0.0, t2, -prev[3] * prev[2] / (t2 * 1.0), ang, i])
+   GLB.build = build
+   GLB.build()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(-0.06, 0.06)
+   f1 = STR.F1mix(4.0, 9.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.build()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   cr.set_source_rgb(0.04, 0.03, 0.06)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   mod = f1
+   drive = time * f0 * 12.0
+
+   for i in range(len(GLB.g)):
+      gg = GLB.g[i]
+      rp = gg[2] * mod
+      if i == 0:
+         gg[0] = 640.0
+         gg[1] = 360.0
+      else:
+         prev = GLB.g[i - 1]
+         d = prev[2] * mod + rp
+         gg[0] = prev[0] + cos(gg[4]) * d
+         gg[1] = prev[1] + sin(gg[4]) * d
+
+   cr.select_font_face("sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+
+   for i in range(len(GLB.g)):
+      gg = GLB.g[i]
+      rp = gg[2] * mod
+      if gg[0] < -rp * 2 or gg[0] > 1280 + rp * 2:
+         continue
+      rot = drive * gg[3] + (0.0 if i % 2 == 0 else pi / gg[2])
+      t = i / (len(GLB.g) * 1.0)
+      c = hsv_to_rgb((f2 + t * 0.4) % 1.0, 0.7, 1.0)
+      cr.set_source_rgb(c[2], c[1], c[0])
+
+      if acc:
+         # --- the tooth profile, so you can see them mesh
+         cr.set_line_width(2)
+         cr.new_path()
+         for k in range(gg[2]):
+            a0 = rot + k * 2.0 * pi / gg[2]
+            st = 2.0 * pi / gg[2]
+            cr.line_to(cos(a0) * rp * 0.86 + gg[0], sin(a0) * rp * 0.86 + gg[1])
+            cr.line_to(cos(a0 + st * 0.3) * rp * 1.06 + gg[0],
+                       sin(a0 + st * 0.3) * rp * 1.06 + gg[1])
+            cr.line_to(cos(a0 + st * 0.6) * rp * 1.06 + gg[0],
+                       sin(a0 + st * 0.6) * rp * 1.06 + gg[1])
+            cr.line_to(cos(a0 + st * 0.9) * rp * 0.86 + gg[0],
+                       sin(a0 + st * 0.9) * rp * 0.86 + gg[1])
+         cr.close_path()
+         cr.stroke()
+
+      # --- the word set round the pitch circle
+      s = GLB.words[i % len(GLB.words)]
+      sz = rp * 0.30
+      if sz < 7:
+         continue
+      cr.set_font_size(sz)
+      n = len(s)
+      reps = 3 if GLB.xmode else 2
+      for rep in range(reps):
+         for k in range(n):
+            a = (rep * n + k) * 2.0 * pi / (reps * n) + rot
+            cr.save()
+            cr.translate(gg[0] + cos(a) * rp * 0.78,
+                         gg[1] + sin(a) * rp * 0.78)
+            cr.rotate(-a - pi * 0.5)
+            cr.scale(1.0, -1.0)
+            cr.move_to(-sz * 0.3, 0)
+            cr.show_text(s[k])
+            cr.restore()
+
+      # --- hub
+      cr.new_sub_path()
+      cr.arc(gg[0], gg[1], rp * 0.16, 0, 2 * pi)
+      cr.fill()

@@ -1,0 +1,89 @@
+def Init():
+   # --- author : claude
+   # --- a raster giving way.  Each scanline is pulled down at its own rate,
+   # --- and a line that has started to go pulls harder the further it has
+   # --- fallen - so the picture does not melt evenly, it tears into runs
+   # --- that race away from the lines beside them.
+   # --- note : screen y=0 is the BOTTOM, so "down" is toward row 0
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Melt")
+   STR.SetFParam1Name("Viscosity")
+   STR.SetFParam2Name("Source")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : the whole frame lets go
+   # ---    trigger : restore the picture
+
+   GLB.st = surface.get_stride() // 4
+   GLB.nb = 120
+   GLB.bh = 720 // GLB.nb
+   GLB.vel = np.zeros(GLB.nb, dtype=np.float32)
+   GLB.buf = cairo.ImageSurface(cairo.FORMAT_ARGB32, 1280, 720)
+   GLB.bcr = cairo.Context(GLB.buf)
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 0.35)
+   f1 = STR.F1mix(0.80, 0.995)
+   f2 = STR.F2()
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.vel = GLB.vel * 0.0
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   # --- a line that is already running keeps accelerating
+   push = f0 * (3.2 if acc else 1.0)
+   start = np.random.random(GLB.nb) < (push * 0.10)
+   GLB.vel = np.where(start, GLB.vel + 0.6, GLB.vel)
+   GLB.vel = GLB.vel * f1 + np.where(GLB.vel > 0.01, push * 0.22, 0.0)
+   np.clip(GLB.vel, 0.0, float(GLB.bh * 3), out=GLB.vel)
+
+   GLB.bcr.set_operator(cairo.OPERATOR_SOURCE)
+   GLB.bcr.set_source_surface(surface, 0, 0)
+   GLB.bcr.paint()
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8,
+                  buffer=surface.get_data())
+   # --- each slab drops by its own amount.  Slab by slab rather than row by
+   # --- row, because a per-row offset is a fancy index over the whole frame.
+   for b in range(GLB.nb):
+      d = int(GLB.vel[b])
+      if d <= 0:
+         continue
+      y0 = b * GLB.bh
+      y1 = y0 + GLB.bh
+      if d >= GLB.bh:
+         d = GLB.bh - 1
+      if d <= 0:
+         continue
+      # --- down the screen is toward row 0
+      v[y0:y1-d] = v[y0+d:y1]
+      v[y1-d:y1] = v[y1-d-1:y1-d]
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   # --- the source picture, redrawn under the melt
+   cr.save()
+   cr.translate(640, 360)
+   cr.rotate(sin(time * 0.2) * 0.15)
+   nseg = 9
+   for i in range(nseg):
+      for j in range(nseg):
+         u = (i / (nseg - 1.0)) - 0.5
+         w = (j / (nseg - 1.0)) - 0.5
+         c = hsv_to_rgb((f2 + u * 0.5 + w * 0.3 + time * 0.02) % 1.0,
+                        0.82, 0.55 + 0.45 * sin(time + i + j))
+         cr.set_source_rgb(c[2], c[1], c[0])
+         cr.rectangle(u * 1000.0, w * 560.0, 1000.0 / nseg - 4,
+                      560.0 / nseg - 4)
+         cr.fill()
+   cr.restore()

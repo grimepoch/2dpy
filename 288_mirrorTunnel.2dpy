@@ -1,0 +1,79 @@
+def Init():
+   # --- author : claude
+   # --- the previous frame is folded back on itself : a mirrored, shrunken
+   # --- copy is stamped over the original, so the picture recurses inward
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Inset")
+   STR.SetFParam1Name("Decay")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : mirror vertically too
+   # ---    trigger : flip the fold axis
+
+   GLB.st = surface.get_stride() // 4
+   GLB.sur2 = surface.create_similar(cairo.CONTENT_COLOR_ALPHA, 1280, 720)
+   GLB.cr2 = cairo.Context(GLB.sur2)
+   GLB.axis = 0
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.55, 0.94)
+   f1 = STR.F1mix(2.0, 7.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.axis = 1 - GLB.axis
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   # --- grab the frame, then stamp a mirrored inset of it back on
+   GLB.cr2.save()
+   GLB.cr2.set_operator(cairo.OPERATOR_SOURCE)
+   GLB.cr2.set_source_surface(surface, 0, 0)
+   GLB.cr2.paint()
+   GLB.cr2.restore()
+
+   s = f0
+   cr.save()
+   cr.translate(640, 360)
+   if GLB.axis:
+      cr.scale(-s, s)
+   else:
+      cr.scale(s, -s)
+   if acc:
+      cr.scale(1.0, -1.0)
+   cr.rotate(0.02 * sin(time * 0.5))
+   cr.translate(-640, -360)
+   pat = cairo.SurfacePattern(GLB.sur2)
+   pat.set_filter(cairo.FILTER_NEAREST)
+   cr.set_source(pat)
+   cr.paint()
+   cr.restore()
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8, buffer=surface.get_data())
+   np.subtract(v, np.right_shift(v, int(f1)), out=v)
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   # --- a bright seed kept near the rim, where the fold will find it
+   c = hsv_to_rgb((f2 + time * 0.05) % 1.0, 0.8, 1.0)
+   cr.set_source_rgb(c[2], c[1], c[0])
+   a = time * 0.9
+   cr.new_sub_path()
+   cr.arc(640 + 540 * cos(a), 360 + 320 * sin(a), 22, 0, 2 * pi)
+   cr.fill()
+   if GLB.xmode:
+      cr.set_line_width(4)
+      cr.move_to(0, 360 + 300 * sin(time * 0.4))
+      cr.line_to(1280, 360 + 300 * cos(time * 0.31))
+      cr.stroke()

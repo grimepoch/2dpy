@@ -1,0 +1,119 @@
+def Init():
+   # --- author : claude
+   # --- a type specimen page : one enormous letterform, with the sort of
+   # --- measurement furniture a foundry would print around it
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Size")
+   STR.SetFParam1Name("Weight")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : outline the glyph instead of filling
+   # ---    trigger : next letter
+
+   GLB.set = "ABCDEFGHIJKLMNOPQRSTUVWXYZ&?!@0123456789"
+   GLB.i = 0
+   GLB.faces = ["serif", "sans", "mono"]
+   GLB.f = 0
+   GLB.lastbeat = -1
+
+   def text(x, y, s):
+      cr.save()
+      cr.translate(x, y)
+      cr.scale(1.0, -1.0)
+      cr.move_to(0, 0)
+      cr.show_text(s)
+      cr.restore()
+   GLB.text = text
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(260.0, 620.0)
+   f1 = STR.F1()
+   f2 = STR.F2()
+
+   itime = STR.IT()
+
+   if trig:
+      GLB.f = (GLB.f + 1) % 3
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+   if itime != GLB.lastbeat:
+      GLB.lastbeat = itime
+      GLB.i = (GLB.i + 1) % len(GLB.set)
+
+   cr.set_source_rgb(0.96, 0.95, 0.94)
+   if GLB.xmode:
+      cr.set_source_rgb(0.06, 0.05, 0.07)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   ink = hsv_to_rgb(f2, 0.75, 0.95 if GLB.xmode else 0.55)
+   paper = 0.96 if not GLB.xmode else 0.06
+   fg = (0.10, 0.09, 0.11) if not GLB.xmode else (0.95, 0.94, 0.96)
+
+   ch = GLB.set[GLB.i]
+   face = GLB.faces[GLB.f]
+   wt = cairo.FONT_WEIGHT_BOLD if f1 > 0.5 else cairo.FONT_WEIGHT_NORMAL
+
+   cr.select_font_face(face, cairo.FONT_SLANT_NORMAL, wt)
+   cr.set_font_size(f0)
+   e = cr.text_extents(ch)
+   fe = cr.font_extents()
+
+   bx = 640 - e.width * 0.5 - e.x_bearing
+   by = 360 - e.height * 0.5
+
+   # --- baseline, x-height and cap lines
+   cr.set_source_rgb(ink[2], ink[1], ink[0])
+   cr.set_line_width(1.5)
+   cr.set_dash([9.0, 7.0])
+   for yy in (by, by + e.height, by + e.height * 0.72):
+      cr.move_to(60, yy)
+      cr.line_to(1220, yy)
+   cr.stroke()
+   cr.set_dash([])
+
+   # --- the glyph
+   cr.set_source_rgb(fg[2], fg[1], fg[0])
+   if acc:
+      cr.save()
+      cr.translate(bx, by)
+      cr.scale(1.0, -1.0)
+      cr.move_to(0, 0)
+      cr.text_path(ch)
+      cr.restore()
+      cr.set_line_width(3)
+      cr.stroke()
+   else:
+      GLB.text(bx, by, ch)
+
+   # --- side bearings
+   cr.set_source_rgba(ink[2], ink[1], ink[0], 0.5)
+   cr.set_line_width(1.0)
+   cr.move_to(bx + e.x_bearing, 60)
+   cr.line_to(bx + e.x_bearing, 660)
+   cr.move_to(bx + e.x_bearing + e.width, 60)
+   cr.line_to(bx + e.x_bearing + e.width, 660)
+   cr.stroke()
+
+   # --- the furniture
+   cr.select_font_face("mono", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+   cr.set_font_size(21)
+   cr.set_source_rgb(fg[2], fg[1], fg[0])
+   GLB.text(60, 660, "%s / %s" % (face.upper(), "BOLD" if f1 > 0.5 else "REGULAR"))
+   GLB.text(60, 40, "%d PT" % int(f0))
+   s = "ADV %.1f  W %.1f  H %.1f  ASC %.1f" % (e.x_advance, e.width, e.height, fe[0])
+   ee = cr.text_extents(s)
+   GLB.text(1220 - ee.width, 40, s)
+   s2 = "U+%04X" % ord(ch)
+   ee = cr.text_extents(s2)
+   GLB.text(1220 - ee.width, 660, s2)

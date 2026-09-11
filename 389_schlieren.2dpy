@@ -1,0 +1,102 @@
+def Init():
+   # --- author : claude
+   # --- a schlieren image.  A knife edge at the focus cuts half the light,
+   # --- so any ray bent by a density change lands on one side of it and the
+   # --- picture shows the GRADIENT of density rather than density itself -
+   # --- which is why hot air looks like grey smoke on a grey field.
+   # --- The plume is continuously fed, so it never resolves.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Knife Edge")
+   STR.SetFParam1Name("Convection")
+   STR.SetFParam2Name("Tint")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : a second source
+   # ---    trigger : turn the knife edge
+
+   GLB.res = 4
+   GLB.nx = 1280 // GLB.res
+   GLB.ny = 720 // GLB.res
+   GLB.small = cairo.ImageSurface(cairo.FORMAT_ARGB32, GLB.nx, GLB.ny)
+   GLB.sst = GLB.small.get_stride() // 4
+   GLB.sv = np.ndarray(shape=(GLB.ny, GLB.sst, 4), dtype=np.uint8,
+                       buffer=GLB.small.get_data())
+   yy, xx = np.meshgrid(np.arange(GLB.ny), np.arange(GLB.nx), indexing="ij")
+   GLB.iy = yy.astype(np.float32)
+   GLB.ix = xx.astype(np.float32)
+   GLB.d = np.zeros((GLB.ny, GLB.nx), dtype=np.float32)
+   GLB.knife = 0.0
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.5, 6.0)
+   f1 = STR.F1mix(0.3, 2.0)
+   f2 = STR.F2()
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.knife = GLB.knife + 1.5708
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   d = GLB.d
+   # --- hot gas rises and rolls.  Screen row 0 is the BOTTOM, so "up" is
+   # --- toward higher rows.
+   d = d * 0.985
+   sh = np.roll(d, 1, axis=0)
+   d = d * 0.25 + sh * 0.75
+   # --- a little curl, so the plume breaks up into puffs instead of a
+   # --- straight column
+   for b in range(24):
+      y0 = b * (GLB.ny // 24)
+      y1 = y0 + (GLB.ny // 24)
+      sft = int(sin(y0 * 0.13 + time * 1.6 * f1) * 2.0 * f1)
+      if sft > 0:
+         d[y0:y1, sft:] = d[y0:y1, :-sft]
+      elif sft < 0:
+         k = -sft
+         d[y0:y1, :-k] = d[y0:y1, k:]
+
+   # --- the source, always on
+   # --- the source is feathered, or it shows as a hard rectangle sitting
+   # --- under the plume
+   sx = int(GLB.nx * 0.42)
+   prof = np.array([0.25, 0.6, 0.9, 1.0, 1.0, 0.9, 0.6, 0.25],
+                   dtype=np.float32)
+   d[1:4, sx-4:sx+4] = np.maximum(d[1:4, sx-4:sx+4], prof)
+   if acc:
+      sx2 = int(GLB.nx * 0.62)
+      d[1:4, sx2-4:sx2+4] = np.maximum(d[1:4, sx2-4:sx2+4], prof * 0.8)
+   np.clip(d, 0.0, 1.4, out=d)
+   GLB.d = d
+
+   # --- the knife edge picks out one direction of the gradient
+   ca = cos(GLB.knife + time * 0.03)
+   sa = sin(GLB.knife + time * 0.03)
+   gx = d - np.roll(d, 1, axis=1)
+   gy = d - np.roll(d, 1, axis=0)
+   cut = (gx * ca + gy * sa) * f0 * 26.0
+   grey = np.clip(0.5 + cut, 0.0, 1.0)
+
+   c = hsv_to_rgb((0.08 + f2 * 0.55) % 1.0, 0.12, 1.0)
+   GLB.sv[:, :GLB.nx, 0] = np.clip(grey * c[0] * 250.0,
+                                   0, 255).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 1] = np.clip(grey * c[1] * 250.0,
+                                   0, 255).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 2] = np.clip(grey * c[2] * 250.0,
+                                   0, 255).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 3] = 255
+   GLB.small.mark_dirty()
+   pat = cairo.SurfacePattern(GLB.small)
+   pat.set_filter(cairo.FILTER_NEAREST)
+   m = cairo.Matrix()
+   m.scale(1.0 / GLB.res, 1.0 / GLB.res)
+   pat.set_matrix(m)
+   cr.set_source(pat)
+   cr.paint()

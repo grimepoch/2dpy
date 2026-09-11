@@ -1,0 +1,149 @@
+def Init():
+   # --- author : claude
+   # --- a drawing office sheet of the gear train : pitch circles dashed,
+   # --- centre lines, dimensions and a parts list
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Speed")
+   STR.SetFParam1Name("Module")
+   STR.SetFParam2Name("Detail")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : white print
+   # ---    trigger : new train
+
+   def build():
+      GLB.g = []
+      teeth = np.random.randint(14, 24)
+      GLB.g.append([640.0, 360.0, teeth, 1.0, 0.0])
+      ang = np.random.random() * 2.0 * pi
+      for i in range(1, 4):
+         prev = GLB.g[i - 1]
+         t2 = np.random.randint(11, 26)
+         ang = ang + (np.random.random() - 0.5) * 1.8
+         GLB.g.append([0.0, 0.0, t2, -prev[3] * prev[2] / (t2 * 1.0), ang])
+   GLB.build = build
+   GLB.build()
+
+   def text(x, y, s):
+      cr.save()
+      cr.translate(x, y)
+      cr.scale(1.0, -1.0)
+      cr.move_to(0, 0)
+      cr.show_text(s)
+      cr.restore()
+   GLB.text = text
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(-0.05, 0.05)
+   f1 = STR.F1mix(4.0, 8.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.build()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   if acc:
+      paper = (0.96, 0.96, 0.95)
+      ink = (0.15, 0.14, 0.18)
+   else:
+      paper = hsv_to_rgb(0.58, 0.72, 0.30)
+      ink = (0.92, 0.95, 1.0)
+
+   cr.set_source_rgb(paper[2], paper[1], paper[0])
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cr.set_source_rgba(ink[2], ink[1], ink[0], 0.16)
+   cr.set_line_width(1)
+   k = 0
+   while k < 1280:
+      cr.move_to(k, 0)
+      cr.line_to(k, 720)
+      k = k + 40
+   k = 0
+   while k < 720:
+      cr.move_to(0, k)
+      cr.line_to(1280, k)
+      k = k + 40
+   cr.stroke()
+
+   mod = f1
+   drive = time * f0 * 12.0
+   cr.set_source_rgb(ink[2], ink[1], ink[0])
+   cr.select_font_face("mono", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+   cr.set_font_size(17)
+
+   for i in range(len(GLB.g)):
+      gg = GLB.g[i]
+      rp = gg[2] * mod
+      if i == 0:
+         gg[0] = 640.0
+         gg[1] = 360.0
+      else:
+         prev = GLB.g[i - 1]
+         d = prev[2] * mod + rp
+         gg[0] = prev[0] + cos(gg[4]) * d
+         gg[1] = prev[1] + sin(gg[4]) * d
+
+   for i in range(len(GLB.g)):
+      gg = GLB.g[i]
+      rp = gg[2] * mod
+      rot = drive * gg[3] + (0.0 if i % 2 == 0 else pi / gg[2])
+
+      # --- the tooth outline, drawn as a real profile
+      cr.set_line_width(2)
+      cr.new_path()
+      st = 2.0 * pi / gg[2]
+      for k in range(gg[2]):
+         a0 = rot + k * st
+         cr.line_to(gg[0] + cos(a0) * rp * 0.86, gg[1] + sin(a0) * rp * 0.86)
+         cr.line_to(gg[0] + cos(a0 + st * 0.28) * rp * 1.08,
+                    gg[1] + sin(a0 + st * 0.28) * rp * 1.08)
+         cr.line_to(gg[0] + cos(a0 + st * 0.58) * rp * 1.08,
+                    gg[1] + sin(a0 + st * 0.58) * rp * 1.08)
+         cr.line_to(gg[0] + cos(a0 + st * 0.86) * rp * 0.86,
+                    gg[1] + sin(a0 + st * 0.86) * rp * 0.86)
+      cr.close_path()
+      cr.stroke()
+
+      # --- pitch circle, dashed as the convention requires
+      cr.set_line_width(1.2)
+      cr.set_dash([12.0, 5.0, 3.0, 5.0])
+      cr.new_sub_path()
+      cr.arc(gg[0], gg[1], rp, 0, 2 * pi)
+      cr.stroke()
+      # --- centre lines
+      cr.move_to(gg[0] - rp * 1.35, gg[1])
+      cr.line_to(gg[0] + rp * 1.35, gg[1])
+      cr.move_to(gg[0], gg[1] - rp * 1.35)
+      cr.line_to(gg[0], gg[1] + rp * 1.35)
+      cr.stroke()
+      cr.set_dash([])
+
+      if f2 > 0.3:
+         GLB.text(gg[0] + 8, gg[1] + 8, "Z=%d" % gg[2])
+         GLB.text(gg[0] + 8, gg[1] - 14, "d=%.0f" % (rp * 2))
+
+   # --- title block and parts list
+   cr.set_line_width(2)
+   cr.rectangle(950, 50, 280, 170)
+   cr.stroke()
+   cr.move_to(950, 190)
+   cr.line_to(1230, 190)
+   cr.stroke()
+   GLB.text(962, 200, "GEAR TRAIN  M=%.1f" % mod)
+   for i in range(len(GLB.g)):
+      GLB.text(962, 160 - i * 26,
+               "%d  Z=%-3d  n=%+0.2f" % (i + 1, GLB.g[i][2], GLB.g[i][3]))

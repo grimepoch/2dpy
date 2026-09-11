@@ -1,0 +1,136 @@
+def Init():
+   # --- author : claude
+   # --- vortex rings, seen edge on : each is a pair of counter-rotating
+   # --- cores that push each other forward.  A ring that catches up with
+   # --- one in front threads through it, widens, slows, and is overtaken in
+   # --- turn - they leapfrog, and the puffer keeps firing new ones.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Fire Rate")
+   STR.SetFParam1Name("Strength")
+   STR.SetFParam2Name("Dye")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : a stronger puff
+   # ---    trigger : aim the puffer elsewhere
+
+   GLB.res = 4
+   GLB.nx = 1280 // GLB.res
+   GLB.ny = 720 // GLB.res
+   GLB.small = cairo.ImageSurface(cairo.FORMAT_ARGB32, GLB.nx, GLB.ny)
+   GLB.sst = GLB.small.get_stride() // 4
+   GLB.sv = np.ndarray(shape=(GLB.ny, GLB.sst, 4), dtype=np.uint8,
+                       buffer=GLB.small.get_data())
+   yy, xx = np.meshgrid(np.arange(GLB.ny), np.arange(GLB.nx), indexing="ij")
+   GLB.iy = yy.astype(np.float32)
+   GLB.ix = xx.astype(np.float32)
+   GLB.d = np.zeros((GLB.ny, GLB.nx), dtype=np.float32)
+   GLB.cap = 24
+   GLB.n = 0
+   GLB.vx = np.zeros(GLB.cap)
+   GLB.vy = np.zeros(GLB.cap)
+   GLB.vs = np.zeros(GLB.cap)
+   GLB.t = 0.0
+   GLB.aim = 0.0
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.01, 0.10)
+   f1 = STR.F1mix(30.0, 110.0)
+   f2 = STR.F2()
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.aim = (np.random.random() - 0.5) * 0.7
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   # --- fire a new ring : two cores of opposite sign, one either side of
+   # --- the axis.  That pair is what a ring looks like in section.
+   GLB.t = GLB.t + f0
+   while GLB.t >= 1.0:
+      GLB.t = GLB.t - 1.0
+      if GLB.n + 2 <= GLB.cap:
+         sep = 16.0 + np.random.random() * 8.0
+         st = f1 * (1.7 if acc else 1.0)
+         for sgn in (-1.0, 1.0):
+            j = GLB.n
+            GLB.vx[j] = 8.0
+            GLB.vy[j] = GLB.ny * 0.5 + sgn * sep + GLB.aim * 40.0
+            GLB.vs[j] = sgn * st
+            GLB.n = j + 1
+
+   n = GLB.n
+   for i in range(n):
+      ux = 0.0
+      uy = 0.0
+      for k in range(n):
+         if k == i:
+            continue
+         dx = GLB.vx[i] - GLB.vx[k]
+         dy = GLB.vy[i] - GLB.vy[k]
+         r2 = dx * dx + dy * dy + 40.0
+         g = GLB.vs[k] / r2
+         ux = ux - dy * g
+         uy = uy + dx * g
+      GLB.vx[i] = GLB.vx[i] + ux
+      # --- the aim tilts where a ring is FIRED, it is not a force on every
+      # --- core every frame - added here it accumulates and the whole train
+      # --- slides off the bottom of the screen
+      GLB.vy[i] = GLB.vy[i] + uy
+   keep = 0
+   for i in range(n):
+      if GLB.vx[i] < GLB.nx + 25 and 0 < GLB.vy[i] < GLB.ny:
+         GLB.vx[keep] = GLB.vx[i]
+         GLB.vy[keep] = GLB.vy[i]
+         GLB.vs[keep] = GLB.vs[i]
+         keep = keep + 1
+   GLB.n = keep
+
+   ux = np.zeros((GLB.ny, GLB.nx), dtype=np.float32)
+   uy = np.zeros((GLB.ny, GLB.nx), dtype=np.float32)
+   for i in range(GLB.n):
+      dx = GLB.ix - GLB.vx[i]
+      dy = GLB.iy - GLB.vy[i]
+      r2 = dx * dx + dy * dy + 45.0
+      g = GLB.vs[i] * 1.5 / r2
+      ux = ux - dy * g
+      uy = uy + dx * g
+
+   fx = np.clip(GLB.ix - ux, 0.0, GLB.nx - 1.002)
+   fy = np.clip(GLB.iy - uy, 0.0, GLB.ny - 1.002)
+   x0 = fx.astype(np.int32)
+   y0 = fy.astype(np.int32)
+   tx = fx - x0
+   ty = fy - y0
+   d = GLB.d
+   top = d[y0, x0] * (1.0 - tx) + d[y0, x0 + 1] * tx
+   bot = d[y0 + 1, x0] * (1.0 - tx) + d[y0 + 1, x0 + 1] * tx
+   d = (top * (1.0 - ty) + bot * ty) * 0.994
+   # --- dye injected at the mouth of the puffer only
+   mid = int(GLB.ny * 0.5)
+   d[mid-9:mid+9, 1:5] = 1.0
+   GLB.d = d
+
+   c = hsv_to_rgb(f2 % 1.0, 0.68, 1.0)
+   lum = np.clip(d, 0.0, 1.0)
+   GLB.sv[:, :GLB.nx, 0] = np.clip(lum * c[0] * 250.0 + 5.0,
+                                   0, 255).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 1] = np.clip(lum * c[1] * 250.0 + 6.0,
+                                   0, 255).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 2] = np.clip(lum * c[2] * 250.0 + 10.0,
+                                   0, 255).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 3] = 255
+   GLB.small.mark_dirty()
+   pat = cairo.SurfacePattern(GLB.small)
+   pat.set_filter(cairo.FILTER_NEAREST)
+   m = cairo.Matrix()
+   m.scale(1.0 / GLB.res, 1.0 / GLB.res)
+   pat.set_matrix(m)
+   cr.set_source(pat)
+   cr.paint()

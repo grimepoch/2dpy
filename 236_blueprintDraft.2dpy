@@ -1,0 +1,128 @@
+def Init():
+   # --- author : claude
+   # --- a drawing being drafted.  Lines are laid down in pale ink and the
+   # --- whole sheet is very slowly bleached, so an old construction line
+   # --- fades out from under the finished linework instead of being erased -
+   # --- the sheet always carries a ghost of how the drawing was arrived at.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Draft Rate")
+   STR.SetFParam1Name("Bleach")
+   STR.SetFParam2Name("Ink")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : dimension everything
+   # ---    trigger : new sheet of construction
+
+   GLB.st = surface.get_stride() // 4
+   GLB.tick = 0
+   # --- the paper colour as a whole buffer, so the bleach can be floored
+   # --- against it in one contiguous np.maximum
+   GLB.ground = np.zeros((720, GLB.st, 4), dtype=np.uint8)
+   GLB.ground[:, :, 0] = 18
+   GLB.ground[:, :, 1] = 34
+   GLB.ground[:, :, 2] = 88
+   GLB.ground[:, :, 3] = 255
+
+   def newsheet():
+      n = 9
+      GLB.cx = np.random.random(n) * 1000.0 + 140.0
+      GLB.cy = np.random.random(n) * 540.0 + 90.0
+      GLB.cr_ = np.random.random(n) * 130.0 + 34.0
+      GLB.ck = np.random.randint(0, 4, n)
+      GLB.ca = np.random.random(n) * 6.283
+   GLB.newsheet = newsheet
+   GLB.newsheet()
+
+   cr.set_source_rgb(0.34, 0.13, 0.04)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(1.0, 7.99)
+   f1 = STR.F1mix(7.0, 10.0)
+   f2 = STR.F2()
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.newsheet()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8,
+                  buffer=surface.get_data())
+   # --- bleach, then floor against the paper.  Pulling one channel toward
+   # --- the ground with (86 - channel) underflows uint8 everywhere that
+   # --- channel is already above 86, which poisons the whole sheet; a
+   # --- maximum against a prebuilt ground has no such edge and is one
+   # --- contiguous pass instead of a strided one.
+   np.subtract(v, np.right_shift(v, int(f1)), out=v)
+   np.maximum(v, GLB.ground, out=v)
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   GLB.tick = GLB.tick + 1
+   cr.set_line_width(1.4)
+   # --- font set once, not once per item : changing the size throws away
+   # --- cairo's scaled-font cache every time
+   cr.select_font_face("sans", cairo.FONT_SLANT_NORMAL,
+                       cairo.FONT_WEIGHT_NORMAL)
+   cr.set_font_size(15.0)
+   nd = int(f0)
+   for k in range(nd):
+      i = np.random.randint(len(GLB.cx))
+      x = GLB.cx[i]
+      y = GLB.cy[i]
+      r = GLB.cr_[i]
+      a = GLB.ca[i] + time * 0.05
+      br = 0.55 + f2 * 0.45
+      cr.set_source_rgb(br, br * 0.93, br * 0.62)
+      kind = GLB.ck[i]
+      if kind == 0:
+         cr.new_sub_path()
+         cr.arc(x, y, r, 0, 6.2831853)
+         cr.stroke()
+      elif kind == 1:
+         cr.save()
+         cr.translate(x, y)
+         cr.rotate(a)
+         cr.rectangle(-r, -r * 0.62, r * 2, r * 1.24)
+         cr.restore()
+         cr.stroke()
+      elif kind == 2:
+         # --- a bolt circle
+         nb = 6 + (i % 5)
+         for b in range(nb):
+            bb = a + b * 6.2831853 / nb
+            cr.new_sub_path()
+            cr.arc(x + cos(bb) * r, y + sin(bb) * r, 5.0, 0, 6.2831853)
+         cr.stroke()
+      else:
+         cr.move_to(x - r, y)
+         cr.line_to(x + r, y)
+         cr.move_to(x, y - r)
+         cr.line_to(x, y + r)
+         cr.stroke()
+
+      # --- centre lines, long-dash-short-dash like a real drawing
+      cr.save()
+      cr.set_dash([14.0, 5.0, 3.0, 5.0], time * 2.0)
+      cr.set_source_rgb(br * 0.72, br * 0.68, br * 0.40)
+      cr.move_to(x - r - 26, y)
+      cr.line_to(x + r + 26, y)
+      cr.move_to(x, y - r - 26)
+      cr.line_to(x, y + r + 26)
+      cr.stroke()
+      cr.restore()
+
+      if acc:
+         cr.set_source_rgb(0.62, 0.95, 1.0)
+         cr.save()
+         cr.translate(x + r + 8, y + 8)
+         cr.scale(1, -1)
+         cr.move_to(0, 0)
+         cr.show_text(str(int(r * 2)))
+         cr.restore()

@@ -1,0 +1,117 @@
+def Init():
+   # --- author : claude
+   # --- boids crossed with flowRibbons : the flock leaves ribbons, and the
+   # --- ribbons are dashed so the direction of travel reads
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Cohesion")
+   STR.SetFParam1Name("Trail")
+   STR.SetFParam2Name("Crawl")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : ribbons widen
+   # ---    trigger : scatter
+
+   GLB.n = 72
+   GLB.hist = 14
+
+   def scatter():
+      GLB.px = np.random.random(GLB.n) * 1280.0
+      GLB.py = np.random.random(GLB.n) * 720.0
+      a = np.random.random(GLB.n) * 6.28
+      GLB.vx = np.cos(a) * 3.5
+      GLB.vy = np.sin(a) * 3.5
+      GLB.tx = []
+      GLB.ty = []
+      GLB.hu = np.random.random(GLB.n)
+   GLB.scatter = scatter
+   GLB.scatter()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 0.03)
+   f1 = STR.F1mix(3.0, 14.0)
+   f2 = STR.F2mix(0.0, 60.0)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.scatter()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   n = GLB.n
+   px = GLB.px
+   py = GLB.py
+   dx = px.reshape(n, 1) - px.reshape(1, n)
+   dy = py.reshape(n, 1) - py.reshape(1, n)
+   d2 = dx * dx + dy * dy
+   near = d2 < 10000.0
+   close = (d2 < 800.0) & (d2 > 0.0)
+   cnt = np.sum(near, axis=1)
+   cnt = np.where(cnt < 1, 1, cnt)
+   cxm = np.dot(near, px) / cnt
+   cym = np.dot(near, py) / cnt
+   axm = np.dot(near, GLB.vx) / cnt
+   aym = np.dot(near, GLB.vy) / cnt
+   sx = np.sum(np.where(close, dx, 0.0), axis=1)
+   sy = np.sum(np.where(close, dy, 0.0), axis=1)
+
+   GLB.vx = GLB.vx + (cxm - px) * f0 + (axm - GLB.vx) * 0.08 + sx * 0.005
+   GLB.vy = GLB.vy + (cym - py) * f0 + (aym - GLB.vy) * 0.08 + sy * 0.005
+   sp = np.sqrt(GLB.vx * GLB.vx + GLB.vy * GLB.vy) + 0.0001
+   GLB.vx = GLB.vx / sp * 5.0
+   GLB.vy = GLB.vy / sp * 5.0
+   GLB.px = np.mod(px + GLB.vx, 1280.0)
+   GLB.py = np.mod(py + GLB.vy, 720.0)
+
+   GLB.tx.append(GLB.px.tolist())
+   GLB.ty.append(GLB.py.tolist())
+   while len(GLB.tx) > int(f1):
+      del GLB.tx[0]
+      del GLB.ty[0]
+
+   cr.set_source_rgb(0.02, 0.02, 0.04)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   m = len(GLB.tx)
+   if m < 2:
+      return
+   hu = GLB.hu.tolist()
+   cr.set_line_cap(cairo.LINE_CAP_BUTT)
+   if f2 > 0.5:
+      cr.set_dash([9.0, 6.0], time * f2)
+
+   bands = 6
+   for b in range(bands):
+      t = b / (bands - 1.0)
+      c = hsv_to_rgb((t * 0.4 + time * 0.03) % 1.0, 0.75, 1.0)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      cr.set_line_width((1.2 + 4.0 * t) * (2.2 if acc else 1.0))
+      i = b
+      while i < n:
+         # --- break the ribbon where the bird wrapped round the edge
+         cr.new_sub_path()
+         started = 0
+         for k in range(m):
+            x = GLB.tx[k][i]
+            y = GLB.ty[k][i]
+            if started and (abs(x - lastx) > 400 or abs(y - lasty) > 300):
+               started = 0
+            if started:
+               cr.line_to(x, y)
+            else:
+               cr.move_to(x, y)
+               started = 1
+            lastx = x
+            lasty = y
+         i = i + bands
+      cr.stroke()
+   cr.set_dash([])

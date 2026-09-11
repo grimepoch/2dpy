@@ -1,0 +1,94 @@
+def Init():
+   # --- author : claude
+   # --- muqarnas, the stalactite vaulting.  Tiers of small niches, each
+   # --- corbelled out over the one below, step a square room round to a
+   # --- dome - and the whole thing is drawn in plan, which is how it was
+   # --- designed. The vault turns and the tiering shifts, so the plan is
+   # --- always resolving differently.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Rotation")
+   STR.SetFParam1Name("Tiers")
+   STR.SetFParam2Name("Glaze")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : light from the oculus
+   # ---    trigger : change the fold
+
+   GLB.st = surface.get_stride() // 4
+   GLB.a = 0.0
+   GLB.fold = 8
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 0.012)
+   f1 = STR.F1mix(4.0, 8.0)
+   f2 = STR.F2()
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.fold = 6 + np.random.randint(5)
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   GLB.a = GLB.a + f0
+
+   cr.set_source_rgb(0.06, 0.06, 0.08)
+   cr.rectangle(0, 0, 1280, 720)
+   cr.fill()
+
+   nt = int(f1)
+   fold = GLB.fold
+   cr.save()
+   cr.translate(640, 360)
+   cr.rotate(GLB.a)
+   cr.set_line_join(cairo.LINE_JOIN_ROUND)
+
+   # --- tiers, from the springing in to the oculus.  Each tier has twice
+   # --- the cells of the one below where the geometry allows it, which is
+   # --- how the square is worked round to a circle.
+   for t in range(nt):
+      u = t / (nt * 1.0)
+      r0 = 330.0 * (1.0 - u)
+      r1 = 330.0 * (1.0 - (t + 1) / (nt * 1.0))
+      cells = fold * (1 if (t % 2) == 0 else 2)
+      for k in range(cells):
+         a0 = k * 6.2831853 / cells + (0.0 if (t % 2) == 0 else
+                                       3.1416 / cells)
+         a1 = a0 + 6.2831853 / cells
+         am = (a0 + a1) * 0.5
+         # --- each cell is a niche : a squinch arch seen from below
+         depth = 0.5 + 0.5 * cos((am * fold * 0.5) + t * 0.7)
+         lum = 0.22 + 0.55 * depth
+         if acc:
+            lum = lum * (0.5 + 0.9 * (1.0 - u))
+         c = hsv_to_rgb((f2 + u * 0.25 + (t % 2) * 0.08) % 1.0,
+                        0.55, lum)
+         cr.set_source_rgb(c[2], c[1], c[0])
+         cr.move_to(cos(a0) * r0, sin(a0) * r0)
+         cr.line_to(cos(a1) * r0, sin(a1) * r0)
+         cr.line_to(cos(am) * r1, sin(am) * r1)
+         cr.close_path()
+         cr.fill_preserve()
+         cr.set_source_rgba(0.02, 0.02, 0.03, 0.85)
+         cr.set_line_width(1.6)
+         cr.stroke()
+         # --- the little pointed arch inside each niche
+         cr.set_source_rgba(1.0, 0.95, 0.85, 0.10 + 0.20 * depth)
+         cr.move_to(cos(a0) * r0 * 0.96, sin(a0) * r0 * 0.96)
+         cr.curve_to(cos(am) * r0 * 0.98, sin(am) * r0 * 0.98,
+                     cos(am) * r1 * 1.02, sin(am) * r1 * 1.02,
+                     cos(a1) * r0 * 0.96, sin(a1) * r0 * 0.96)
+         cr.stroke()
+   cr.restore()
+
+   # --- the oculus
+   cr.set_source_rgb(0.95, 0.90, 0.70)
+   cr.new_sub_path()
+   cr.arc(640, 360, 16.0, 0, 6.2831853)
+   cr.fill()

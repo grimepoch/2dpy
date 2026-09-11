@@ -1,0 +1,125 @@
+def Init():
+   # --- author : claude
+   # --- a spiking network.  Pulses crawl the axons and the canvas keeps the
+   # --- afterglow, so a burst of activity leaves a lit-up subgraph that
+   # --- fades over the next second.  The bloom is one np.maximum against a
+   # --- shifted copy, alternating axis per frame - a full 2D dilate every
+   # --- frame costs more than everything else here put together.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Fire Rate")
+   STR.SetFParam1Name("Afterglow")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : seizure
+   # ---    trigger : rewire
+
+   GLB.st = surface.get_stride() // 4
+   GLB.parity = 0
+   GLB.nn = 54
+
+   def wire():
+      n = GLB.nn
+      GLB.nx = np.random.random(n) * 1140.0 + 70.0
+      GLB.ny = np.random.random(n) * 600.0 + 60.0
+      GLB.chg = np.random.random(n) * 0.5
+      ea = []
+      eb = []
+      for i in range(n):
+         d = (GLB.nx - GLB.nx[i]) ** 2 + (GLB.ny - GLB.ny[i]) ** 2
+         d[i] = 1e18
+         order = np.argsort(d)
+         for k in range(3):
+            ea.append(i)
+            eb.append(int(order[k]))
+      GLB.ea = np.array(ea, dtype=np.int32)
+      GLB.eb = np.array(eb, dtype=np.int32)
+      GLB.ne = len(ea)
+      GLB.pt = np.zeros(GLB.ne, dtype=np.float32)
+      GLB.pa = np.zeros(GLB.ne, dtype=np.int32)
+   GLB.wire = wire
+   GLB.wire()
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.004, 0.06)
+   f1 = STR.F1mix(3.0, 6.5)
+   f2 = STR.F2()
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.wire()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8,
+                  buffer=surface.get_data())
+   np.subtract(v, np.right_shift(v, int(f1)), out=v)
+   GLB.parity = GLB.parity + 1
+   # --- four phases, not two : a dilate that always writes into the same
+   # --- slice walks the image one pixel a frame in that direction
+   ph = GLB.parity % 4
+   if ph == 0:
+      np.maximum(v[:, :-1], v[:, 1:], out=v[:, :-1])
+   elif ph == 1:
+      np.maximum(v[:-1], v[1:], out=v[:-1])
+   elif ph == 2:
+      np.maximum(v[:, 1:], v[:, :-1], out=v[:, 1:])
+   else:
+      np.maximum(v[1:], v[:-1], out=v[1:])
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   # --- charge leaks in, and a cell that crosses threshold fires its axons
+   rate = f0 * (5.0 if acc else 1.0)
+   GLB.chg = GLB.chg + np.random.random(GLB.nn) * rate
+   fired = GLB.chg > 1.0
+   GLB.chg = np.where(fired, 0.0, GLB.chg * 0.995)
+   if fired.any():
+      idx = np.where(fired)[0]
+      for i in idx:
+         sel = (GLB.ea == i) & (GLB.pa == 0)
+         GLB.pa = np.where(sel, 1, GLB.pa)
+         GLB.pt = np.where(sel, 0.0, GLB.pt)
+
+   GLB.pt = GLB.pt + np.where(GLB.pa == 1, 0.055, 0.0)
+   arrived = (GLB.pa == 1) & (GLB.pt >= 1.0)
+   if arrived.any():
+      for k in np.where(arrived)[0]:
+         GLB.chg[GLB.eb[k]] = GLB.chg[GLB.eb[k]] + 0.45
+   GLB.pa = np.where(arrived, 0, GLB.pa)
+
+   # --- dendrites, drawn dim every frame so the graph is always faintly there
+   cr.set_line_width(1.0)
+   cr.set_source_rgb(0.16, 0.09, 0.05)
+   for k in range(GLB.ne):
+      cr.move_to(GLB.nx[GLB.ea[k]], GLB.ny[GLB.ea[k]])
+      cr.line_to(GLB.nx[GLB.eb[k]], GLB.ny[GLB.eb[k]])
+   cr.stroke()
+
+   c = hsv_to_rgb((f2 + time * 0.02) % 1.0, 0.75, 1.0)
+   cr.set_source_rgb(c[2], c[1], c[0])
+   live = np.where(GLB.pa == 1)[0]
+   for k in live:
+      a = GLB.ea[k]
+      b = GLB.eb[k]
+      t = GLB.pt[k]
+      cr.new_sub_path()
+      cr.arc(GLB.nx[a] + (GLB.nx[b] - GLB.nx[a]) * t,
+             GLB.ny[a] + (GLB.ny[b] - GLB.ny[a]) * t, 3.2, 0, 6.2831853)
+   cr.fill()
+
+   # --- somas, brightness is membrane charge
+   for i in range(GLB.nn):
+      l = min(GLB.chg[i], 1.0)
+      cr.set_source_rgb(0.20 + l * 0.75, 0.14 + l * 0.70, 0.10 + l * 0.55)
+      cr.new_sub_path()
+      cr.arc(GLB.nx[i], GLB.ny[i], 3.0 + l * 5.0, 0, 6.2831853)
+      cr.fill()

@@ -1,0 +1,118 @@
+def Init():
+   # --- author : claude
+   # --- every note fires a burst of paper that falls, tumbles and piles up
+   # --- note : screen y=0 is the BOTTOM, so gravity is NEGATIVE y
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Gravity")
+   STR.SetFParam2Name("Burst")
+   # ---    accent : blow it all sideways
+   # ---    trigger : bouncy <-> sticky floor
+
+   # --- 10 slots = FFT analysis bins, 24 slots = MIDI notes
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   GLB.p = []
+   GLB.prev = []
+   for i in range(24):
+      GLB.prev.append(0)
+
+   def burst(k, n, velo, cnt):
+      x = (k + 0.5) * 1280.0 / n
+      y = 700.0
+      hue = k / (n * 1.0)
+      v = velo / 127.0
+      for i in range(cnt):
+         a = np.random.random() * 2.0 * pi
+         sp = (2.0 + 9.0 * v) * np.random.random()
+         GLB.p.append([x, y, cos(a) * sp, sin(a) * sp - 2.0,
+                       np.random.random() * 6.28, (np.random.random() - 0.5) * 0.5,
+                       hue, 1.0, 4.5 + 9.0 * np.random.random()])
+      while len(GLB.p) > 420:
+         del GLB.p[0]
+   GLB.burst = burst
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.1, 1.0)
+   f1 = STR.F1mix(0.05, 0.9)
+   f2 = STR.F2mix(3.0, 26.0)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,f0)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   lanes = 12 if GLB.mode == "midi" else GLB.slots
+
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if GLB.mode == "midi":
+         if ids != 0 and GLB.prev[i] != ids:
+            GLB.burst(note % 12, lanes, velo, int(f2))
+         GLB.prev[i] = ids
+      else:
+         if velo > 55 and GLB.prev[i] <= 55:
+            GLB.burst(i, lanes, velo, int(f2))
+         GLB.prev[i] = velo
+
+   wind = 3.5 * sin(time * 0.8) if acc else 0.0
+
+   dead = []
+   for i in range(len(GLB.p)):
+      q = GLB.p[i]
+      q[3] = q[3] - f1                 # --- gravity pulls toward y = 0
+      q[2] = q[2] * 0.995 + wind * 0.06
+      q[0] = q[0] + q[2]
+      q[1] = q[1] + q[3]
+      q[4] = q[4] + q[5]
+      # --- floor
+      if q[1] < 8:
+         q[1] = 8
+         if GLB.xmode:
+            q[2] = q[2] * 0.7
+            q[3] = 0.0
+            q[5] = q[5] * 0.6
+         else:
+            q[3] = -q[3] * 0.45
+            q[2] = q[2] * 0.8
+         q[7] = q[7] - 0.02
+      q[7] = q[7] - 0.004
+      if q[7] <= 0 or q[0] < -30 or q[0] > 1310:
+         dead.append(i)
+         continue
+
+      r,g,b = hsv_to_rgb(q[6], 0.85, 1.0)
+      cr.set_source_rgba(b, g, r, q[7])
+      # --- a tumbling rectangle, squashed by its own spin
+      w = q[8]
+      h = q[8] * 0.5 * abs(cos(q[4])) + 1.0
+      cr.save()
+      cr.translate(q[0], q[1])
+      cr.rotate(q[4] * 0.5)
+      cr.rectangle(-w * 0.5, -h * 0.5, w, h)
+      cr.fill()
+      cr.restore()
+
+   dead.reverse()
+   for i in dead:
+      del GLB.p[i]

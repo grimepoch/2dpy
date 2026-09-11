@@ -1,0 +1,97 @@
+def Init():
+   # --- author : claude
+   # --- doomFire rendered through an ASCII ramp : the fire simulation drives
+   # --- a character grid instead of pixels, so the flames are made of type
+   # --- note : screen y=0 is the BOTTOM, so the fire rises
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Fuel")
+   STR.SetFParam1Name("Decay")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : monochrome terminal
+   # ---    trigger : ramp <-> random glyphs
+
+   GLB.ramp = " .:-=+*#%@"
+   GLB.set = "01#*+=-.^~"
+   GLB.nx = 108
+   GLB.ny = 34
+   GLB.levels = 30
+   GLB.f = np.zeros((GLB.ny, GLB.nx), dtype=np.int32)
+   GLB.f[0] = GLB.levels
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0()
+   f1 = STR.F1mix(0.15, 1.5)
+   f2 = STR.F2()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   src = np.where(np.random.random(GLB.nx) < (0.35 + 0.65 * f0),
+                  GLB.levels, np.random.randint(0, GLB.levels, GLB.nx))
+   GLB.f[0] = src
+
+   dec = (np.random.random((GLB.ny - 1, GLB.nx)) * f1).astype(np.int32)
+   up = GLB.f[:-1, :] - dec
+   sh = np.random.randint(-1, 2, size=(GLB.ny - 1, 1))
+   idx = np.mod(np.arange(GLB.nx).reshape(1, GLB.nx) - sh, GLB.nx)
+   up = np.take_along_axis(up, idx, axis=1)
+   GLB.f[1:, :] = np.clip(up, 0, GLB.levels)
+
+   cr.set_source_rgb(0, 0, 0)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   nr = len(GLB.ramp)
+   q = np.clip((GLB.f * nr) // (GLB.levels + 1), 0, nr - 1)
+
+   cw = 1280.0 / GLB.nx
+   ch = 720.0 / GLB.ny
+   cr.select_font_face("mono", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+   cr.set_font_size(ch * 0.95)
+
+   # --- colour depends only on the ramp level, so build the palette once
+   pal = []
+   for v in range(nr):
+      t = v / (nr - 1.0)
+      if acc:
+         pal.append((t, t, t))
+      else:
+         r,g,b = hsv_to_rgb((f2 + t * 0.14) % 1.0, 1.0 - t * t * 0.9,
+                            min(1.0, t * 2.0))
+         pal.append((b, g, r))
+
+   cr.save()
+   cr.scale(1.0, -1.0)
+   last = -1
+   for j in range(GLB.ny):
+      row = q[j]
+      if row.max() == 0:
+         continue
+      yy = -(j * ch)
+      cuts = (np.nonzero(np.diff(row))[0] + 1).tolist()
+      starts = [0] + cuts
+      ends = cuts + [GLB.nx]
+      vals = row[starts].tolist()
+      for k in range(len(starts)):
+         v = vals[k]
+         if v == 0:
+            continue
+         if v != last:
+            c = pal[v]
+            cr.set_source_rgb(c[0], c[1], c[2])
+            last = v
+         ch2 = GLB.set[v % len(GLB.set)] if GLB.xmode else GLB.ramp[v]
+         cr.move_to(starts[k] * cw, yy)
+         cr.show_text(ch2 * (ends[k] - starts[k]))
+   cr.restore()

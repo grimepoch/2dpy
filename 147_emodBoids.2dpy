@@ -1,0 +1,143 @@
+def Init():
+   # --- author : claude
+   # --- a flock steered by the slots : each live slot is an attractor, so the
+   # --- birds redistribute themselves across whatever is sounding
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Cohesion")
+   STR.SetFParam1Name("Pull")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+   # ---    accent : show the attractors
+   # ---    trigger : scatter
+
+   GLB.n = 84
+   GLB.na = 12 if GLB.slots == 24 else GLB.slots
+   GLB.lvl = []
+   for i in range(GLB.na):
+      GLB.lvl.append(0.0)
+
+   def scatter():
+      GLB.px = np.random.random(GLB.n) * 1280.0
+      GLB.py = np.random.random(GLB.n) * 720.0
+      a = np.random.random(GLB.n) * 6.28
+      GLB.vx = np.cos(a) * 3.0
+      GLB.vy = np.sin(a) * 3.0
+   GLB.scatter = scatter
+   GLB.scatter()
+   GLB.fr = 0
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 0.02)
+   f1 = STR.F1mix(0.0, 260.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.scatter()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   na = GLB.na
+   for k in range(na):
+      GLB.lvl[k] = GLB.lvl[k] * 0.90
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if ids == 0:
+         continue
+      k = (note % 12) if GLB.mode == "midi" else i
+      if k < na:
+         v = velo / 127.0
+         if v > GLB.lvl[k]:
+            GLB.lvl[k] = v
+
+   GLB.fr = GLB.fr + 1
+   if GLB.fr % 2 == 0:
+      cr.set_source_rgba(0, 0, 0, 0.4)
+      cr.rectangle(0,0,1280,720)
+      cr.fill()
+
+   n = GLB.n
+   px = GLB.px
+   py = GLB.py
+   dx = px.reshape(n, 1) - px.reshape(1, n)
+   dy = py.reshape(n, 1) - py.reshape(1, n)
+   d2 = dx * dx + dy * dy
+   near = d2 < 9000.0
+   close = (d2 < 700.0) & (d2 > 0.0)
+   cnt = np.sum(near, axis=1)
+   cnt = np.where(cnt < 1, 1, cnt)
+   cxm = np.dot(near, px) / cnt
+   cym = np.dot(near, py) / cnt
+   axm = np.dot(near, GLB.vx) / cnt
+   aym = np.dot(near, GLB.vy) / cnt
+   sx = np.sum(np.where(close, dx, 0.0), axis=1)
+   sy = np.sum(np.where(close, dy, 0.0), axis=1)
+
+   GLB.vx = GLB.vx + (cxm - px) * f0 + (axm - GLB.vx) * 0.06 + sx * 0.004
+   GLB.vy = GLB.vy + (cym - py) * f0 + (aym - GLB.vy) * 0.06 + sy * 0.004
+
+   ax = []
+   ay = []
+   for k in range(na):
+      a = k * 2.0 * pi / na - pi * 0.5
+      ax.append(640.0 + cos(a) * 360.0)
+      ay.append(360.0 + sin(a) * 240.0)
+      v = GLB.lvl[k]
+      if v < 0.03:
+         continue
+      ddx = ax[k] - px
+      ddy = ay[k] - py
+      dd = np.sqrt(ddx * ddx + ddy * ddy) + 8.0
+      GLB.vx = GLB.vx + ddx / dd * f1 * v * 0.004
+      GLB.vy = GLB.vy + ddy / dd * f1 * v * 0.004
+
+   sp = np.sqrt(GLB.vx * GLB.vx + GLB.vy * GLB.vy) + 0.0001
+   GLB.vx = GLB.vx / sp * 5.5
+   GLB.vy = GLB.vy / sp * 5.5
+   GLB.px = np.mod(px + GLB.vx, 1280.0)
+   GLB.py = np.mod(py + GLB.vy, 720.0)
+
+   lx = GLB.px.tolist()
+   ly = GLB.py.tolist()
+   la = np.arctan2(GLB.vy, GLB.vx).tolist()
+
+   if acc:
+      for k in range(na):
+         v = GLB.lvl[k]
+         if v < 0.03:
+            continue
+         c = hsv_to_rgb((f2 + k / (na * 1.0) * 0.6) % 1.0, 0.8, 1.0)
+         cr.set_source_rgba(c[2], c[1], c[0], 0.5)
+         cr.new_sub_path()
+         cr.arc(ax[k], ay[k], 10 + 40 * v, 0, 2 * pi)
+         cr.fill()
+
+   bands = 5
+   for b in range(bands):
+      t = b / (bands - 1.0)
+      c = hsv_to_rgb((f2 + t * 0.3) % 1.0, 0.75 if GLB.xmode else 0.4, 1.0)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      for i in range(b, n, bands):
+         a = la[i]
+         x = lx[i]
+         y = ly[i]
+         cr.move_to(x + cos(a) * 11, y + sin(a) * 11)
+         cr.line_to(x + cos(a + 2.5) * 7, y + sin(a + 2.5) * 7)
+         cr.line_to(x + cos(a - 2.5) * 7, y + sin(a - 2.5) * 7)
+         cr.close_path()
+      cr.fill()

@@ -1,0 +1,110 @@
+def Init():
+   # --- author : claude
+   # --- Chladni nodal lines feeding a sandpile : grains fall onto the plate,
+   # --- migrate to the nodes and pile up where the plate is still
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Mode N")
+   STR.SetFParam1Name("Mode M")
+   STR.SetFParam2Name("Grains")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : show the driven field
+   # ---    trigger : jump modes and scatter the sand
+
+   GLB.n = 2600
+
+   def scatter():
+      GLB.px = np.random.random(GLB.n)
+      GLB.py = np.random.random(GLB.n)
+      GLB.jn = np.random.random() * 5.0
+      GLB.jm = np.random.random() * 5.0
+   GLB.scatter = scatter
+   GLB.scatter()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(1.0, 8.0)
+   f1 = STR.F1mix(1.0, 8.0)
+   f2 = STR.F2mix(400.0, 2600.0)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.scatter()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   nn = f0 + GLB.jn
+   mm = f1 + GLB.jm
+   w = 1.0 + 0.05 * sin(time * 0.5)
+
+   # --- the plate displacement at each grain, and its gradient
+   X = GLB.px
+   Y = GLB.py
+   a = np.sin(nn * pi * X * w) * np.sin(mm * pi * Y)
+   b = np.sin(mm * pi * X) * np.sin(nn * pi * Y * w)
+   fz = a - b if GLB.xmode == 0 else a + b
+
+   h = 0.004
+   a2 = np.sin(nn * pi * (X + h) * w) * np.sin(mm * pi * Y)
+   b2 = np.sin(mm * pi * (X + h)) * np.sin(nn * pi * Y * w)
+   fx = (a2 - b2 if GLB.xmode == 0 else a2 + b2) - fz
+   a3 = np.sin(nn * pi * X * w) * np.sin(mm * pi * (Y + h))
+   b3 = np.sin(mm * pi * X) * np.sin(nn * pi * (Y + h) * w)
+   fy = (a3 - b3 if GLB.xmode == 0 else a3 + b3) - fz
+
+   # --- grains are shaken away from the antinodes, downhill in |f|
+   g = np.sign(fz)
+   step = 0.0016
+   GLB.px = np.clip(X - g * fx / h * step * 0.02, 0.001, 0.999)
+   GLB.py = np.clip(Y - g * fy / h * step * 0.02, 0.001, 0.999)
+   # --- plus a little jitter so they keep finding the line
+   GLB.px = np.clip(GLB.px + (np.random.random(GLB.n) - 0.5) * 0.004, 0.001, 0.999)
+   GLB.py = np.clip(GLB.py + (np.random.random(GLB.n) - 0.5) * 0.004, 0.001, 0.999)
+
+   cr.set_source_rgb(0.05, 0.04, 0.06)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   if acc:
+      # --- the standing wave behind the sand
+      res = 10
+      nx = int(1280 / res) + 1
+      ny = int(720 / res) + 1
+      xs = np.linspace(0.0, 1.0, nx).reshape(1, nx)
+      ys = np.linspace(0.0, 1.0, ny).reshape(ny, 1)
+      A = np.sin(nn * pi * xs * w) * np.sin(mm * pi * ys)
+      B = np.sin(mm * pi * xs) * np.sin(nn * pi * ys * w)
+      F = A - B if GLB.xmode == 0 else A + B
+      m = np.abs(F) > 0.62
+      cr.set_source_rgb(0.20, 0.10, 0.05)
+      for j in range(ny):
+         row = m[j]
+         if not row.any():
+            continue
+         k = 0
+         while k < nx:
+            if not row[k]:
+               k = k + 1
+               continue
+            k2 = k
+            while k2 < nx and row[k2]:
+               k2 = k2 + 1
+            cr.rectangle(k * res, j * res, (k2 - k) * res, res)
+            k = k2
+      cr.fill()
+
+   cnt = int(f2)
+   sx = (GLB.px[:cnt] * 1280.0).tolist()
+   sy = (GLB.py[:cnt] * 720.0).tolist()
+   cr.set_source_rgb(0.62, 0.88, 0.98)
+   for i in range(cnt):
+      cr.rectangle(sx[i], sy[i], 2.4, 2.4)
+   cr.fill()

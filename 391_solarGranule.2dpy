@@ -1,0 +1,149 @@
+def Init():
+   # --- author : claude
+   # --- the surface of a star.  Convection cells rise in the middle, spill
+   # --- sideways and sink at the edges, and each one lives about as long as
+   # --- it takes to cross itself - so the whole surface is continuously
+   # --- rebuilt out of cells that are always being born and always dying.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Convection")
+   STR.SetFParam1Name("Cell Size")
+   STR.SetFParam2Name("Spots")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : a flare brightens the whole face
+   # ---    trigger : new spot group
+
+   GLB.res = 5
+   GLB.nx = 1280 // GLB.res
+   GLB.ny = 720 // GLB.res
+   GLB.small = cairo.ImageSurface(cairo.FORMAT_ARGB32, GLB.nx, GLB.ny)
+   GLB.sst = GLB.small.get_stride() // 4
+   GLB.sv = np.ndarray(shape=(GLB.ny, GLB.sst, 4), dtype=np.uint8,
+                       buffer=GLB.small.get_data())
+   yy, xx = np.meshgrid(np.arange(GLB.ny), np.arange(GLB.nx), indexing="ij")
+   GLB.iy = yy.astype(np.float32)
+   GLB.ix = xx.astype(np.float32)
+   GLB.ncell = 110
+   GLB.cap = 150
+   # --- a granule only reaches about twice its own spacing, so each one is
+   # --- evaluated in a window that size instead of over the whole face
+   GLB.win = 30
+
+   def seedcells():
+      GLB.cx = np.random.random(GLB.cap) * GLB.nx
+      GLB.cy = np.random.random(GLB.cap) * GLB.ny
+      GLB.age = np.random.random(GLB.cap)
+      GLB.life = 0.0015 + np.random.random(GLB.cap) * 0.004
+   GLB.seedcells = seedcells
+   GLB.seedcells()
+
+   def newspots():
+      k = 3
+      GLB.sx = np.random.random(k) * GLB.nx
+      GLB.sy = np.random.random(k) * GLB.ny
+      GLB.sr = np.random.random(k) * 26.0 + 12.0
+   GLB.newspots = newspots
+   GLB.newspots()
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.3, 1.8)
+   f1 = STR.F1mix(16.0, 46.0)
+   f2 = STR.F2()
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.newspots()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   # --- every cell ages, and a dead one is replaced somewhere else.  There
+   # --- is no moment at which the surface is finished.
+   GLB.age = GLB.age + GLB.life * f0 * 12.0
+   dead = GLB.age > 1.0
+   if dead.any():
+      nd = int(dead.sum())
+      GLB.cx = np.where(dead, np.random.random(GLB.cap) * GLB.nx, GLB.cx)
+      GLB.cy = np.where(dead, np.random.random(GLB.cap) * GLB.ny, GLB.cy)
+      GLB.age = np.where(dead, 0.0, GLB.age)
+      GLB.life = np.where(dead, 0.0015 + np.random.random(GLB.cap) * 0.004,
+                          GLB.life)
+
+   # --- nearest cell centre gives the granule, second nearest gives the dark
+   # --- intergranular lane where the gas is sinking
+   # --- nearest and second nearest centre, evaluated site by site but only
+   # --- inside each site's own window.  Doing it over the whole grid is 150
+   # --- full-field passes and measured 167 ms; the windows make it local
+   # --- work proportional to the number of granules, not to their reach.
+   best = np.full((GLB.ny, GLB.nx), 1e18, dtype=np.float32)
+   second = np.full((GLB.ny, GLB.nx), 1e18, dtype=np.float32)
+   bright = np.zeros((GLB.ny, GLB.nx), dtype=np.float32)
+   n = GLB.ncell
+   w = GLB.win
+   for i in range(n):
+      cx = GLB.cx[i]
+      cy = GLB.cy[i]
+      x0 = int(cx) - w
+      x1 = int(cx) + w
+      y0 = int(cy) - w
+      y1 = int(cy) + w
+      if x0 < 0:
+         x0 = 0
+      if y0 < 0:
+         y0 = 0
+      if x1 > GLB.nx:
+         x1 = GLB.nx
+      if y1 > GLB.ny:
+         y1 = GLB.ny
+      if x1 <= x0 or y1 <= y0:
+         continue
+      dx = GLB.ix[y0:y1, x0:x1] - cx
+      dy = GLB.iy[y0:y1, x0:x1] - cy
+      d = dx * dx + dy * dy
+      bs = best[y0:y1, x0:x1]
+      sc = second[y0:y1, x0:x1]
+      closer = d < bs
+      second[y0:y1, x0:x1] = np.where(closer, bs, np.minimum(sc, d))
+      best[y0:y1, x0:x1] = np.where(closer, d, bs)
+      # --- a granule is brightest in its youth and fades as it spreads
+      lum = 0.55 + 0.45 * sin(GLB.age[i] * pi)
+      bright[y0:y1, x0:x1] = np.where(closer, lum,
+                                      bright[y0:y1, x0:x1])
+
+   # --- the lane is where the two nearest centres are equally close
+   lane = np.clip((np.sqrt(second) - np.sqrt(best)) / (f1 * 0.16), 0.0, 1.0)
+   surf = bright * (0.32 + 0.68 * lane)
+
+   # --- sunspots : cool, so dark, with a lighter penumbra
+   for k in range(len(GLB.sx)):
+      dx = GLB.ix - GLB.sx[k]
+      dy = GLB.iy - GLB.sy[k]
+      d = np.sqrt(dx * dx + dy * dy)
+      umb = np.clip((d - GLB.sr[k]) / (GLB.sr[k] * 0.9), 0.0, 1.0)
+      surf = surf * (0.12 + 0.88 * umb)
+
+   if acc:
+      surf = surf * 1.5 + 0.25
+   hot = np.clip(surf, 0.0, 1.3)
+   c = hsv_to_rgb((0.07 + f2 * 0.06) % 1.0, 0.55, 1.0)
+   GLB.sv[:, :GLB.nx, 0] = np.clip(hot * 255.0 * c[0] + 22.0,
+                                   0, 255).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 1] = np.clip(hot * hot * 235.0 * c[1] + 6.0,
+                                   0, 255).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 2] = np.clip(hot * hot * hot * 200.0 * c[2],
+                                   0, 255).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 3] = 255
+   GLB.small.mark_dirty()
+   pat = cairo.SurfacePattern(GLB.small)
+   pat.set_filter(cairo.FILTER_NEAREST)
+   m = cairo.Matrix()
+   m.scale(1.0 / GLB.res, 1.0 / GLB.res)
+   pat.set_matrix(m)
+   cr.set_source(pat)
+   cr.paint()

@@ -1,0 +1,88 @@
+def Init():
+   # --- author : claude
+   # --- a slit scan : the whole standing image is pushed along by one column
+   # --- each frame and only a single fresh slit is drawn, so the horizontal
+   # --- axis becomes time
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Scan Rate")
+   STR.SetFParam1Name("Subject")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : scan vertically
+   # ---    trigger : next subject
+
+   GLB.st = surface.get_stride() // 4
+   GLB.carry = 0.0
+   GLB.kind = 0
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.4, 7.0)
+   f1 = STR.F1mix(0.2, 3.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.kind = (GLB.kind + 1) % 3
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   GLB.carry = GLB.carry + f0
+   sp = int(GLB.carry)
+   GLB.carry = GLB.carry - sp
+   if sp > 12:
+      sp = 12
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8, buffer=surface.get_data())
+
+   if sp > 0:
+      if acc:
+         # --- push the standing image up, fresh row goes in at the bottom
+         v[:-sp] = v[sp:]
+         v[-sp:] = 0
+      else:
+         # --- push it left, fresh column goes in at the right
+         v[:, :-sp] = v[:, sp:]
+         v[:, -sp:] = 0
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   if sp <= 0:
+      return
+
+   # --- the slit: one column (or row) of the subject, sampled now
+   cr.save()
+   if acc:
+      cr.rectangle(0, 0, 1280, sp + 1)
+      cr.clip()
+   else:
+      cr.rectangle(1280 - sp - 1, 0, sp + 1, 720)
+      cr.clip()
+
+   n = 160
+   for i in range(n):
+      u = i / (n * 1.0)
+      if GLB.kind == 0:
+         w = sin(u * 12.0 * f1 + time * 2.0) * 0.5 + 0.5
+      elif GLB.kind == 1:
+         w = 1.0 if (int(u * 9 + time * 1.5) % 2) else 0.15
+      else:
+         d = abs(u - 0.5 - 0.35 * sin(time * 1.7))
+         w = max(0.0, 1.0 - d * 8.0 / f1)
+      c = hsv_to_rgb((f2 + u * 0.4 + time * 0.02) % 1.0, 0.85, w)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      if acc:
+         cr.rectangle(u * 1280.0, 0, 1280.0 / n + 1, sp + 1)
+      else:
+         cr.rectangle(1280 - sp - 1, u * 720.0, sp + 1, 720.0 / n + 1)
+      cr.fill()
+   cr.restore()

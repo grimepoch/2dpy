@@ -1,0 +1,85 @@
+def Init():
+   # --- author : claude
+   # --- ghosting : the standing image is re-stamped at a small offset every
+   # --- frame, so anything that moves drags a smeared echo behind it
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Drift")
+   STR.SetFParam1Name("Echo")
+   STR.SetFParam2Name("Decay")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : echo splits the channels
+   # ---    trigger : new drift direction
+
+   GLB.st = surface.get_stride() // 4
+   GLB.ang = 0.7
+   GLB.n = 5
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 7.0)
+   f1 = STR.F1mix(0.0, 0.75)
+   f2 = STR.F2mix(2.0, 8.0)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.ang = np.random.random() * 6.28
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   dx = cos(GLB.ang) * f0 * (0.3 + f1)
+   dy = sin(GLB.ang) * f0 * (0.3 + f1)
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8, buffer=surface.get_data())
+   np.subtract(v, np.right_shift(v, int(f2)), out=v)
+
+   # --- The echo is made by DRIFTING the standing pixels a little each frame
+   # --- rather than compositing the frame over itself: a full screen
+   # --- paint_with_alpha costs ~11ms, these slice moves under 2ms.
+   sx = int(dx)
+   sy = int(dy)
+   if sy > 0:
+      v[:-sy] = v[sy:]
+   elif sy < 0:
+      k = -sy
+      v[k:] = v[:-k]
+   if sx > 0:
+      v[:, :-sx] = v[:, sx:]
+   elif sx < 0:
+      k = -sx
+      v[:, k:] = v[:, :-k]
+
+   if acc:
+      # --- pull the channels apart as the echo travels
+      v[:, :-2, 2] = v[:, 2:, 2]
+      v[:, 1:, 0] = v[:, :-1, 0]
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   # --- the movers
+   for k in range(GLB.n):
+      u = k / (GLB.n * 1.0)
+      a = time * (0.6 + u * 0.9) + u * 6.28
+      x = 640 + (260 + u * 260) * cos(a)
+      y = 360 + (150 + u * 150) * sin(a * 1.3)
+      c = hsv_to_rgb((u * 0.6 + time * 0.04) % 1.0, 0.85, 1.0)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      if GLB.xmode:
+         cr.save()
+         cr.translate(x, y)
+         cr.rotate(a)
+         cr.rectangle(-16, -16, 32, 32)
+         cr.restore()
+         cr.fill()
+      else:
+         cr.new_sub_path()
+         cr.arc(x, y, 17, 0, 2 * pi)
+         cr.fill()

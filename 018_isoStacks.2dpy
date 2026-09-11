@@ -1,0 +1,101 @@
+def Init():
+   # --- author : claude
+   # --- an isometric city of columns whose heights ride a travelling wave
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Height")
+   STR.SetFParam1Name("Grid")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : wireframe
+   # ---    trigger : wave <-> ripple from the centre
+
+   GLB.tw = 46.0
+   GLB.th = 26.0
+
+   def column(sx, sy, h, top, lft, rgt, wire):
+      tw = GLB.tw
+      th = GLB.th
+      # --- left face
+      cr.move_to(sx - tw, sy)
+      cr.line_to(sx, sy - th)
+      cr.line_to(sx, sy - th + h)
+      cr.line_to(sx - tw, sy + h)
+      cr.close_path()
+      cr.set_source_rgb(lft[2], lft[1], lft[0])
+      if wire:
+         cr.stroke()
+      else:
+         cr.fill()
+      # --- right face
+      cr.move_to(sx + tw, sy)
+      cr.line_to(sx, sy - th)
+      cr.line_to(sx, sy - th + h)
+      cr.line_to(sx + tw, sy + h)
+      cr.close_path()
+      cr.set_source_rgb(rgt[2], rgt[1], rgt[0])
+      if wire:
+         cr.stroke()
+      else:
+         cr.fill()
+      # --- top
+      cr.move_to(sx - tw, sy + h)
+      cr.line_to(sx, sy - th + h)
+      cr.line_to(sx + tw, sy + h)
+      cr.line_to(sx, sy + th + h)
+      cr.close_path()
+      cr.set_source_rgb(top[2], top[1], top[0])
+      if wire:
+         cr.stroke()
+      else:
+         cr.fill()
+   GLB.column = column
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(10.0, 190.0)
+   f1 = STR.F1mix(5.0, 13.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   # --- clear screen, no trails, the solid faces need to occlude cleanly
+   cr.set_source_rgb(0.02, 0.01, 0.03)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   n = int(f1)
+   cr.set_line_width(1.5)
+
+   # --- draw back to front so the painter's algorithm does the occluding
+   for j in range(n):
+      for i in range(n):
+         u = i - (n - 1) * 0.5
+         v = j - (n - 1) * 0.5
+         sx = 640 + (u - v) * GLB.tw
+         sy = 250 - (u + v) * GLB.th
+         if GLB.xmode:
+            d = sqrt(u * u + v * v)
+            w = sin(d * 0.9 - time * 2.2)
+         else:
+            w = sin(u * 0.6 + time * 1.6) * cos(v * 0.5 - time * 0.9)
+         h = 12.0 + f0 * (0.5 + 0.5 * w)
+         hue = (f2 + (0.5 + 0.5 * w) * 0.35) % 1.0
+         top = hsv_to_rgb(hue, 0.55, 1.00)
+         lft = hsv_to_rgb(hue, 0.70, 0.55)
+         rgt = hsv_to_rgb(hue, 0.65, 0.78)
+         if acc:
+            GLB.column(sx, sy, h, top, top, top, 1)
+         else:
+            GLB.column(sx, sy, h, top, lft, rgt, 0)

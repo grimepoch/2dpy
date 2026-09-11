@@ -1,0 +1,119 @@
+def Init():
+   # --- author : claude
+   # --- pool caustics : the bright web on the bottom of a pool is where the
+   # --- wavy surface focuses light, so the field is the GRADIENT of the
+   # --- wave height, not the height itself
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Depth")
+   STR.SetFParam1Name("Chop")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : sunbeams through the water
+   # ---    trigger : new sea state
+
+   GLB.res = 13
+   GLB.nx = int(1280 / GLB.res) + 1
+   GLB.ny = int(720 / GLB.res) + 1
+   xs = np.arange(GLB.nx, dtype=np.float32) * GLB.res
+   ys = np.arange(GLB.ny, dtype=np.float32) * GLB.res
+   GLB.X = np.tile(xs.reshape(1, GLB.nx), (GLB.ny, 1))
+   GLB.Y = np.tile(ys.reshape(GLB.ny, 1), (1, GLB.nx))
+
+   def seed():
+      GLB.w = []
+      for i in range(5):
+         a = np.random.random() * 6.28
+         GLB.w.append([cos(a), sin(a),
+                       0.004 + np.random.random() * 0.012,
+                       0.5 + np.random.random() * 1.6,
+                       np.random.random() * 6.28])
+   GLB.seed = seed
+   GLB.seed()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.4, 3.0)
+   f1 = STR.F1mix(0.2, 1.15)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.seed()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   # --- the surface height, and its slope in x and y
+   h = np.zeros(GLB.X.shape, dtype=np.float32)
+   gx = np.zeros(GLB.X.shape, dtype=np.float32)
+   gy = np.zeros(GLB.X.shape, dtype=np.float32)
+   for w in GLB.w:
+      ph = (GLB.X * w[0] + GLB.Y * w[1]) * w[2] + time * w[3] + w[4]
+      s = np.sin(ph) * f1
+      c = np.cos(ph) * f1
+      h = h + s
+      gx = gx + c * w[2] * w[0]
+      gy = gy + c * w[2] * w[1]
+
+   # --- where the slope converges, light piles up
+   d = np.abs(gx) + np.abs(gy)
+   v = 1.0 / (0.02 + d * 260.0 / f0)
+   v = np.clip(v * 0.22, 0.0, 1.0)
+
+   cr.set_source_rgb(0.05, 0.10, 0.03)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   bands = 6
+   q = (v * bands).astype(np.int32)
+   q = np.clip(q, 0, bands - 1)
+   res = GLB.res
+
+   buckets = []
+   for b in range(bands):
+      buckets.append([])
+   for j in range(GLB.ny):
+      row = q[j]
+      if row.max() == 0:
+         continue
+      cuts = (np.nonzero(np.diff(row))[0] + 1).tolist()
+      starts = [0] + cuts
+      ends = cuts + [GLB.nx]
+      vals = row[starts].tolist()
+      yy = j * res
+      for k in range(len(starts)):
+         if vals[k] > 0:
+            buckets[vals[k]].append([starts[k] * res, yy, (ends[k] - starts[k]) * res + 0.7])
+
+   for b in range(1, bands):
+      bk = buckets[b]
+      if len(bk) == 0:
+         continue
+      t = b / (bands - 1.0)
+      if GLB.xmode:
+         r,g,bl = hsv_to_rgb((f2 + t * 0.5) % 1.0, 0.85 - 0.7 * t, 1.0)
+      else:
+         r,g,bl = hsv_to_rgb((f2 + 0.45 - t * 0.10) % 1.0, 0.85 - 0.8 * t, 0.35 + 0.65 * t)
+      cr.set_source_rgb(bl, g, r)
+      for qq in bk:
+         cr.rectangle(qq[0], qq[1], qq[2], res + 0.7)
+      cr.fill()
+
+   if acc:
+      # --- shafts of light from the surface
+      cr.set_source_rgba(0.85, 0.95, 0.75, 0.09)
+      for k in range(14):
+         x = (k / 14.0) * 1400.0 - 60.0 + 40.0 * sin(time * 0.4 + k)
+         cr.move_to(x, 720)
+         cr.line_to(x - 120, 0)
+         cr.line_to(x - 60, 0)
+         cr.close_path()
+      cr.fill()

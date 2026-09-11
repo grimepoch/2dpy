@@ -1,0 +1,90 @@
+def Init():
+   # --- author : claude
+   # --- a bank of glissandi.  Every voice is always sliding toward its
+   # --- target and a new target is set whenever a note arrives, so the bank
+   # --- is a set of lines that are permanently in transit - the chord is
+   # --- never quite arrived at, which is the whole character of the thing.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Glide")
+   STR.SetFParam1Name("Voices")
+   STR.SetFParam2Name("Trails")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : the voices fan apart
+   # ---    trigger : new targets for all of them
+
+   GLB.st = surface.get_stride() // 4
+   GLB.nv = 16
+   GLB.y = np.random.random(GLB.nv).astype(np.float32) * 620.0 + 50.0
+   GLB.tg = GLB.y.copy()
+   GLB.x = 0.0
+   GLB.prev = np.zeros(GLB.slots, dtype=np.float32)
+   GLB.lvl = np.zeros(GLB.nv, dtype=np.float32)
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.004, 0.12)
+   f1 = STR.F1mix(2.0, 15.99)
+   f2 = STR.F2mix(4.0, 8.0)
+   time = STR.IT() + STR.FT()
+
+   nv = int(f1)
+   if trig:
+      GLB.tg = np.random.random(GLB.nv).astype(np.float32) * 620.0 + 50.0
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   for i in range(GLB.slots):
+      d = STR.GetSlotData(i)
+      vel = d[2] * 1.0
+      if d[0] != 0 and vel > GLB.prev[i] + 5.0:
+         v_ = int(d[1]) % GLB.nv
+         GLB.tg[v_] = 690.0 - (int(d[1]) % 48) * 13.0
+         GLB.lvl[v_] = min(1.0, vel / 127.0)
+      GLB.prev[i] = vel
+   GLB.lvl = GLB.lvl * 0.96
+
+   if acc:
+      # --- pushed apart, so the bank opens out into a fan
+      mid = GLB.y[:nv].mean()
+      GLB.tg[:nv] = np.clip(mid + (GLB.tg[:nv] - mid) * 1.9, 40.0, 700.0)
+
+   # --- always in transit : the voice moves a fixed fraction of the way
+   # --- remaining each frame, so it approaches but never lands
+   GLB.y = GLB.y + (GLB.tg - GLB.y) * f0
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8,
+                  buffer=surface.get_data())
+   np.subtract(v, np.right_shift(v, int(f2)), out=v)
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   # --- the pens sweep across and wrap, writing the pitch of each voice
+   x0 = GLB.x
+   GLB.x = GLB.x + 4.0
+   wrapped = False
+   if GLB.x >= 1280.0:
+      GLB.x = 0.0
+      x0 = 0.0
+      wrapped = True
+
+   cr.set_line_cap(cairo.LINE_CAP_ROUND)
+   for i in range(nv):
+      c = hsv_to_rgb((i / (nv * 1.0) * 0.75) % 1.0, 0.78,
+                     0.45 + 0.55 * GLB.lvl[i])
+      cr.set_source_rgb(c[2], c[1], c[0])
+      cr.set_line_width(1.6 + GLB.lvl[i] * 5.0)
+      if not wrapped:
+         cr.move_to(x0, GLB.y[i])
+         cr.line_to(GLB.x, GLB.y[i])
+         cr.stroke()
+      cr.new_sub_path()
+      cr.arc(GLB.x, GLB.y[i], 2.5 + GLB.lvl[i] * 6.0, 0, 6.2831853)
+      cr.fill()

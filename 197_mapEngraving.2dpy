@@ -1,0 +1,151 @@
+def Init():
+   # --- author : claude
+   # --- an engraved chart : coastline, hachured relief, graticule, rhumb
+   # --- lines and a cartouche.  Public domain cartographic style.
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Coast")
+   STR.SetFParam1Name("Graticule")
+   STR.SetFParam2Name("Relief")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : sea stippled
+   # ---    trigger : new survey
+
+   GLB.names = ["MARE INCOGNITVM","TERRA NOVA","SINVS MAGNVS","OCEANVS",
+                "INSVLA AVSTRALIS","PROMONTORIVM"]
+
+   def survey():
+      GLB.h = []
+      for i in range(7):
+         GLB.h.append([np.random.random() * 2.0 - 1.0,
+                       np.random.random() * 2.0 - 1.0,
+                       0.3 + np.random.random() * 1.2,
+                       np.random.random() * 6.28])
+      GLB.name = GLB.names[np.random.randint(0, len(GLB.names))]
+   GLB.survey = survey
+   GLB.survey()
+
+   def land(a):
+      # --- the coastline radius at bearing a
+      r = 180.0
+      for h in GLB.h:
+         r = r + 70.0 * h[2] * cos(a * (1.0 + int(h[2] * 4)) + h[3])
+      return r
+   GLB.land = land
+
+   def text(x, y, s):
+      cr.save()
+      cr.translate(x, y)
+      cr.scale(1.0, -1.0)
+      cr.move_to(0, 0)
+      cr.show_text(s)
+      cr.restore()
+   GLB.text = text
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.3, 1.4)
+   f1 = STR.F1mix(3.0, 12.0)
+   f2 = STR.F2mix(0.0, 26.0)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.survey()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   paper = (0.90, 0.90, 0.84)
+   ink = (0.20, 0.17, 0.22)
+   cr.set_source_rgb(paper[2], paper[1], paper[0])
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cx = 620.0
+   cy = 360.0
+
+   # --- rhumb lines from a hidden compass
+   cr.set_source_rgba(ink[2], ink[1], ink[0], 0.22)
+   cr.set_line_width(1)
+   for k in range(16):
+      a = k * pi / 8.0 + time * 0.01
+      cr.move_to(cx, cy)
+      cr.line_to(cx + cos(a) * 1400.0, cy + sin(a) * 1400.0)
+   cr.stroke()
+
+   # --- graticule
+   g = int(f1)
+   cr.set_source_rgba(ink[2], ink[1], ink[0], 0.30)
+   for k in range(g + 1):
+      x = 70.0 + k * 1140.0 / g
+      cr.move_to(x, 60)
+      cr.line_to(x, 660)
+      y = 60.0 + k * 600.0 / g
+      cr.move_to(70, y)
+      cr.line_to(1210, y)
+   cr.stroke()
+
+   if acc:
+      # --- stippled sea
+      cr.set_source_rgba(ink[2], ink[1], ink[0], 0.45)
+      for i in range(500):
+         a = np.random.random() * 6.28
+         d = 1.05 + np.random.random() * 1.2
+         r = GLB.land(a) * d * f0
+         cr.rectangle(cx + cos(a) * r, cy + sin(a) * r * 0.9, 2, 2)
+      cr.fill()
+
+   # --- the landmass
+   steps = 200
+   cr.new_path()
+   for i in range(steps + 1):
+      a = i * 2.0 * pi / steps
+      r = GLB.land(a) * f0
+      cr.line_to(cx + cos(a) * r, cy + sin(a) * r * 0.9)
+   cr.close_path()
+   cr.set_source_rgb(0.84, 0.85, 0.78)
+   cr.fill_preserve()
+   cr.set_source_rgb(ink[2], ink[1], ink[0])
+   cr.set_line_width(2.4)
+   cr.stroke()
+
+   # --- hachures inland, perpendicular to the coast
+   if f2 > 0.5:
+      cr.set_source_rgba(ink[2], ink[1], ink[0], 0.7)
+      cr.set_line_width(1.2)
+      m = int(f2 * 9)
+      for i in range(m):
+         a = i * 2.0 * pi / m
+         r = GLB.land(a) * f0
+         for k in range(4):
+            u = 0.62 + k * 0.09
+            L = 16.0 - k * 3.0
+            cr.move_to(cx + cos(a) * r * u, cy + sin(a) * r * u * 0.9)
+            cr.line_to(cx + cos(a) * (r * u - L), cy + sin(a) * (r * u - L) * 0.9)
+      cr.stroke()
+
+   # --- cartouche
+   cr.set_source_rgb(0.92, 0.92, 0.86)
+   cr.rectangle(70, 70, 330, 110)
+   cr.fill()
+   cr.set_source_rgb(ink[2], ink[1], ink[0])
+   cr.set_line_width(3)
+   cr.rectangle(70, 70, 330, 110)
+   cr.stroke()
+   cr.set_line_width(1)
+   cr.rectangle(78, 78, 314, 94)
+   cr.stroke()
+   cr.select_font_face("serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+   cr.set_font_size(26)
+   e = cr.text_extents(GLB.name)
+   GLB.text(235 - e.width * 0.5 - e.x_bearing, 128, GLB.name)
+   cr.set_font_size(15)
+   GLB.text(92, 96, "SCALA MILLIARIA")

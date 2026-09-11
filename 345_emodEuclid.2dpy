@@ -1,0 +1,101 @@
+def Init():
+   # --- author : claude
+   # --- Euclidean rhythms.  Spreading k onsets as evenly as possible over n
+   # --- steps - by the same algorithm that finds a greatest common divisor -
+   # --- produces most of the world's bell patterns.  The necklaces turn, and
+   # --- k drifts, so the pattern is continually becoming a different one.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Onsets")
+   STR.SetFParam1Name("Steps")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : the necklaces rotate against each other
+   # ---    trigger : new voice count
+
+   GLB.st = surface.get_stride() // 4
+   GLB.nv = 5
+   GLB.rot = np.zeros(9, dtype=np.float32)
+   GLB.prev = np.zeros(GLB.slots, dtype=np.float32)
+   GLB.lvl = np.zeros(9, dtype=np.float32)
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.12, 0.88)
+   f1 = STR.F1mix(8.0, 24.99)
+   f2 = STR.F2()
+   it = STR.IT()
+   ft = STR.FT()
+
+   if trig:
+      GLB.nv = 3 + np.random.randint(6)
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   n = int(f1)
+   nv = GLB.nv
+   GLB.lvl = GLB.lvl * 0.90
+   for i in range(GLB.slots):
+      d = STR.GetSlotData(i)
+      vel = d[2] * 1.0
+      if d[0] != 0 and vel > GLB.prev[i] + 5.0:
+         GLB.lvl[int(d[1]) % 9] = min(1.0, vel / 127.0)
+      GLB.prev[i] = vel
+
+   cr.set_source_rgba(0, 0, 0, 1)
+   cr.rectangle(0, 0, 1280, 720)
+   cr.fill()
+
+   step = it % n
+   for vi in range(nv):
+      k = 1 + int(f0 * n * (0.35 + vi * 0.14)) % max(n - 1, 1)
+      if acc:
+         GLB.rot[vi] = GLB.rot[vi] + 0.004 * (vi + 1)
+      rr = 70.0 + vi * (285.0 / nv)
+      c = hsv_to_rgb((f2 + vi / (nv * 1.0) * 0.6) % 1.0, 0.78, 1.0)
+
+      # --- Bjorklund : walk the circle and place an onset whenever the
+      # --- running total rolls over.  This is the same accumulation a line
+      # --- drawing algorithm uses, and it is what makes the spacing as even
+      # --- as n and k allow.
+      acc_ = 0
+      ons = []
+      for s in range(n):
+         acc_ = acc_ + k
+         onset = False
+         if acc_ >= n:
+            acc_ = acc_ - n
+            onset = True
+         a = (s / (n * 1.0) + GLB.rot[vi]) * 6.2831853 - 1.5708
+         x = 640.0 + cos(a) * rr
+         y = 360.0 + sin(a) * rr
+         now = (s == step)
+         if onset:
+            l = 0.45 + 0.55 * GLB.lvl[vi] + (0.6 if now else 0.0)
+            cr.set_source_rgb(min(c[2] * l, 1.0), min(c[1] * l, 1.0),
+                              min(c[0] * l, 1.0))
+            cr.new_sub_path()
+            cr.arc(x, y, 7.0 + (7.0 if now else 0.0), 0, 6.2831853)
+            cr.fill()
+            ons.append([x, y])
+         else:
+            cr.set_source_rgba(c[2], c[1], c[0], 0.18)
+            cr.new_sub_path()
+            cr.arc(x, y, 2.6, 0, 6.2831853)
+            cr.fill()
+      # --- the chords joining the onsets : the shape of the necklace is
+      # --- what tells you which rhythm this is
+      if len(ons) > 1:
+         cr.set_source_rgba(c[2], c[1], c[0], 0.42)
+         cr.set_line_width(1.6)
+         cr.move_to(ons[0][0], ons[0][1])
+         for q in range(1, len(ons)):
+            cr.line_to(ons[q][0], ons[q][1])
+         cr.close_path()
+         cr.stroke()

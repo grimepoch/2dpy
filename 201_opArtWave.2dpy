@@ -1,0 +1,86 @@
+def Init():
+   # --- author : claude
+   # --- optical illusion from line spacing alone : a flat field of parallel
+   # --- rules, displaced by a wave, reads as a three dimensional surface
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Rules")
+   STR.SetFParam1Name("Relief")
+   STR.SetFParam2Name("Twist")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : colour separation
+   # ---    trigger : rules <-> concentric
+
+   GLB.steps = 96
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(16.0, 64.0)
+   f1 = STR.F1mix(0.0, 150.0)
+   f2 = STR.F2mix(0.0, 3.0)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   cr.set_source_rgb(0.96, 0.96, 0.95)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   n = int(f0)
+   st = GLB.steps
+
+   if GLB.xmode:
+      # --- concentric rules, each a polygon so we never stroke a circle
+      for k in range(n):
+         R = 16.0 + k * (420.0 / n)
+         w = (420.0 / n) * 0.5
+         if acc:
+            c = hsv_to_rgb((k / (n * 1.0) * 0.9) % 1.0, 0.85, 0.9)
+            cr.set_source_rgb(c[2], c[1], c[0])
+         else:
+            cr.set_source_rgb(0.07, 0.06, 0.08)
+         cr.new_path()
+         for i in range(st + 1):
+            a = i * 2.0 * pi / st
+            d = f1 * 0.5 * sin(a * f2 + time * 0.8 + k * 0.25)
+            cr.line_to(640.0 + cos(a) * (R + d + w * 0.5),
+                       360.0 + sin(a) * (R + d + w * 0.5) * 0.8)
+         for i in range(st, -1, -1):
+            a = i * 2.0 * pi / st
+            d = f1 * 0.5 * sin(a * f2 + time * 0.8 + k * 0.25)
+            cr.line_to(640.0 + cos(a) * (R + d - w * 0.5),
+                       360.0 + sin(a) * (R + d - w * 0.5) * 0.8)
+         cr.close_path()
+         cr.fill()
+   else:
+      # --- straight rules bent by a travelling swell
+      wid = 1280.0 / n
+      for k in range(n):
+         x0 = k * wid
+         if acc:
+            c = hsv_to_rgb((k / (n * 1.0) * 0.7 + time * 0.05) % 1.0, 0.8, 0.9)
+            cr.set_source_rgb(c[2], c[1], c[0])
+         else:
+            cr.set_source_rgb(0.07, 0.06, 0.08)
+         cr.new_path()
+         for side in range(2):
+            rng = range(st + 1) if side == 0 else range(st, -1, -1)
+            off = wid * 0.5 if side == 0 else -wid * 0.02
+            for i in rng:
+               y = i * 720.0 / st
+               d = f1 * sin(y * 0.006 * f2 + time * 0.9 + k * 0.2)
+               # --- the swell also squeezes the rule, which is what sells it
+               sq = 1.0 + 0.5 * cos(y * 0.006 * f2 + time * 0.9 + k * 0.2)
+               cr.line_to(x0 + d + off * sq, y)
+         cr.close_path()
+         cr.fill()

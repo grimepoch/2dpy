@@ -1,0 +1,112 @@
+def Init():
+   # --- author : claude
+   # --- a Delaunay triangulation of drifting points.  The defining property
+   # --- is that no point lies inside the circumcircle of any triangle, and
+   # --- as the points move that keeps failing - so edges flip, one at a
+   # --- time, to restore it.  The drift never stops, so nor do the flips.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Drift")
+   STR.SetFParam1Name("Points")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : show the circumcircles
+   # ---    trigger : new point set
+
+   GLB.st = surface.get_stride() // 4
+   # --- the test below is exact but brute force, so the point count is
+   # --- what sets the frame time : it grows as n to the fourth
+   GLB.cap = 20
+
+   def newset():
+      GLB.px = np.random.random(GLB.cap) * 1180.0 + 50.0
+      GLB.py = np.random.random(GLB.cap) * 620.0 + 50.0
+      GLB.vx = (np.random.random(GLB.cap) - 0.5) * 2.0
+      GLB.vy = (np.random.random(GLB.cap) - 0.5) * 2.0
+      GLB.hu = np.random.random(GLB.cap)
+   GLB.newset = newset
+   GLB.newset()
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 1.8)
+   f1 = STR.F1mix(7.0, 15.0)
+   f2 = STR.F2()
+
+   if trig:
+      GLB.newset()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   n = int(f1)
+   GLB.px = GLB.px + GLB.vx * f0
+   GLB.py = GLB.py + GLB.vy * f0
+   GLB.vx = np.where((GLB.px < 40) | (GLB.px > 1240), -GLB.vx, GLB.vx)
+   GLB.vy = np.where((GLB.py < 40) | (GLB.py > 680), -GLB.vy, GLB.vy)
+   np.clip(GLB.px, 40.0, 1240.0, out=GLB.px)
+   np.clip(GLB.py, 40.0, 680.0, out=GLB.py)
+
+   cr.set_source_rgba(0, 0, 0, 1)
+   cr.rectangle(0, 0, 1280, 720)
+   cr.fill()
+
+   px = GLB.px[:n]
+   py = GLB.py[:n]
+   # --- brute force, but exact : a triple is a Delaunay triangle when no
+   # --- other point falls inside its circumcircle
+   cr.set_line_width(1.3)
+   for i in range(n):
+      for j in range(i + 1, n):
+         for k in range(j + 1, n):
+            ax = px[i]
+            ay = py[i]
+            bx = px[j]
+            by = py[j]
+            cx = px[k]
+            cy = py[k]
+            d = 2.0 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by))
+            if abs(d) < 1e-6:
+               continue
+            a2 = ax * ax + ay * ay
+            b2 = bx * bx + by * by
+            c2 = cx * cx + cy * cy
+            ux = (a2 * (by - cy) + b2 * (cy - ay) + c2 * (ay - by)) / d
+            uy = (a2 * (cx - bx) + b2 * (ax - cx) + c2 * (bx - ax)) / d
+            r2 = (ax - ux) ** 2 + (ay - uy) ** 2
+            # --- reject fast : most triples fail on the first point tested
+            bad = False
+            for m in range(n):
+               if m == i or m == j or m == k:
+                  continue
+               if (px[m] - ux) ** 2 + (py[m] - uy) ** 2 < r2 - 0.5:
+                  bad = True
+                  break
+            if bad:
+               continue
+            h = (GLB.hu[i] + f2) % 1.0
+            c = hsv_to_rgb(h, 0.62, 0.85)
+            cr.set_source_rgba(c[2], c[1], c[0], 0.20)
+            cr.move_to(ax, ay)
+            cr.line_to(bx, by)
+            cr.line_to(cx, cy)
+            cr.close_path()
+            cr.fill_preserve()
+            cr.set_source_rgba(c[2], c[1], c[0], 0.9)
+            cr.stroke()
+            if acc and r2 < 400000.0:
+               cr.set_source_rgba(1.0, 1.0, 1.0, 0.10)
+               cr.new_sub_path()
+               cr.arc(ux, uy, sqrt(r2), 0, 6.2831853)
+               cr.stroke()
+
+   cr.set_source_rgb(1.0, 1.0, 1.0)
+   for i in range(n):
+      cr.new_sub_path()
+      cr.arc(px[i], py[i], 3.0, 0, 6.2831853)
+   cr.fill()

@@ -1,0 +1,113 @@
+def Init():
+   # --- author : claude
+   # --- tape-damage glitch : fresh blocks land on the beat, then the frame is
+   # --- torn into horizontal slices that slide and smear over each other
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Damage")
+   STR.SetFParam1Name("Slice Size")
+   STR.SetFParam2Name("Colour")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : hard sync roll
+   # ---    trigger : rebuild the source blocks
+
+   # --- one scratch surface, kept for the life of the program
+   GLB.sur2 = surface.create_similar(cairo.CONTENT_COLOR_ALPHA, 1280, 720)
+   GLB.cr2  = cairo.Context(GLB.sur2)
+   GLB.roll = 0.0
+   GLB.lastbeat = -1
+   GLB.fr = 0
+
+   def blocks(hue):
+      # --- the material that gets chewed up
+      n = np.random.randint(5, 11)
+      for i in range(n):
+         r,g,b = hsv_to_rgb((hue + np.random.random() * 0.35) % 1.0, 0.9,
+                            0.35 + 0.65 * np.random.random())
+         cr.set_source_rgb(b, g, r)
+         w = np.random.randint(60, 460)
+         h = np.random.randint(30, 200)
+         cr.rectangle(np.random.randint(-40, 1280), np.random.randint(-40, 720), w, h)
+         cr.fill()
+   GLB.blocks = blocks
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 1.0)
+   f1 = STR.F1mix(6.0, 70.0)
+   f2 = STR.F2()
+
+   itime = STR.IT()
+   time  = itime + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   # --- gentle wash so old damage decays instead of caking up.  A full screen
+   # --- alpha fill is the single most expensive thing here, so only every
+   # --- other frame, at double strength.
+   GLB.fr = GLB.fr + 1
+   if GLB.fr % 2 == 0:
+      cr.set_source_rgba(0,0,0,0.12)
+      cr.rectangle(0,0,1280,720)
+      cr.fill()
+
+   # --- new material once per beat
+   if itime != GLB.lastbeat:
+      GLB.lastbeat = itime
+      GLB.blocks(f2)
+   if trig:
+      GLB.blocks(f2)
+
+   # --- grab the frame
+   GLB.cr2.save()
+   GLB.cr2.set_operator(cairo.OPERATOR_SOURCE)
+   GLB.cr2.set_source_surface(surface, 0, 0)
+   GLB.cr2.paint()
+   GLB.cr2.restore()
+
+   # --- vertical sync roll on accent
+   if acc:
+      GLB.roll = (GLB.roll + 9.0) % 720.0
+   else:
+      GLB.roll = GLB.roll * 0.82
+      if GLB.roll < 0.5:
+         GLB.roll = 0.0
+
+   band = int(f1)
+   if band < 10:
+      band = 10
+
+   y = 0
+   while y < 720:
+      h = band + np.random.randint(0, band)
+      # --- most slices sit still; the damage knob decides how many tear loose
+      dx = 0
+      if np.random.random() < f0 * 0.55:
+         dx = np.random.randint(-1, 2) * np.random.randint(4, 90)
+      dy = GLB.roll
+      if dx != 0 or dy != 0:
+         cr.save()
+         cr.rectangle(0, y, 1280, h)
+         cr.clip()
+         cr.set_source_surface(GLB.sur2, dx, dy - (720 if dy > 0 else 0))
+         cr.paint()
+         if dy > 0:
+            cr.set_source_surface(GLB.sur2, dx, dy)
+            cr.paint()
+         cr.restore()
+         # --- a chroma edge where the tape tore
+         if GLB.xmode and abs(dx) > 30:
+            r,g,b = hsv_to_rgb((f2 + 0.5) % 1.0, 1.0, 1.0)
+            cr.set_source_rgba(b, g, r, 0.5)
+            cr.rectangle(0 if dx > 0 else 1280 + dx, y, abs(dx) * 0.4, h)
+            cr.fill()
+      y = y + h

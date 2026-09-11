@@ -1,0 +1,120 @@
+def Init():
+   # --- author : claude
+   # --- leaded glass : voronoi cells become quarries, the boundaries become
+   # --- the lead came, and the light behind moves
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Resolution")
+   STR.SetFParam1Name("Quarries")
+   STR.SetFParam2Name("Light")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : sun sweeps behind
+   # ---    trigger : reglaze
+
+   GLB.nmax = 46
+   GLB.bs = 0
+
+   def glaze():
+      GLB.px = np.random.random(GLB.nmax) * 1280.0
+      GLB.py = np.random.random(GLB.nmax) * 720.0
+      GLB.hu = np.random.random(GLB.nmax)
+      GLB.sa = 0.55 + np.random.random(GLB.nmax) * 0.45
+   GLB.glaze = glaze
+   GLB.glaze()
+
+   def build(bs):
+      nx = int(1280 / bs) + 1
+      ny = int(720 / bs) + 1
+      GLB.nx = nx
+      GLB.ny = ny
+      GLB.xs = (np.arange(nx) * bs + bs * 0.5).reshape(1, nx, 1).astype(np.float32)
+      GLB.ys = (np.arange(ny) * bs + bs * 0.5).reshape(ny, 1, 1).astype(np.float32)
+      GLB.bs = bs
+   GLB.build = build
+   GLB.build(10)
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(7.0, 20.0)
+   f1 = STR.F1mix(8.0, 46.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.glaze()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   bs = int(f0)
+   if bs != GLB.bs:
+      GLB.build(bs)
+   n = int(f1)
+
+   # --- the sun behind the window
+   if acc:
+      lx = 640.0 + 900.0 * sin(time * 0.25)
+      ly = 360.0 + 400.0 * cos(time * 0.19)
+   else:
+      lx = 640.0
+      ly = 900.0
+
+   sx = GLB.px[:n].reshape(1, 1, n)
+   sy = GLB.py[:n].reshape(1, 1, n)
+   dx = GLB.xs - sx
+   dy = GLB.ys - sy
+   own = np.argmin(dx * dx + dy * dy, axis=2)
+
+   cr.set_source_rgb(0.02, 0.02, 0.03)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cols = []
+   pxl = GLB.px[:n].tolist()
+   pyl = GLB.py[:n].tolist()
+   for k in range(n):
+      d = sqrt((pxl[k] - lx) ** 2 + (pyl[k] - ly) ** 2)
+      lit = 1.0 / (1.0 + d / 700.0)
+      hu = (GLB.hu[k] * (0.95 if GLB.xmode else 0.32) + f2) % 1.0
+      r,g,b = hsv_to_rgb(hu, GLB.sa[k], 0.25 + 1.35 * lit)
+      cols.append((min(1.0, b), min(1.0, g), min(1.0, r)))
+
+   res = bs
+   for j in range(GLB.ny):
+      row = own[j]
+      y = j * res
+      cuts = (np.nonzero(np.diff(row))[0] + 1).tolist()
+      starts = [0] + cuts
+      ends = cuts + [GLB.nx]
+      vals = row[starts].tolist()
+      for k in range(len(starts)):
+         c = cols[vals[k]]
+         cr.set_source_rgb(c[0], c[1], c[2])
+         cr.rectangle(starts[k] * res, y, (ends[k] - starts[k]) * res + 1, res + 1)
+         cr.fill()
+
+   # --- the lead came, found from where the cell owner changes
+   cr.set_source_rgb(0.06, 0.05, 0.07)
+   cr.set_line_width(res * 0.55)
+   for j in range(GLB.ny):
+      row = own[j]
+      cuts = (np.nonzero(np.diff(row))[0] + 1).tolist()
+      y = j * res
+      for c in cuts:
+         cr.move_to(c * res, y - 1)
+         cr.line_to(c * res, y + res + 1)
+   for i in range(GLB.nx):
+      col = own[:, i]
+      cuts = (np.nonzero(np.diff(col))[0] + 1).tolist()
+      x = i * res
+      for c in cuts:
+         cr.move_to(x - 1, c * res)
+         cr.line_to(x + res + 1, c * res)
+   cr.stroke()

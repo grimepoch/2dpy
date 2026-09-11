@@ -1,0 +1,116 @@
+def Init():
+   # --- author : claude
+   # --- lake ice under stress.  A crack starts somewhere and then propagates
+   # --- from its own tip - it cannot start again from nothing - so what you
+   # --- see is a branching network that can only ever be added to, the way
+   # --- fracture actually works.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Stress")
+   STR.SetFParam1Name("Branching")
+   STR.SetFParam2Name("Thaw")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : the whole sheet gives
+   # ---    trigger : freeze over again
+
+   GLB.st = surface.get_stride() // 4
+   GLB.cap = 200
+
+   def freeze():
+      GLB.n = 0
+      GLB.cx = np.zeros(GLB.cap)
+      GLB.cy = np.zeros(GLB.cap)
+      GLB.ca = np.zeros(GLB.cap)
+      GLB.cl = np.zeros(GLB.cap)
+      cr.set_source_rgb(0.32, 0.22, 0.13)
+      cr.rectangle(0, 0, 1280, 720)
+      cr.fill()
+   GLB.freeze = freeze
+
+   def strike(n):
+      for k in range(n):
+         if GLB.n >= GLB.cap:
+            return
+         j = GLB.n
+         GLB.cx[j] = np.random.random() * 1280.0
+         GLB.cy[j] = np.random.random() * 720.0
+         GLB.ca[j] = np.random.random() * 6.283
+         GLB.cl[j] = 120.0 + np.random.random() * 260.0
+         GLB.n = j + 1
+   GLB.strike = strike
+   GLB.freeze()
+   GLB.strike(4)
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(2.0, 9.0)
+   f1 = STR.F1mix(0.005, 0.075)
+   f2 = STR.F2mix(9.0, 12.0)
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.freeze()
+      GLB.strike(4)
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8,
+                  buffer=surface.get_data())
+   # --- the ice heals over very slowly, which is what Thaw controls
+   np.subtract(v, np.right_shift(v, int(f2)), out=v)
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   if acc:
+      GLB.strike(2)
+   if GLB.n < 3:
+      GLB.strike(3)
+
+   cr.set_line_cap(cairo.LINE_CAP_ROUND)
+   born = []
+   i = 0
+   while i < GLB.n:
+      # --- a crack runs almost straight : brittle fracture does not wander
+      GLB.ca[i] = GLB.ca[i] + (np.random.random() - 0.5) * 0.22
+      x0 = GLB.cx[i]
+      y0 = GLB.cy[i]
+      x1 = x0 + cos(GLB.ca[i]) * f0
+      y1 = y0 + sin(GLB.ca[i]) * f0
+      GLB.cx[i] = x1
+      GLB.cy[i] = y1
+      GLB.cl[i] = GLB.cl[i] - f0
+
+      w = max(0.8, GLB.cl[i] / 90.0)
+      cr.set_line_width(w)
+      lum = min(1.0, 0.35 + GLB.cl[i] / 260.0)
+      cr.set_source_rgb(lum, lum * 0.93, lum * 0.62)
+      cr.move_to(x0, y0)
+      cr.line_to(x1, y1)
+      cr.stroke()
+
+      off = (x1 < -20 or x1 > 1300 or y1 < -20 or y1 > 740)
+      if off or GLB.cl[i] <= 0.0:
+         last = GLB.n - 1
+         GLB.cx[i] = GLB.cx[last]
+         GLB.cy[i] = GLB.cy[last]
+         GLB.ca[i] = GLB.ca[last]
+         GLB.cl[i] = GLB.cl[last]
+         GLB.n = GLB.n - 1
+      else:
+         if np.random.random() < f1 and GLB.n + len(born) < GLB.cap:
+            # --- branches leave at a sharp angle, like real fracture
+            born.append([x1, y1,
+                         GLB.ca[i] + (1.0 if np.random.random() < 0.5 else -1.0)
+                         * (0.7 + np.random.random() * 0.5),
+                         GLB.cl[i] * 0.65])
+         i = i + 1
+   for b in born:
+      j = GLB.n
+      GLB.cx[j] = b[0]
+      GLB.cy[j] = b[1]
+      GLB.ca[j] = b[2]
+      GLB.cl[j] = b[3]
+      GLB.n = j + 1

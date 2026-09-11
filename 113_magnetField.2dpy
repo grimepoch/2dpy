@@ -1,0 +1,131 @@
+def Init():
+   # --- author : claude
+   # --- field lines traced through a set of point charges by walking the
+   # --- gradient, which is why they never cross and always land on a pole
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Lines")
+   STR.SetFParam1Name("Step")
+   STR.SetFParam2Name("Poles")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : show the poles
+   # ---    trigger : new arrangement
+
+   GLB.maxp = 6
+
+   def seed():
+      GLB.q = []
+      for i in range(GLB.maxp):
+         GLB.q.append([160.0 + np.random.random() * 960.0,
+                       120.0 + np.random.random() * 480.0,
+                       1.0 if i % 2 == 0 else -1.0,
+                       np.random.random() * 6.28])
+   GLB.seed = seed
+   GLB.seed()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(10.0, 30.0)
+   f1 = STR.F1mix(5.0, 18.0)
+   f2 = STR.F2mix(2.0, 6.0)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.seed()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   cr.set_source_rgb(0.02, 0.02, 0.05)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   npole = int(f2)
+   # --- the poles drift so the topology keeps rearranging
+   qx = []
+   qy = []
+   qs = []
+   for i in range(npole):
+      q = GLB.q[i]
+      qx.append(q[0] + 70.0 * sin(time * 0.23 + q[3]))
+      qy.append(q[1] + 50.0 * cos(time * 0.31 + q[3]))
+      qs.append(q[2])
+
+   # --- f0 is the TOTAL number of lines, shared over the sources, so adding
+   # --- poles does not multiply an already O(lines x steps x poles) trace
+   live = 0
+   for i in range(npole):
+      if qs[i] > 0:
+         live = live + 1
+   if live < 1:
+      live = 1
+   per = int(f0 / live)
+   if per < 2:
+      per = 2
+   step = f1
+   maxstep = 95
+
+   bands = 6
+   for b in range(bands):
+      t = b / (bands - 1.0)
+      if GLB.xmode:
+         r,g,bl = hsv_to_rgb((t * 0.7 + time * 0.02) % 1.0, 0.8, 1.0)
+      else:
+         r,g,bl = hsv_to_rgb((0.58 - t * 0.12) % 1.0, 0.55, 0.45 + 0.55 * t)
+      cr.set_source_rgb(bl, g, r)
+      cr.set_line_width(1.0 + 1.4 * t)
+      any = 0
+      for i in range(npole):
+         if qs[i] < 0:
+            continue
+         for k in range(b, per, bands):
+            a = k * 2.0 * pi / per
+            x = qx[i] + cos(a) * 16.0
+            y = qy[i] + sin(a) * 16.0
+            cr.move_to(x, y)
+            any = 1
+            for s in range(maxstep):
+               ex = 0.0
+               ey = 0.0
+               for j in range(npole):
+                  dx = x - qx[j]
+                  dy = y - qy[j]
+                  d2 = dx * dx + dy * dy + 40.0
+                  f = qs[j] / (d2 * sqrt(d2))
+                  ex = ex + dx * f
+                  ey = ey + dy * f
+               m = sqrt(ex * ex + ey * ey)
+               if m < 1e-12:
+                  break
+               x = x + ex / m * step
+               y = y + ey / m * step
+               if x < -40 or x > 1320 or y < -40 or y > 760:
+                  break
+               cr.line_to(x, y)
+               # --- stop when we fall into a sink
+               hit = 0
+               for j in range(npole):
+                  if qs[j] < 0:
+                     if (x - qx[j]) ** 2 + (y - qy[j]) ** 2 < 260.0:
+                        hit = 1
+               if hit:
+                  break
+      if any:
+         cr.stroke()
+
+   if acc:
+      for i in range(npole):
+         if qs[i] > 0:
+            cr.set_source_rgb(0.2, 0.3, 1.0)
+         else:
+            cr.set_source_rgb(1.0, 0.35, 0.2)
+         cr.new_sub_path()
+         cr.arc(qx[i], qy[i], 13, 0, 2 * pi)
+         cr.fill()

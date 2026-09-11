@@ -1,0 +1,130 @@
+def Init():
+   # --- author : claude
+   # --- a maze you can only see by torchlight : the plan is complete, but a
+   # --- single moving beam decides how much of it you get
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Beam Size")
+   STR.SetFParam1Name("Grid")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : second torch
+   # ---    trigger : new maze
+
+   GLB.n = 0
+   GLB.msk = cairo.ImageSurface(cairo.FORMAT_A8, 1280, 720)
+   GLB.mc = cairo.Context(GLB.msk)
+
+   def carve(n):
+      GLB.n = n
+      g = np.ones((n, n), dtype=np.int32)
+      stack = [[1, 1]]
+      g[1][1] = 0
+      while len(stack) > 0:
+         c = stack[len(stack) - 1]
+         opts = []
+         for d in ([2,0],[-2,0],[0,2],[0,-2]):
+            x = c[0] + d[0]
+            y = c[1] + d[1]
+            if x > 0 and x < n - 1 and y > 0 and y < n - 1 and g[y][x] == 1:
+               opts.append([x, y, d])
+         if len(opts) == 0:
+            stack.pop()
+            continue
+         o = opts[np.random.randint(0, len(opts))]
+         g[c[1] + o[2][1] // 2][c[0] + o[2][0] // 2] = 0
+         g[o[1]][o[0]] = 0
+         stack.append([o[0], o[1]])
+      GLB.g = g
+   GLB.carve = carve
+   GLB.carve(31)
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(90.0, 330.0)
+   f1 = STR.F1mix(19.0, 39.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   n = int(f1)
+   if n % 2 == 0:
+      n = n + 1
+   if trig or n != GLB.n:
+      GLB.carve(n)
+      if trig:
+         GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   cr.set_source_rgb(0.02, 0.02, 0.03)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   x1 = 640.0 + 420.0 * sin(time * 0.31)
+   y1 = 360.0 + 230.0 * cos(time * 0.43)
+   x2 = 640.0 - 330.0 * sin(time * 0.53 + 1.0)
+   y2 = 360.0 - 180.0 * cos(time * 0.27)
+
+   # --- one mask surface holds every beam, so this costs one mask op
+   mc = GLB.mc
+   mc.save()
+   mc.set_operator(cairo.OPERATOR_SOURCE)
+   mc.set_source_rgba(0, 0, 0, 0)
+   mc.paint()
+   mc.set_operator(cairo.OPERATOR_OVER)
+   g = cairo.RadialGradient(x1, y1, f0 * 0.25, x1, y1, f0)
+   g.add_color_stop_rgba(0.0, 0, 0, 0, 1.0)
+   g.add_color_stop_rgba(1.0, 0, 0, 0, 0.0)
+   mc.set_source(g)
+   mc.rectangle(x1 - f0, y1 - f0, f0 * 2, f0 * 2)
+   mc.fill()
+   if acc:
+      g2 = cairo.RadialGradient(x2, y2, f0 * 0.15, x2, y2, f0 * 0.7)
+      g2.add_color_stop_rgba(0.0, 0, 0, 0, 1.0)
+      g2.add_color_stop_rgba(1.0, 0, 0, 0, 0.0)
+      mc.set_source(g2)
+      mc.rectangle(x2 - f0 * 0.7, y2 - f0 * 0.7, f0 * 1.4, f0 * 1.4)
+      mc.fill()
+   mc.restore()
+   GLB.msk.flush()
+
+   n = GLB.n
+   cs = 700.0 / n
+   x0 = 640.0 - cs * n * 0.5
+   y0 = 360.0 - cs * n * 0.5
+
+   # --- clip to the lit region before drawing, so the mask is cheap
+   cr.save()
+   cr.rectangle(x1 - f0, y1 - f0, f0 * 2, f0 * 2)
+   if acc:
+      cr.rectangle(x2 - f0 * 0.7, y2 - f0 * 0.7, f0 * 1.4, f0 * 1.4)
+   cr.clip()
+
+   cr.push_group()
+   for j in range(n):
+      row = GLB.g[j]
+      cuts = (np.nonzero(np.diff(row))[0] + 1).tolist()
+      starts = [0] + cuts
+      ends = cuts + [n]
+      vals = row[starts].tolist()
+      y = y0 + j * cs
+      t = j / (n * 1.0)
+      if GLB.xmode:
+         c = hsv_to_rgb((f2 + t * 0.6) % 1.0, 0.7, 1.0)
+      else:
+         c = hsv_to_rgb((f2 + t * 0.12) % 1.0, 0.45, 1.0)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      for k in range(len(starts)):
+         if vals[k]:
+            cr.rectangle(x0 + starts[k] * cs, y, (ends[k] - starts[k]) * cs, cs)
+      cr.fill()
+   cr.pop_group_to_source()
+   cr.mask_surface(GLB.msk, 0, 0)
+   cr.restore()

@@ -1,0 +1,183 @@
+def Init():
+   # --- author : claude
+   # --- the alchemical and planetary signs, drawn from their parts : circle,
+   # --- crescent, cross and arrow.  Public domain symbol set.
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Grid")
+   STR.SetFParam1Name("Size")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : gilded on vellum
+   # ---    trigger : reorder the table
+
+   GLB.names = ["SOL","LUNA","MARS","VENUS","MERCURY","JUPITER","SATURN",
+                "SULPHUR","SALT","AQUA","IGNIS","AER","TERRA","ANTIMONY"]
+   GLB.order = []
+   for i in range(14):
+      GLB.order.append(i)
+
+   def sigil(k, s):
+      # --- each sign assembled from circle, crescent, cross and arrow
+      if k == 0:
+         cr.new_sub_path()
+         cr.arc(0, 0, s * 0.55, 0, 2 * pi)
+         cr.new_sub_path()
+         cr.arc(0, 0, s * 0.12, 0, 2 * pi)
+      elif k == 1:
+         cr.new_sub_path()
+         cr.arc(s * 0.18, 0, s * 0.60, 0, 2 * pi)
+         cr.new_sub_path()
+         cr.arc_negative(-s * 0.16, 0, s * 0.60, 2 * pi, 0)
+      elif k == 2:
+         cr.new_sub_path()
+         cr.arc(0, -s * 0.18, s * 0.44, 0, 2 * pi)
+         cr.move_to(s * 0.30, s * 0.12)
+         cr.line_to(s * 0.72, s * 0.54)
+         cr.move_to(s * 0.72, s * 0.54)
+         cr.line_to(s * 0.40, s * 0.54)
+         cr.move_to(s * 0.72, s * 0.54)
+         cr.line_to(s * 0.72, s * 0.22)
+      elif k == 3:
+         cr.new_sub_path()
+         cr.arc(0, s * 0.20, s * 0.44, 0, 2 * pi)
+         cr.move_to(0, -s * 0.24)
+         cr.line_to(0, -s * 0.78)
+         cr.move_to(-s * 0.26, -s * 0.52)
+         cr.line_to(s * 0.26, -s * 0.52)
+      elif k == 4:
+         cr.new_sub_path()
+         cr.arc(0, 0, s * 0.40, 0, 2 * pi)
+         cr.move_to(0, -s * 0.40)
+         cr.line_to(0, -s * 0.86)
+         cr.move_to(-s * 0.24, -s * 0.64)
+         cr.line_to(s * 0.24, -s * 0.64)
+         cr.new_sub_path()
+         cr.arc(0, s * 0.56, s * 0.30, 0, pi)
+      elif k == 5:
+         cr.new_sub_path()
+         cr.arc(-s * 0.15, -s * 0.25, s * 0.38, -pi * 0.5, pi * 0.85)
+         cr.move_to(-s * 0.55, s * 0.34)
+         cr.line_to(s * 0.55, s * 0.34)
+      elif k == 6:
+         cr.move_to(-s * 0.45, -s * 0.55)
+         cr.line_to(s * 0.10, -s * 0.55)
+         cr.move_to(-s * 0.18, -s * 0.55)
+         cr.line_to(-s * 0.18, s * 0.20)
+         cr.new_sub_path()
+         cr.arc(s * 0.16, s * 0.28, s * 0.34, pi * 0.9, pi * 2.2)
+      elif k == 7:
+         for p in range(4):
+            a = -pi * 0.5 + p * 2.0 * pi / 3.0
+            if p == 0:
+               cr.move_to(cos(a) * s * 0.5, sin(a) * s * 0.5 - s * 0.2)
+            else:
+               cr.line_to(cos(a) * s * 0.5, sin(a) * s * 0.5 - s * 0.2)
+         cr.move_to(-s * 0.28, s * 0.42)
+         cr.line_to(s * 0.28, s * 0.42)
+         cr.move_to(0, s * 0.20)
+         cr.line_to(0, s * 0.62)
+      elif k == 8:
+         cr.new_sub_path()
+         cr.arc(0, 0, s * 0.52, 0, 2 * pi)
+         cr.move_to(-s * 0.52, 0)
+         cr.line_to(s * 0.52, 0)
+      elif k == 9 or k == 11:
+         f = 1.0 if k == 9 else -1.0
+         cr.move_to(-s * 0.55, -s * 0.30 * f)
+         cr.line_to(s * 0.55, -s * 0.30 * f)
+         cr.line_to(0, s * 0.52 * f)
+         cr.close_path()
+         if k == 11:
+            cr.move_to(-s * 0.28, s * 0.02)
+            cr.line_to(s * 0.28, s * 0.02)
+      elif k == 10 or k == 12:
+         f = 1.0 if k == 10 else -1.0
+         cr.move_to(-s * 0.55, s * 0.30 * f)
+         cr.line_to(s * 0.55, s * 0.30 * f)
+         cr.line_to(0, -s * 0.52 * f)
+         cr.close_path()
+         if k == 12:
+            cr.move_to(-s * 0.28, -s * 0.02)
+            cr.line_to(s * 0.28, -s * 0.02)
+      else:
+         cr.new_sub_path()
+         cr.arc(0, s * 0.18, s * 0.42, 0, 2 * pi)
+         cr.move_to(-s * 0.30, -s * 0.30)
+         cr.line_to(0, -s * 0.72)
+         cr.line_to(s * 0.30, -s * 0.30)
+   GLB.sigil = sigil
+
+   def text(x, y, s):
+      cr.save()
+      cr.translate(x, y)
+      cr.scale(1.0, -1.0)
+      cr.move_to(0, 0)
+      cr.show_text(s)
+      cr.restore()
+   GLB.text = text
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(3.0, 7.0)
+   f1 = STR.F1mix(40.0, 90.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      for i in range(13, 0, -1):
+         j = np.random.randint(0, i + 1)
+         t = GLB.order[i]
+         GLB.order[i] = GLB.order[j]
+         GLB.order[j] = t
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   if acc:
+      bg = (0.80, 0.87, 0.93)
+      ink = (0.12, 0.50, 0.80)
+   else:
+      bg = (0.04, 0.03, 0.06)
+      ink = hsv_to_rgb(f2, 0.35, 1.0)
+
+   cr.set_source_rgb(bg[2], bg[1], bg[0])
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cols = int(f0)
+   rows = int((14 + cols - 1) / cols)
+   s = f1
+   cr.set_line_width(s * 0.085)
+   cr.set_line_cap(cairo.LINE_CAP_ROUND)
+   cr.set_line_join(cairo.LINE_JOIN_ROUND)
+   cr.select_font_face("serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+   cr.set_font_size(s * 0.26)
+
+   for k in range(14):
+      i = GLB.order[k]
+      cx = ((k % cols) + 0.5) * 1280.0 / cols
+      cy = 720.0 - ((int(k / cols)) + 0.5) * 720.0 / rows
+      pulse = 0.5 + 0.5 * sin(time * 1.2 + k * 0.7)
+      if GLB.xmode:
+         c = hsv_to_rgb((f2 + k / 14.0 * 0.8) % 1.0, 0.7, 0.5 + 0.5 * pulse)
+      else:
+         c = (ink[0] * (0.55 + 0.45 * pulse), ink[1] * (0.55 + 0.45 * pulse),
+              ink[2] * (0.55 + 0.45 * pulse))
+      cr.set_source_rgb(c[2], c[1], c[0])
+      cr.save()
+      cr.translate(cx, cy + s * 0.15)
+      cr.new_path()
+      GLB.sigil(i, s)
+      cr.restore()
+      cr.stroke()
+      e = cr.text_extents(GLB.names[i])
+      GLB.text(cx - e.width * 0.5 - e.x_bearing, cy - s * 0.80, GLB.names[i])

@@ -1,0 +1,105 @@
+def Init():
+   # --- author : claude
+   # --- a sheet of masses on springs, pinned along the top and shoved by a
+   # --- wandering gust.  All the forces are numpy array shifts.
+   # --- note : screen y=0 is the BOTTOM, so the pinned edge is at y=720
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Stiffness")
+   STR.SetFParam1Name("Gust")
+   STR.SetFParam2Name("Damping")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : show the masses
+   # ---    trigger : cut the sheet loose
+
+   GLB.nx = 26
+   GLB.ny = 15
+   GLB.pinned = 1
+
+   def reset():
+      xs = np.linspace(240.0, 1040.0, GLB.nx)
+      ys = np.linspace(660.0, 160.0, GLB.ny)
+      GLB.x = np.tile(xs.reshape(1, GLB.nx), (GLB.ny, 1))
+      GLB.y = np.tile(ys.reshape(GLB.ny, 1), (1, GLB.nx))
+      GLB.ox = GLB.x.copy()
+      GLB.oy = GLB.y.copy()
+      GLB.rx = GLB.x.copy()
+      GLB.ry = GLB.y.copy()
+      GLB.pinned = 1
+   GLB.reset = reset
+   GLB.reset()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.02, 0.45)
+   f1 = STR.F1mix(0.0, 3.0)
+   f2 = STR.F2mix(0.90, 0.999)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.pinned = 1 - GLB.pinned
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+      if GLB.pinned:
+         GLB.reset()
+
+   # --- verlet : velocity is implied by the gap to the previous position
+   vx = (GLB.x - GLB.ox) * f2
+   vy = (GLB.y - GLB.oy) * f2
+   GLB.ox = GLB.x.copy()
+   GLB.oy = GLB.y.copy()
+
+   fx = np.zeros_like(GLB.x)
+   fy = np.zeros_like(GLB.y)
+   # --- pull every mass back toward its four neighbours' rest offsets
+   fx[:, 1:]  = fx[:, 1:]  + (GLB.x[:, :-1] - GLB.x[:, 1:]  + (GLB.rx[:, 1:]  - GLB.rx[:, :-1]))
+   fx[:, :-1] = fx[:, :-1] + (GLB.x[:, 1:]  - GLB.x[:, :-1] + (GLB.rx[:, :-1] - GLB.rx[:, 1:]))
+   fx[1:, :]  = fx[1:, :]  + (GLB.x[:-1, :] - GLB.x[1:, :])
+   fx[:-1, :] = fx[:-1, :] + (GLB.x[1:, :]  - GLB.x[:-1, :])
+   fy[:, 1:]  = fy[:, 1:]  + (GLB.y[:, :-1] - GLB.y[:, 1:])
+   fy[:, :-1] = fy[:, :-1] + (GLB.y[:, 1:]  - GLB.y[:, :-1])
+   fy[1:, :]  = fy[1:, :]  + (GLB.y[:-1, :] - GLB.y[1:, :]  + (GLB.ry[1:, :]  - GLB.ry[:-1, :]))
+   fy[:-1, :] = fy[:-1, :] + (GLB.y[1:, :]  - GLB.y[:-1, :] + (GLB.ry[:-1, :] - GLB.ry[1:, :]))
+
+   gust = f1 * (sin(time * 0.9) + 0.6 * sin(time * 2.3 + 1.0))
+   GLB.x = GLB.x + vx + fx * f0 + gust
+   GLB.y = GLB.y + vy + fy * f0 - 0.55
+
+   if GLB.pinned:
+      GLB.x[GLB.ny - 1] = GLB.rx[GLB.ny - 1]
+      GLB.y[GLB.ny - 1] = GLB.ry[GLB.ny - 1]
+      GLB.ox[GLB.ny - 1] = GLB.rx[GLB.ny - 1]
+      GLB.oy[GLB.ny - 1] = GLB.ry[GLB.ny - 1]
+
+   cr.set_source_rgb(0.02, 0.02, 0.04)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   r,g,b = hsv_to_rgb((time * 0.04) % 1.0, 0.6, 1.0)
+   cr.set_source_rgb(b, g, r)
+   cr.set_line_width(1.6)
+   for j in range(GLB.ny):
+      cr.move_to(GLB.x[j][0], GLB.y[j][0])
+      for i in range(1, GLB.nx):
+         cr.line_to(GLB.x[j][i], GLB.y[j][i])
+   for i in range(GLB.nx):
+      cr.move_to(GLB.x[0][i], GLB.y[0][i])
+      for j in range(1, GLB.ny):
+         cr.line_to(GLB.x[j][i], GLB.y[j][i])
+   cr.stroke()
+
+   if acc:
+      r,g,b = hsv_to_rgb((time * 0.04 + 0.4) % 1.0, 0.8, 1.0)
+      cr.set_source_rgb(b, g, r)
+      for j in range(0, GLB.ny, 2):
+         for i in range(0, GLB.nx, 2):
+            cr.rectangle(GLB.x[j][i] - 2.5, GLB.y[j][i] - 2.5, 5, 5)
+      cr.fill()

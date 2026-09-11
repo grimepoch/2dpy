@@ -1,0 +1,87 @@
+def Init():
+   # --- author : claude
+   # --- Benham's top.  A disc painted only in black and white, spun at the
+   # --- right speed, shows colour - the three kinds of cone in the eye
+   # --- respond and recover at different rates, so an arc that is only ever
+   # --- black or white reads as red, green or blue depending where on the
+   # --- disc it sits.  Nothing on the screen is coloured.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Spin")
+   STR.SetFParam1Name("Arcs")
+   STR.SetFParam2Name("Sectors")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : reverse, and the colour order reverses with it
+   # ---    trigger : new arc pattern
+
+   GLB.st = surface.get_stride() // 4
+   GLB.ang = 0.0
+
+   def pattern():
+      GLB.rings = []
+      for k in range(4):
+         GLB.rings.append(np.random.random() * 0.5)
+   GLB.pattern = pattern
+   GLB.pattern()
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 0.42)
+   f1 = STR.F1mix(3.0, 7.99)
+   f2 = STR.F2mix(2.0, 5.99)
+
+   if trig:
+      GLB.pattern()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   GLB.ang = GLB.ang + (-f0 if acc else f0)
+
+   cr.set_source_rgb(0.05, 0.05, 0.06)
+   cr.rectangle(0, 0, 1280, 720)
+   cr.fill()
+
+   cx = 640.0
+   cy = 360.0
+   R = 320.0
+   cr.save()
+   cr.translate(cx, cy)
+   cr.rotate(GLB.ang)
+
+   # --- half the disc solid black, which is what gives the eye the sharp
+   # --- on-off it needs
+   cr.set_source_rgb(0.0, 0.0, 0.0)
+   cr.move_to(0, 0)
+   cr.arc(0, 0, R, 0, pi)
+   cr.close_path()
+   cr.fill()
+   cr.set_source_rgb(1.0, 1.0, 1.0)
+   cr.move_to(0, 0)
+   cr.arc(0, 0, R, pi, 6.2831853)
+   cr.close_path()
+   cr.fill()
+
+   # --- the arcs, all black, each occupying a different band of radius and
+   # --- a different part of the white half
+   nr = int(f1)
+   nsec = int(f2)
+   cr.set_source_rgb(0.0, 0.0, 0.0)
+   for k in range(nr):
+      r0 = R * (0.30 + k * (0.66 / nr))
+      r1 = r0 + R * (0.60 / nr)
+      a0 = pi + k * (pi / nr) * 0.85 + GLB.rings[k % 4]
+      a1 = a0 + (pi / nr) * 0.8
+      for s in range(nsec):
+         b0 = a0 + s * 0.0
+         cr.new_sub_path()
+         cr.arc(0, 0, r1, b0, a1)
+         cr.arc_negative(0, 0, r0, a1, b0)
+         cr.close_path()
+      cr.fill()
+   cr.restore()

@@ -1,0 +1,107 @@
+def Init():
+   # --- author : claude
+   # --- concrete poetry.  Words are set one at a time along the shape they
+   # --- describe, and the page is not cleared between shapes - so the text
+   # --- builds into the figure slowly and the figures pile up on each other
+   # --- the way they do on a letterpress proof.
+   # --- note : text is drawn with scale(1,-1) because row 0 is at the BOTTOM
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Setting")
+   STR.SetFParam1Name("Type Size")
+   STR.SetFParam2Name("Ink")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : set it in reverse
+   # ---    trigger : a new figure
+
+   GLB.st = surface.get_stride() // 4
+   GLB.words = ["fall", "again", "water", "over", "and", "under", "wind",
+                "turning", "slow", "light", "through", "the", "glass",
+                "circle", "without", "end", "spiral", "down", "further",
+                "still", "quiet", "hour", "after", "hour", "nothing",
+                "moves", "except", "the", "line", "itself"]
+   GLB.t = 0.0
+
+   def figure():
+      GLB.kind = np.random.randint(0, 4)
+      GLB.t = 0.0
+      GLB.hue = np.random.random()
+      GLB.ph = np.random.random(3) * 6.283
+   GLB.figure = figure
+   GLB.figure()
+
+   cr.set_source_rgb(0.88, 0.91, 0.93)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.004, 0.06)
+   f1 = STR.F1mix(13.0, 40.0)
+   f2 = STR.F2()
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.figure()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8,
+                  buffer=surface.get_data())
+   # --- the proof ages, very slowly, under everything set on it
+   np.subtract(v, np.right_shift(v, 11), out=v)
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   cr.select_font_face("serif", cairo.FONT_SLANT_ITALIC,
+                       cairo.FONT_WEIGHT_NORMAL)
+   cr.set_font_size(f1)
+
+   nw = 3
+   for k in range(nw):
+      GLB.t = GLB.t + f0
+      if GLB.t > 1.0:
+         GLB.figure()
+         return
+      t = GLB.t
+      if acc:
+         t = 1.0 - t
+      # --- the path the line of type is set along
+      if GLB.kind == 0:
+         a = t * 6.2831853 * 3.0
+         r = 60.0 + t * 260.0
+         x = 640.0 + cos(a) * r
+         y = 360.0 + sin(a) * r * 0.8
+         ang = a + 1.5708
+      elif GLB.kind == 1:
+         x = 120.0 + t * 1040.0
+         y = 360.0 + sin(t * 12.0 + GLB.ph[0]) * 230.0
+         ang = atan2(cos(t * 12.0 + GLB.ph[0]) * 12.0 * 230.0, 1040.0)
+      elif GLB.kind == 2:
+         a = t * 6.2831853
+         x = 640.0 + cos(a) * 300.0
+         y = 360.0 + sin(a) * 260.0
+         ang = a + 1.5708
+      else:
+         rows = 9.0
+         row = int(t * rows)
+         u = (t * rows) % 1.0
+         if row % 2 == 1:
+            u = 1.0 - u
+         x = 140.0 + u * 1000.0
+         y = 640.0 - row * (560.0 / rows)
+         ang = 0.0
+
+      w = GLB.words[np.random.randint(len(GLB.words))]
+      c = hsv_to_rgb((GLB.hue + f2 * 0.3) % 1.0, 0.65, 0.30)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      cr.save()
+      cr.translate(x, y)
+      cr.rotate(-ang)
+      cr.scale(1, -1)
+      cr.move_to(0, 0)
+      cr.show_text(w)
+      cr.restore()

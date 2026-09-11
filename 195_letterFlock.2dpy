@@ -1,0 +1,156 @@
+def Init():
+   # --- author : claude
+   # --- boids, but every bird is a letter, and the flock keeps trying to
+   # --- settle into the shape of a word pulled from its glyph outline
+   # --- note : screen y=0 is the BOTTOM, so glyph y is NEGATED
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Flock")
+   STR.SetFParam1Name("Word Pull")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : show the flight lines
+   # ---    trigger : next word
+
+   GLB.words = ["FLOCK","SWARM","MURMUR","STARLING","DRIFT","WHEEL"]
+   GLB.w = 0
+   GLB.n = 90
+   GLB.lastbeat = -1
+
+   def sample(word, size, count):
+      cr.save()
+      cr.select_font_face("sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+      cr.set_font_size(size)
+      e = cr.text_extents(word)
+      cr.new_path()
+      cr.move_to(0, 0)
+      cr.text_path(word)
+      raw = []
+      for t, p in cr.copy_path_flat():
+         if t == 0 or t == 1:
+            raw.append([p[0], p[1]])
+      cr.new_path()
+      cr.restore()
+      if len(raw) < 4:
+         raw = [[0.0, 0.0]]
+      ox = 640.0 - e.width * 0.5 - e.x_bearing
+      oy = 360.0 - e.height * 0.5
+      xs = []
+      ys = []
+      m = len(raw)
+      for i in range(count):
+         q = raw[int(i * m / count) % m]
+         xs.append(ox + q[0])
+         ys.append(oy - q[1])
+      return [np.array(xs), np.array(ys)]
+   GLB.sample = sample
+
+   def setword(i):
+      GLB.w = i % len(GLB.words)
+      t = GLB.sample(GLB.words[GLB.w], 190.0, GLB.n)
+      GLB.tx = t[0]
+      GLB.ty = t[1]
+      GLB.ch = GLB.words[GLB.w]
+   GLB.setword = setword
+
+   GLB.px = np.random.random(GLB.n) * 1280.0
+   GLB.py = np.random.random(GLB.n) * 720.0
+   a = np.random.random(GLB.n) * 6.28
+   GLB.vx = np.cos(a) * 3.0
+   GLB.vy = np.sin(a) * 3.0
+   GLB.setword(0)
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 0.09)
+   f1 = STR.F1mix(0.0, 0.035)
+   f2 = STR.F2()
+
+   itime = STR.IT()
+   time  = itime + STR.FT()
+
+   if trig:
+      GLB.setword(GLB.w + 1)
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+   if itime != GLB.lastbeat and itime % 6 == 0:
+      GLB.lastbeat = itime
+      GLB.setword(GLB.w + 1)
+
+   cr.set_source_rgb(0.02, 0.02, 0.04)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   n = GLB.n
+   px = GLB.px
+   py = GLB.py
+   dx = px.reshape(n, 1) - px.reshape(1, n)
+   dy = py.reshape(n, 1) - py.reshape(1, n)
+   d2 = dx * dx + dy * dy
+   near = d2 < 11000.0
+   close = (d2 < 900.0) & (d2 > 0.0)
+   cnt = np.sum(near, axis=1)
+   cnt = np.where(cnt < 1, 1, cnt)
+
+   cxm = np.dot(near, px) / cnt
+   cym = np.dot(near, py) / cnt
+   axm = np.dot(near, GLB.vx) / cnt
+   aym = np.dot(near, GLB.vy) / cnt
+   sx = np.sum(np.where(close, dx, 0.0), axis=1)
+   sy = np.sum(np.where(close, dy, 0.0), axis=1)
+
+   GLB.vx = GLB.vx + (cxm - px) * f0 * 0.12 + (axm - GLB.vx) * f0 + sx * 0.004
+   GLB.vy = GLB.vy + (cym - py) * f0 * 0.12 + (aym - GLB.vy) * f0 + sy * 0.004
+   # --- and the pull toward the letterform
+   GLB.vx = GLB.vx + (GLB.tx - px) * f1
+   GLB.vy = GLB.vy + (GLB.ty - py) * f1
+
+   sp = np.sqrt(GLB.vx * GLB.vx + GLB.vy * GLB.vy) + 0.0001
+   lim = 6.5
+   GLB.vx = np.where(sp > lim, GLB.vx / sp * lim, GLB.vx)
+   GLB.vy = np.where(sp > lim, GLB.vy / sp * lim, GLB.vy)
+   GLB.px = np.mod(px + GLB.vx, 1280.0)
+   GLB.py = np.mod(py + GLB.vy, 720.0)
+
+   lx = GLB.px.tolist()
+   ly = GLB.py.tolist()
+   la = np.arctan2(GLB.vy, GLB.vx).tolist()
+   s = GLB.ch
+
+   if acc:
+      cr.set_source_rgba(0.4, 0.6, 1.0, 0.16)
+      cr.set_line_width(1)
+      sub = near[::3, ::3]
+      ii, jj = np.nonzero(np.triu(sub, 1))
+      il = ii.tolist()
+      jl = jj.tolist()
+      m = min(240, len(il))
+      for k in range(m):
+         a2 = il[k] * 3
+         b2 = jl[k] * 3
+         cr.move_to(lx[a2], ly[a2])
+         cr.line_to(lx[b2], ly[b2])
+      cr.stroke()
+
+   cr.select_font_face("sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+   cr.set_font_size(30)
+   bands = 6
+   for b in range(bands):
+      t = b / (bands - 1.0)
+      r,g,bl = hsv_to_rgb((f2 + t * 0.3) % 1.0, 0.7, 1.0)
+      cr.set_source_rgb(bl, g, r)
+      for i in range(b, n, bands):
+         cr.save()
+         cr.translate(lx[i], ly[i])
+         cr.rotate(-la[i] if GLB.xmode else 0.0)
+         cr.scale(1.0, -1.0)
+         cr.move_to(-8, -10)
+         cr.show_text(s[i % len(s)])
+         cr.restore()

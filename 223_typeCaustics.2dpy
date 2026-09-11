@@ -1,0 +1,107 @@
+def Init():
+   # --- author : claude
+   # --- caustics printed as type : the focused light drives a character grid,
+   # --- so the ripple web on the pool floor is set in letters
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Focus")
+   STR.SetFParam1Name("Chop")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : monochrome
+   # ---    trigger : new sea state
+
+   GLB.ramp = " ..::--~~++oo**##@@"
+   GLB.cw = 17
+   GLB.chh = 21
+   GLB.nx = int(1280 / GLB.cw) + 1
+   GLB.ny = int(720 / GLB.chh) + 1
+   xs = np.arange(GLB.nx, dtype=np.float32) * GLB.cw
+   ys = np.arange(GLB.ny, dtype=np.float32) * GLB.chh
+   GLB.X = np.tile(xs.reshape(1, GLB.nx), (GLB.ny, 1))
+   GLB.Y = np.tile(ys.reshape(GLB.ny, 1), (1, GLB.nx))
+
+   def seed():
+      GLB.w = []
+      for i in range(4):
+         a = np.random.random() * 6.28
+         GLB.w.append([cos(a), sin(a), 0.004 + np.random.random() * 0.011,
+                       0.5 + np.random.random() * 1.5, np.random.random() * 6.28])
+   GLB.seed = seed
+   GLB.seed()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.4, 3.0)
+   f1 = STR.F1mix(0.2, 1.4)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.seed()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   gx = np.zeros(GLB.X.shape, dtype=np.float32)
+   gy = np.zeros(GLB.X.shape, dtype=np.float32)
+   for w in GLB.w:
+      ph = (GLB.X * w[0] + GLB.Y * w[1]) * w[2] + time * w[3] + w[4]
+      c = np.cos(ph) * f1
+      gx = gx + c * w[2] * w[0]
+      gy = gy + c * w[2] * w[1]
+   d = np.abs(gx) + np.abs(gy)
+   v = np.clip((1.0 / (0.02 + d * 250.0 / f0)) * 0.2, 0.0, 0.999)
+
+   nr = len(GLB.ramp)
+   q = (v * nr).astype(np.int32)
+   q = np.clip(q, 0, nr - 1)
+
+   cr.set_source_rgb(0.02, 0.06, 0.04)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cr.select_font_face("mono", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+   cr.set_font_size(GLB.cw * 1.2)
+
+   pal = []
+   for vv in range(nr):
+      t = vv / (nr - 1.0)
+      if acc:
+         pal.append((t, t, t))
+      else:
+         r,g,b = hsv_to_rgb((f2 + 0.42 - t * 0.12) % 1.0, 0.9 - 0.85 * t,
+                            0.3 + 0.7 * t)
+         pal.append((b, g, r))
+
+   cr.save()
+   cr.scale(1.0, -1.0)
+   last = -1
+   for j in range(GLB.ny):
+      row = q[j]
+      if row.max() == 0:
+         continue
+      yy = -(j * GLB.chh)
+      cuts = (np.nonzero(np.diff(row))[0] + 1).tolist()
+      starts = [0] + cuts
+      ends = cuts + [GLB.nx]
+      vals = row[starts].tolist()
+      for k in range(len(starts)):
+         vv = vals[k]
+         if vv == 0:
+            continue
+         if vv != last:
+            c = pal[vv]
+            cr.set_source_rgb(c[0], c[1], c[2])
+            last = vv
+         cr.move_to(starts[k] * GLB.cw, yy)
+         cr.show_text(GLB.ramp[vv] * (ends[k] - starts[k]))
+   cr.restore()

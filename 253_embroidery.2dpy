@@ -1,0 +1,95 @@
+def Init():
+   # --- author : claude
+   # --- cross stitch going onto even-weave cloth, one stitch at a time.  The
+   # --- cloth is redrawn each frame but the stitches are not - they live in
+   # --- the canvas, so the piece fills in the way a real one does and the
+   # --- pattern only becomes legible after a few hundred stitches.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Stitch Rate")
+   STR.SetFParam1Name("Gauge")
+   STR.SetFParam2Name("Floss")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : metallic thread
+   # ---    trigger : new pattern on the chart
+
+   GLB.st = surface.get_stride() // 4
+   GLB.k = 0
+
+   def newchart():
+      GLB.which = np.random.randint(0, 4)
+      GLB.ph = np.random.random(4) * 6.283
+      GLB.base = np.random.random()
+      GLB.k = 0
+      cr.set_source_rgba(0, 0, 0, 1)
+      cr.rectangle(0, 0, 1280, 720)
+      cr.fill()
+   GLB.newchart = newchart
+   GLB.newchart()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(2.0, 40.0)
+   f1 = STR.F1mix(12.0, 30.0)
+   f2 = STR.F2()
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.newchart()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   g = int(f1)
+   nx = 1280 // g
+   ny = 720 // g
+
+   ns = int(f0)
+   cr.set_line_width(max(1.6, g * 0.22))
+   cr.set_line_cap(cairo.LINE_CAP_ROUND)
+   for s in range(ns):
+      # --- worked in rows, left to right, the way a chart is followed
+      cell = GLB.k % (nx * ny)
+      cy = cell // nx
+      cx = cell % nx
+      GLB.k = GLB.k + 1
+
+      u = cx / (nx * 1.0)
+      w = cy / (ny * 1.0)
+      if GLB.which == 0:
+         val = sin(u * 12.0 + GLB.ph[0]) * cos(w * 9.0 + GLB.ph[1])
+      elif GLB.which == 1:
+         val = sin((u * u + w * w) * 26.0 + GLB.ph[2])
+      elif GLB.which == 2:
+         val = sin(u * 18.0 + GLB.ph[0]) + sin(w * 18.0 + GLB.ph[1])
+         val = val * 0.5
+      else:
+         val = cos((u - 0.5) * (w - 0.5) * 90.0 + GLB.ph[3])
+
+      if val < -0.22:
+         continue
+      h = (GLB.base + f2 + val * 0.22) % 1.0
+      sat = 0.20 if acc else 0.72
+      c = hsv_to_rgb(h, sat, 0.55 + 0.45 * abs(val))
+      cr.set_source_rgb(c[2], c[1], c[0])
+      x0 = cx * g + g * 0.18
+      y0 = cy * g + g * 0.18
+      x1 = cx * g + g * 0.82
+      y1 = cy * g + g * 0.82
+      cr.move_to(x0, y0)
+      cr.line_to(x1, y1)
+      cr.move_to(x1, y0)
+      cr.line_to(x0, y1)
+      cr.stroke()
+
+   # --- the weave of the cloth, over the top, so stitches sit in the holes
+   cr.set_line_width(1.0)
+   cr.set_source_rgba(0.30, 0.32, 0.34, 0.5)
+   for i in range(nx + 1):
+      cr.move_to(i * g, 0)
+      cr.line_to(i * g, 720)
+   for j in range(ny + 1):
+      cr.move_to(0, j * g)
+      cr.line_to(1280, j * g)
+   cr.stroke()

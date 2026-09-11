@@ -1,0 +1,104 @@
+def Init():
+   # --- author : claude
+   # --- a constructivist composition : the canvas is split recursively and
+   # --- each cell gets a primary, a circle, a bar or nothing
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Split")
+   STR.SetFParam1Name("Fill Rate")
+   STR.SetFParam2Name("Palette")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : heavy black rules
+   # ---    trigger : recompose
+
+   def compose(depth):
+      GLB.cells = []
+      stack = [[60.0, 60.0, 1160.0, 600.0, 0]]
+      while len(stack) > 0 and len(GLB.cells) < 40:
+         c = stack.pop()
+         if c[4] >= depth or (c[2] < 130 or c[3] < 130):
+            GLB.cells.append(c)
+            continue
+         if np.random.random() < 0.5:
+            k = c[2] * (0.3 + np.random.random() * 0.4)
+            stack.append([c[0], c[1], k, c[3], c[4] + 1])
+            stack.append([c[0] + k, c[1], c[2] - k, c[3], c[4] + 1])
+         else:
+            k = c[3] * (0.3 + np.random.random() * 0.4)
+            stack.append([c[0], c[1], c[2], k, c[4] + 1])
+            stack.append([c[0], c[1] + k, c[2], c[3] - k, c[4] + 1])
+      for c in stack:
+         GLB.cells.append(c)
+      GLB.kind = []
+      for i in range(len(GLB.cells)):
+         GLB.kind.append([np.random.random(), np.random.randint(0, 4),
+                          np.random.random()])
+   GLB.compose = compose
+   GLB.compose(4)
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(2.0, 5.0)
+   f1 = STR.F1()
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   d = int(f0)
+   if trig:
+      GLB.compose(d)
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   cr.set_source_rgb(0.94, 0.94, 0.92)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   # --- the three primaries plus black, De Stijl fashion
+   if GLB.xmode:
+      pal = [hsv_to_rgb(f2, 0.85, 0.95),
+             hsv_to_rgb((f2 + 0.33) % 1.0, 0.85, 0.95),
+             hsv_to_rgb((f2 + 0.66) % 1.0, 0.85, 0.95),
+             (0.10, 0.09, 0.11)]
+   else:
+      pal = [(0.85, 0.12, 0.12), (0.12, 0.32, 0.80), (0.95, 0.80, 0.10),
+             (0.10, 0.09, 0.11)]
+
+   for i in range(len(GLB.cells)):
+      c = GLB.cells[i]
+      k = GLB.kind[i]
+      if k[0] > f1:
+         continue
+      col = pal[k[1]]
+      cr.set_source_rgb(col[2], col[1], col[0])
+      ph = 0.5 + 0.5 * sin(time * 0.7 + i * 0.9)
+      if k[2] < 0.45:
+         cr.rectangle(c[0], c[1], c[2], c[3])
+         cr.fill()
+      elif k[2] < 0.75:
+         r = min(c[2], c[3]) * 0.42 * (0.6 + 0.4 * ph)
+         cr.new_sub_path()
+         cr.arc(c[0] + c[2] * 0.5, c[1] + c[3] * 0.5, r, 0, 2 * pi)
+         cr.fill()
+      else:
+         if c[2] > c[3]:
+            cr.rectangle(c[0], c[1] + c[3] * 0.32, c[2] * (0.35 + 0.6 * ph),
+                         c[3] * 0.36)
+         else:
+            cr.rectangle(c[0] + c[2] * 0.32, c[1], c[2] * 0.36,
+                         c[3] * (0.35 + 0.6 * ph))
+         cr.fill()
+
+   # --- the rules
+   cr.set_source_rgb(0.08, 0.07, 0.09)
+   cr.set_line_width(12.0 if acc else 7.0)
+   for c in GLB.cells:
+      cr.rectangle(c[0], c[1], c[2], c[3])
+   cr.stroke()

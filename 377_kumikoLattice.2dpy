@@ -1,0 +1,113 @@
+def Init():
+   # --- author : claude
+   # --- kumiko.  A frame of thin wooden bars, with small pieces fitted into
+   # --- the openings in patterns - asanoha, kasane-rindo - each built only
+   # --- from straight cuts at set angles.  The infill pattern is swapped
+   # --- cell by cell as the work proceeds, so the panel is always being
+   # --- re-made rather than finished.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Fitting")
+   STR.SetFParam1Name("Cell Size")
+   STR.SetFParam2Name("Wood")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : the light behind the shoji comes up
+   # ---    trigger : new pattern set
+
+   GLB.st = surface.get_stride() // 4
+   GLB.t = 0.0
+   GLB.base = 0
+
+   cr.set_source_rgb(0.20, 0.24, 0.28)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.001, 0.030)
+   f1 = STR.F1mix(58.0, 130.0)
+   f2 = STR.F2()
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.base = (GLB.base + 1) % 3
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   GLB.t = GLB.t + f0
+
+   # --- the paper behind
+   lit = 0.92 if acc else 0.72
+   c = hsv_to_rgb((0.10 + f2 * 0.08) % 1.0, 0.10, lit)
+   cr.set_source_rgb(c[2], c[1], c[0])
+   cr.rectangle(0, 0, 1280, 720)
+   cr.fill()
+
+   g = f1
+   nx = int(1280 / g) + 2
+   ny = int(720 / g) + 2
+   wc = hsv_to_rgb(0.08, 0.55, 0.30)
+   cr.set_line_cap(cairo.LINE_CAP_BUTT)
+   for j in range(ny):
+      for i in range(nx):
+         x = i * g
+         y = j * g
+         # --- which infill this opening currently holds.  The phase runs
+         # --- across the panel, so the change sweeps rather than flickering.
+         u = GLB.t + (i + j) * 0.12
+         k = (GLB.base + int(u)) % 3
+         cr.save()
+         cr.translate(x + g * 0.5, y + g * 0.5)
+         cr.set_source_rgb(wc[2], wc[1], wc[0])
+         cr.set_line_width(max(1.6, g * 0.035))
+         h = g * 0.5
+         if k == 0:
+            # --- asanoha : hemp leaf, six spokes with a chevron on each
+            for q in range(6):
+               a = q * 1.0472
+               cr.move_to(0, 0)
+               cr.line_to(cos(a) * h, sin(a) * h)
+            cr.stroke()
+            for q in range(6):
+               a = q * 1.0472
+               b = a + 1.0472
+               cr.move_to(cos(a) * h, sin(a) * h)
+               cr.line_to(cos(a + 0.5236) * h * 0.52,
+                          sin(a + 0.5236) * h * 0.52)
+               cr.line_to(cos(b) * h, sin(b) * h)
+            cr.stroke()
+         elif k == 1:
+            # --- a square within a square, turned
+            cr.move_to(-h, 0)
+            cr.line_to(0, -h)
+            cr.line_to(h, 0)
+            cr.line_to(0, h)
+            cr.close_path()
+            cr.stroke()
+            cr.move_to(-h * 0.5, -h * 0.5)
+            cr.line_to(h * 0.5, -h * 0.5)
+            cr.line_to(h * 0.5, h * 0.5)
+            cr.line_to(-h * 0.5, h * 0.5)
+            cr.close_path()
+            cr.stroke()
+         else:
+            # --- three bars at sixty degrees
+            for q in range(3):
+               a = q * 1.0472
+               cr.move_to(-cos(a) * h, -sin(a) * h)
+               cr.line_to(cos(a) * h, sin(a) * h)
+            cr.stroke()
+         cr.restore()
+
+   # --- the frame the openings sit in, laid over everything
+   cr.set_source_rgb(wc[2] * 0.8, wc[1] * 0.8, wc[0] * 0.8)
+   cr.set_line_width(max(3.0, g * 0.075))
+   for i in range(nx + 1):
+      cr.move_to(i * g, 0)
+      cr.line_to(i * g, 720)
+   for j in range(ny + 1):
+      cr.move_to(0, j * g)
+      cr.line_to(1280, j * g)
+   cr.stroke()

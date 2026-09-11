@@ -1,0 +1,173 @@
+def Init():
+   # --- author : claude
+   # --- an orb weaver at work.  The frame and radials go up first, then a
+   # --- wide temporary spiral outward to walk on, then the sticky capture
+   # --- spiral inward over the top of it - eating the temporary one as it
+   # --- goes.  The web collects damage, and when it has taken enough the
+   # --- spider takes it down and builds another.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Build Rate")
+   STR.SetFParam1Name("Radials")
+   STR.SetFParam2Name("Dew")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : something flies into it
+   # ---    trigger : take it down and start again
+
+   GLB.st = surface.get_stride() // 4
+
+   def newweb():
+      GLB.prog = 0.0
+      GLB.dmg = 0.0
+      GLB.nr = 0
+      GLB.cx = 500.0 + np.random.random() * 280.0
+      GLB.cy = 300.0 + np.random.random() * 150.0
+      GLB.hub = np.random.random() * 6.283
+      GLB.wob = np.random.random(8) * 0.5 + 0.8
+      GLB.holes = []
+   GLB.newweb = newweb
+   GLB.newweb()
+
+   cr.set_source_rgb(0.05, 0.07, 0.09)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0015, 0.030)
+   f1 = STR.F1mix(12.0, 34.0)
+   f2 = STR.F2mix(0.0, 1.0)
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.newweb()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   GLB.prog = GLB.prog + f0
+   # --- damage accumulates, and a web too badly torn is rebuilt.  That is
+   # --- what makes this a cycle rather than a thing that gets finished.
+   if acc:
+      GLB.dmg = GLB.dmg + 0.02
+      if len(GLB.holes) < 14 and np.random.random() < 0.25:
+         a = np.random.random() * 6.283
+         r = 60.0 + np.random.random() * 240.0
+         GLB.holes.append([GLB.cx + cos(a) * r, GLB.cy + sin(a) * r,
+                           14.0 + np.random.random() * 30.0])
+   if GLB.prog > 1.0:
+      GLB.dmg = GLB.dmg + 0.0008
+   if GLB.dmg > 1.0:
+      GLB.newweb()
+
+   cr.set_source_rgb(0.05, 0.07, 0.09)
+   cr.rectangle(0, 0, 1280, 720)
+   cr.fill()
+
+   nr = int(f1)
+   cx = GLB.cx
+   cy = GLB.cy
+   R = 300.0
+   p = GLB.prog
+
+   # --- stage one : the frame and the radials
+   nr_built = int(min(p / 0.35, 1.0) * nr)
+   cr.set_line_width(1.1)
+   cr.set_source_rgba(0.72, 0.80, 0.86, 0.75)
+   for i in range(nr_built):
+      a = GLB.hub + i * 6.2831853 / nr
+      rr = R * GLB.wob[i % 8]
+      cr.move_to(cx, cy)
+      cr.line_to(cx + cos(a) * rr, cy + sin(a) * rr)
+   cr.stroke()
+
+   if p > 0.30:
+      # --- stage two : the temporary spiral, wide and loose
+      q = min((p - 0.30) / 0.30, 1.0)
+      cr.set_source_rgba(0.55, 0.62, 0.68, 0.45)
+      cr.set_line_width(0.9)
+      started = False
+      turns = 7.0
+      N = int(150 * q)
+      for s in range(N):
+         t = s / 150.0
+         a = GLB.hub + t * turns * 6.2831853
+         rr = (0.12 + t * 0.88) * R * GLB.wob[int(a / 0.7854) % 8]
+         x = cx + cos(a) * rr
+         y = cy + sin(a) * rr
+         if not started:
+            cr.move_to(x, y)
+            started = True
+         else:
+            cr.line_to(x, y)
+      cr.stroke()
+
+   if p > 0.55:
+      # --- stage three : the capture spiral, tight and sticky, worked from
+      # --- the outside in
+      q = min((p - 0.55) / 0.45, 1.0)
+      c = hsv_to_rgb(0.52, 0.20, 1.0)
+      cr.set_source_rgba(c[2], c[1], c[0], 0.85)
+      cr.set_line_width(1.3)
+      started = False
+      turns = 26.0
+      # --- each point tests itself against every hole, so this count is
+      # --- what sets the frame time
+      N = int(560 * q)
+      for s in range(N):
+         t = 1.0 - s / 560.0
+         a = GLB.hub - t * turns * 6.2831853
+         rr = (0.14 + t * 0.84) * R * GLB.wob[int(abs(a) / 0.7854) % 8]
+         x = cx + cos(a) * rr
+         y = cy + sin(a) * rr
+         # --- a hole is a hole : the thread simply is not there
+         gap = False
+         for h in GLB.holes:
+            if (x - h[0]) ** 2 + (y - h[1]) ** 2 < h[2] * h[2]:
+               gap = True
+               break
+         if gap:
+            if started:
+               cr.stroke()
+               started = False
+            continue
+         if not started:
+            cr.move_to(x, y)
+            started = True
+         else:
+            cr.line_to(x, y)
+      cr.stroke()
+
+      # --- dew, which is the only reason anyone ever sees one of these
+      if f2 > 0.02:
+         cr.set_source_rgba(0.85, 0.95, 1.0, 0.7)
+         nd = int(f2 * 160)
+         for s in range(nd):
+            t = np.random.random()
+            a = GLB.hub - t * turns * 6.2831853
+            rr = (0.14 + t * 0.84) * R * GLB.wob[int(abs(a) / 0.7854) % 8]
+            cr.new_sub_path()
+            cr.arc(cx + cos(a) * rr, cy + sin(a) * rr,
+                   0.8 + np.random.random() * 1.6, 0, 6.2831853)
+         cr.fill()
+
+   # --- the spider, at the hub once the web is up, out on the work before
+   cr.set_source_rgb(0.20, 0.18, 0.22)
+   if p < 1.0:
+      a = GLB.hub + p * 26.0
+      rr = R * min(p * 1.2, 1.0) * 0.8
+      sxp = cx + cos(a) * rr
+      syp = cy + sin(a) * rr
+   else:
+      sxp = cx
+      syp = cy
+   cr.new_sub_path()
+   cr.arc(sxp, syp, 7.0, 0, 6.2831853)
+   cr.fill()
+   cr.set_line_width(1.4)
+   for k in range(8):
+      b = k * 0.7854 + sin(time * 2.0 + k) * 0.15
+      cr.move_to(sxp, syp)
+      cr.line_to(sxp + cos(b) * 15.0, syp + sin(b) * 15.0)
+   cr.stroke()

@@ -1,0 +1,162 @@
+def Init():
+   # --- author : claude
+   # --- a crossword filling itself in : words are placed on a grid, then
+   # --- written letter by letter, with clue numbers in the corners
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Fill Rate")
+   STR.SetFParam1Name("Grid")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : highlight the across words
+   # ---    trigger : new puzzle
+
+   GLB.bank = ["CAIRO","RASTER","VECTOR","ALPHA","PIXEL","SHADER","NODE","BEAT",
+               "GLYPH","TINT","MASK","CLIP","PATH","FILL","EDGE","GRAIN","HUE",
+               "STROKE","MATRIX","SURFACE","GROUP","ARC","CURVE","DASH"]
+
+   def build(n):
+      GLB.n = n
+      GLB.cell = []
+      GLB.num = []
+      for j in range(n):
+         GLB.cell.append([0] * n)
+         GLB.num.append([0] * n)
+      GLB.order = []
+      # --- drop words in, keeping them inside the grid and letting
+      # --- crossings happen wherever they happen
+      tries = 0
+      while len(GLB.order) < 16 and tries < 200:
+         tries = tries + 1
+         w = GLB.bank[np.random.randint(0, len(GLB.bank))]
+         if len(w) > n:
+            continue
+         horiz = np.random.randint(0, 2)
+         if horiz:
+            r = np.random.randint(0, n)
+            c = np.random.randint(0, n - len(w) + 1)
+         else:
+            r = np.random.randint(0, n - len(w) + 1)
+            c = np.random.randint(0, n)
+         ok = 1
+         for k in range(len(w)):
+            rr = r + (0 if horiz else k)
+            cc = c + (k if horiz else 0)
+            v = GLB.cell[rr][cc]
+            if v != 0 and v != w[k]:
+               ok = 0
+         if not ok:
+            continue
+         for k in range(len(w)):
+            rr = r + (0 if horiz else k)
+            cc = c + (k if horiz else 0)
+            GLB.order.append([rr, cc, w[k], horiz])
+            GLB.cell[rr][cc] = w[k]
+      # --- number the starting squares
+      cnt = 0
+      for j in range(n):
+         for i in range(n):
+            if GLB.cell[j][i] == 0:
+               continue
+            up = (j == 0 or GLB.cell[j - 1][i] == 0)
+            left = (i == 0 or GLB.cell[j][i - 1] == 0)
+            if up or left:
+               cnt = cnt + 1
+               GLB.num[j][i] = cnt
+      GLB.shown = 0.0
+   GLB.build = build
+   GLB.build(13)
+
+   def text(x, y, s):
+      cr.save()
+      cr.translate(x, y)
+      cr.scale(1.0, -1.0)
+      cr.move_to(0, 0)
+      cr.show_text(s)
+      cr.restore()
+   GLB.text = text
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 2.5)
+   f1 = STR.F1mix(9.0, 16.0)
+   f2 = STR.F2()
+
+   n = int(f1)
+   if trig or n != GLB.n:
+      GLB.build(n)
+      if trig:
+         GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   GLB.shown = GLB.shown + f0
+   if GLB.shown > len(GLB.order) + 80:
+      GLB.build(GLB.n)
+
+   paper = (0.95, 0.95, 0.93)
+   ink = (0.07, 0.06, 0.08)
+   if GLB.xmode:
+      paper = (0.06, 0.05, 0.07)
+      ink = (0.95, 0.95, 0.92)
+
+   cr.set_source_rgb(paper[2], paper[1], paper[0])
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   n = GLB.n
+   cs = 640.0 / n
+   x0 = 640.0 - cs * n * 0.5
+   y0 = 360.0 - cs * n * 0.5
+
+   # --- blocked squares
+   cr.set_source_rgb(ink[2], ink[1], ink[0])
+   for j in range(n):
+      for i in range(n):
+         if GLB.cell[j][i] == 0:
+            cr.rectangle(x0 + i * cs, y0 + (n - 1 - j) * cs, cs, cs)
+   cr.fill()
+
+   # --- grid
+   cr.set_source_rgb(ink[2], ink[1], ink[0])
+   cr.set_line_width(1.5)
+   for k in range(n + 1):
+      cr.move_to(x0 + k * cs, y0)
+      cr.line_to(x0 + k * cs, y0 + n * cs)
+      cr.move_to(x0, y0 + k * cs)
+      cr.line_to(x0 + n * cs, y0 + k * cs)
+   cr.stroke()
+
+   cr.select_font_face("sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+   cr.set_font_size(cs * 0.30)
+   cr.set_source_rgb(ink[2], ink[1], ink[0])
+   for j in range(n):
+      for i in range(n):
+         v = GLB.num[j][i]
+         if v:
+            GLB.text(x0 + i * cs + 3, y0 + (n - 1 - j) * cs + cs - cs * 0.32, "%d" % v)
+
+   # --- the letters, written in over time
+   k = int(GLB.shown)
+   if k > len(GLB.order):
+      k = len(GLB.order)
+   cr.select_font_face("mono", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+   cr.set_font_size(cs * 0.62)
+   for i in range(k):
+      o = GLB.order[i]
+      t = i / (len(GLB.order) * 1.0 + 0.001)
+      if acc and o[3]:
+         r,g,b = hsv_to_rgb((f2 + 0.5) % 1.0, 0.8, 1.0)
+      else:
+         r,g,b = hsv_to_rgb((f2 + t * 0.3) % 1.0, 0.75, 0.85)
+      cr.set_source_rgb(b, g, r)
+      e = cr.text_extents(o[2])
+      GLB.text(x0 + o[1] * cs + cs * 0.5 - e.width * 0.5 - e.x_bearing,
+               y0 + (n - 1 - o[0]) * cs + cs * 0.26, o[2])

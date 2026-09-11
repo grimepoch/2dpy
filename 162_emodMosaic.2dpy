@@ -1,0 +1,103 @@
+def Init():
+   # --- author : claude
+   # --- a Roman mosaic laid course by course, where the tesserae belonging to
+   # --- a sounding slot are set in a brighter stone
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Decay")
+   STR.SetFParam1Name("Tessera")
+   STR.SetFParam2Name("Palette")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+   # ---    accent : grout darkens
+   # ---    trigger : new cartoon
+
+   GLB.n = 12 if GLB.slots == 24 else GLB.slots
+   GLB.lvl = []
+   for i in range(GLB.n):
+      GLB.lvl.append(0.0)
+
+   def cartoon():
+      GLB.h1 = np.random.random()
+      GLB.h2 = np.random.random()
+   GLB.cartoon = cartoon
+   GLB.cartoon()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.80, 0.985)
+   f1 = STR.F1mix(13.0, 28.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.cartoon()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   n = GLB.n
+   for k in range(n):
+      GLB.lvl[k] = GLB.lvl[k] * f0
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if ids == 0:
+         continue
+      k = (note % 12) if GLB.mode == "midi" else i
+      if k < n:
+         v = velo / 127.0
+         if v > GLB.lvl[k]:
+            GLB.lvl[k] = v
+
+   cr.set_source_rgb(0.10, 0.09, 0.08)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   t = f1
+   gap = t * (0.24 if acc else 0.15)
+   cx = 640.0
+   cy = 360.0
+
+   for c in range(22):
+      R = 30.0 + c * (t * 1.9)
+      m = int(2.0 * pi * R / (t * 1.55))
+      if m < 6:
+         m = 6
+      for k in range(m):
+         a = k * 2.0 * pi / m + c * 0.22 + time * 0.01
+         x = cx + cos(a) * R
+         y = cy + sin(a) * R * 0.92
+         if x < -t or x > 1280 + t or y < -t or y > 720 + t:
+            continue
+         # --- which slot owns this stone
+         si = (c * 3 + k) % n
+         v = GLB.lvl[si]
+         j = sin(k * 12.9898 + c * 78.233) * 43758.5453
+         j = j - floor(j)
+         if GLB.xmode:
+            hu = (GLB.h1 + si / (n * 1.0) * 0.7 + f2) % 1.0
+         else:
+            hu = (GLB.h1 + f2 + (0.20 if v > 0.1 else 0.0)) % 1.0
+         cc = hsv_to_rgb((hu + (j - 0.5) * 0.05) % 1.0,
+                         0.45 + (j - 0.5) * 0.2,
+                         (0.28 + 0.65 * v) + (j - 0.5) * 0.18)
+         cr.set_source_rgb(cc[2], cc[1], cc[0])
+         cr.save()
+         cr.translate(x, y)
+         cr.rotate(a + pi * 0.5 + (j - 0.5) * 0.25)
+         sz = t * (0.85 + 0.3 * v)
+         cr.rectangle(-sz * 0.5 + gap * 0.5, -sz * 0.5 + gap * 0.5,
+                      sz - gap, sz - gap)
+         cr.restore()
+         cr.fill()

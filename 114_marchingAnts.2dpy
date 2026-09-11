@@ -1,0 +1,83 @@
+def Init():
+   # --- author : claude
+   # --- a survey drawing : nested contour rings with animated dash offsets,
+   # --- so every contour crawls.  Dashes are cheap here, unlike stroked
+   # --- circles, so the contours are polylines rather than arcs.
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Crawl")
+   STR.SetFParam1Name("Contours")
+   STR.SetFParam2Name("Relief")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : solid lines, no dashes
+   # ---    trigger : new terrain
+
+   GLB.steps = 132
+   GLB.th = np.linspace(0.0, 2.0 * pi, GLB.steps)
+
+   def seed():
+      GLB.h = []
+      for i in range(6):
+         GLB.h.append([np.random.random() * 2.0 - 1.0,
+                       np.random.random() * 2.0 - 1.0,
+                       0.4 + np.random.random() * 1.4,
+                       np.random.random() * 6.28])
+   GLB.seed = seed
+   GLB.seed()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 60.0)
+   f1 = STR.F1mix(4.0, 18.0)
+   f2 = STR.F2mix(0.0, 90.0)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.seed()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   cr.set_source_rgb(0.04, 0.05, 0.06)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   n = int(f1)
+   th = GLB.th
+   cr.set_line_cap(cairo.LINE_CAP_BUTT)
+
+   for k in range(n):
+      u = (k + 1) / (n + 1.0)
+      base = 40.0 + u * 320.0
+      # --- each contour is the base circle pushed about by the hills
+      rr = np.zeros(GLB.steps) + base
+      for hh in GLB.h:
+         ang = th - atan2(hh[1], hh[0])
+         rr = rr + f2 * hh[2] * np.cos(ang * (1.0 + int(hh[2] * 3)) + hh[3] + time * 0.15) * u
+      xs = (640.0 + np.cos(th) * rr).tolist()
+      ys = (360.0 + np.sin(th) * rr * 0.62).tolist()
+
+      t = k / (n * 1.0)
+      if GLB.xmode:
+         r,g,b = hsv_to_rgb((t * 0.75) % 1.0, 0.8, 1.0)
+      else:
+         r,g,b = hsv_to_rgb((0.45 + t * 0.14) % 1.0, 0.35 + 0.4 * t, 0.55 + 0.45 * t)
+      cr.set_source_rgb(b, g, r)
+      cr.set_line_width(1.4 + 1.6 * t)
+      if not acc:
+         # --- alternate contours crawl the other way
+         d = time * f0 * (1.0 if k % 2 == 0 else -1.0)
+         cr.set_dash([10.0, 7.0], d)
+      cr.move_to(xs[0], ys[0])
+      for i in range(1, GLB.steps):
+         cr.line_to(xs[i], ys[i])
+      cr.close_path()
+      cr.stroke()
+   cr.set_dash([])

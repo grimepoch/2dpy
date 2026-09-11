@@ -1,0 +1,82 @@
+def Init():
+   # --- author : claude
+   # --- worms laying colour, and a shear field that keeps dragging the paint
+   # --- they already laid.  Rows are shifted in 60 bands rather than per-row
+   # --- because a banded shift is a handful of contiguous slice copies while
+   # --- a per-row gather is a fancy index over the whole frame.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Shear")
+   STR.SetFParam1Name("Worms")
+   STR.SetFParam2Name("Hue Spin")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : worms scatter
+   # ---    trigger : reverse the shear
+
+   GLB.st = surface.get_stride() // 4
+   GLB.n = 36
+   GLB.wx = np.random.random(GLB.n) * 1280.0
+   GLB.wy = np.random.random(GLB.n) * 720.0
+   GLB.wa = np.random.random(GLB.n) * 6.283
+   GLB.wh = np.random.random(GLB.n)
+   GLB.dir = 1.0
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 9.0)
+   f1 = STR.F1()
+   f2 = STR.F2mix(0.0, 0.09)
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.dir = -GLB.dir
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8,
+                  buffer=surface.get_data())
+   np.subtract(v, np.right_shift(v, 6), out=v)
+
+   nb = 60
+   bh = 720 // nb
+   for b in range(nb):
+      y0 = b * bh
+      y1 = y0 + bh
+      sft = int(sin(y0 * 0.011 + time * 0.8) * f0 * GLB.dir)
+      if sft > 0:
+         v[y0:y1, :-sft] = v[y0:y1, sft:]
+         v[y0:y1, -sft:] = 0
+      elif sft < 0:
+         k = -sft
+         v[y0:y1, k:] = v[y0:y1, :-k]
+         v[y0:y1, :k] = 0
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   turn = 1.4 if acc else 0.38
+   GLB.wa = GLB.wa + (np.random.random(GLB.n) - 0.5) * turn
+   px = GLB.wx.copy()
+   py = GLB.wy.copy()
+   GLB.wx = (GLB.wx + np.cos(GLB.wa) * 9.0) % 1280.0
+   GLB.wy = (GLB.wy + np.sin(GLB.wa) * 9.0) % 720.0
+   GLB.wh = (GLB.wh + f2) % 1.0
+
+   cr.set_line_width(7.0)
+   cr.set_line_cap(cairo.LINE_CAP_ROUND)
+   nw = int(GLB.n * (0.15 + f1 * 0.85))
+   for i in range(nw):
+      # --- a worm that wrapped the edge would draw a line straight across
+      if abs(GLB.wx[i] - px[i]) > 60.0 or abs(GLB.wy[i] - py[i]) > 60.0:
+         continue
+      c = hsv_to_rgb(GLB.wh[i], 0.9, 1.0)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      cr.move_to(px[i], py[i])
+      cr.line_to(GLB.wx[i], GLB.wy[i])
+      cr.stroke()

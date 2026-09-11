@@ -1,0 +1,155 @@
+def Init():
+   # --- author : claude
+   # --- a comet on a long orbit.  It grows two tails that point away from
+   # --- the sun rather than backwards along the track : the dust tail lags
+   # --- and curves, the ion tail is blown straight out and kinks when the
+   # --- solar wind gusts.  The orbit closes, so it comes round again.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Orbit")
+   STR.SetFParam1Name("Activity")
+   STR.SetFParam2Name("Solar Wind")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : a disconnection event tears the ion tail off
+   # ---    trigger : new orbit
+
+   GLB.st = surface.get_stride() // 4
+   GLB.cap = 700
+   GLB.n = 0
+   GLB.px = np.zeros(GLB.cap)
+   GLB.py = np.zeros(GLB.cap)
+   GLB.vx = np.zeros(GLB.cap)
+   GLB.vy = np.zeros(GLB.cap)
+   GLB.ki = np.zeros(GLB.cap, dtype=np.int32)
+   GLB.ag = np.zeros(GLB.cap)
+   GLB.th = 0.0
+
+   def orbit():
+      GLB.a = 430.0 + np.random.random() * 140.0
+      GLB.ecc = 0.55 + np.random.random() * 0.30
+      GLB.tilt = np.random.random() * 6.283
+   GLB.orbit = orbit
+   GLB.orbit()
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.002, 0.030)
+   f1 = STR.F1mix(1.0, 14.0)
+   f2 = STR.F2mix(0.05, 0.85)
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.orbit()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8,
+                  buffer=surface.get_data())
+   np.subtract(v, np.right_shift(v, 4), out=v)
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   sx = 640.0
+   sy = 360.0
+   # --- Kepler's second law by proxy : sweep faster when close in
+   r_ = GLB.a * (1.0 - GLB.ecc * GLB.ecc) / (
+      1.0 + GLB.ecc * cos(GLB.th))
+   GLB.th = GLB.th + f0 * (GLB.a / max(r_, 40.0)) ** 1.5
+   r_ = GLB.a * (1.0 - GLB.ecc * GLB.ecc) / (
+      1.0 + GLB.ecc * cos(GLB.th))
+   ca = cos(GLB.tilt)
+   sa = sin(GLB.tilt)
+   ox = cos(GLB.th) * r_
+   oy = sin(GLB.th) * r_ * 0.62
+   cx = sx + ox * ca - oy * sa
+   cy = sy + ox * sa + oy * ca
+
+   # --- the sun-comet direction, which is what both tails point along
+   dx = cx - sx
+   dy = cy - sy
+   dr = sqrt(dx * dx + dy * dy) + 1e-6
+   ux = dx / dr
+   uy = dy / dr
+   # --- activity rises steeply as it nears the sun
+   act = (300.0 / dr) ** 2
+
+   emit = int(f1 * min(act, 3.0))
+   for k in range(emit):
+      if GLB.n >= GLB.cap:
+         break
+      j = GLB.n
+      ion = (k % 3) != 0
+      sp = (np.random.random() - 0.5) * (1.2 if ion else 2.6)
+      GLB.px[j] = cx
+      GLB.py[j] = cy
+      GLB.vx[j] = -uy * sp
+      GLB.vy[j] = ux * sp
+      GLB.ki[j] = 1 if ion else 0
+      GLB.ag[j] = 0.0
+      GLB.n = j + 1
+
+   n = GLB.n
+   if n > 0:
+      px = GLB.px[:n]
+      py = GLB.py[:n]
+      ddx = px - sx
+      ddy = py - sy
+      rr = np.sqrt(ddx * ddx + ddy * ddy) + 1e-6
+      # --- radiation pressure pushes everything away from the sun.  The ion
+      # --- tail is far lighter, so it is blown almost straight out while the
+      # --- dust lags behind into a curve.
+      push = np.where(GLB.ki[:n] == 1, f2 * 2.6, f2 * 0.55) * (
+         240.0 / rr) ** 2
+      GLB.vx[:n] = GLB.vx[:n] + ddx / rr * push
+      GLB.vy[:n] = GLB.vy[:n] + ddy / rr * push
+      if acc:
+         GLB.vx[:n] = np.where(GLB.ki[:n] == 1,
+                               GLB.vx[:n] + (np.random.random(n) - 0.5) * 5.0,
+                               GLB.vx[:n])
+      GLB.px[:n] = px + GLB.vx[:n]
+      GLB.py[:n] = py + GLB.vy[:n]
+      GLB.ag[:n] = GLB.ag[:n] + 1.0
+
+      keep = (GLB.ag[:n] < 150.0) & (GLB.px[:n] > -60) & \
+             (GLB.px[:n] < 1340) & (GLB.py[:n] > -60) & (GLB.py[:n] < 780)
+      idx = np.where(keep)[0]
+      m = len(idx)
+      GLB.px[:m] = GLB.px[idx]
+      GLB.py[:m] = GLB.py[idx]
+      GLB.vx[:m] = GLB.vx[idx]
+      GLB.vy[:m] = GLB.vy[idx]
+      GLB.ki[:m] = GLB.ki[idx]
+      GLB.ag[:m] = GLB.ag[idx]
+      GLB.n = m
+
+      ix = GLB.px[:m].astype(np.int32)
+      iy = GLB.py[:m].astype(np.int32)
+      ok = (ix > 0) & (ix < 1279) & (iy > 0) & (iy < 719)
+      lum = np.clip(1.0 - GLB.ag[:m] / 150.0, 0.0, 1.0)[ok]
+      isio = (GLB.ki[:m] == 1)[ok]
+      sy_ = iy[ok]
+      sx_ = ix[ok]
+      v[sy_, sx_, 0] = np.where(isio, lum * 90.0,
+                                lum * 255.0).astype(np.uint8)
+      v[sy_, sx_, 1] = np.where(isio, lum * 190.0,
+                                lum * 215.0).astype(np.uint8)
+      v[sy_, sx_, 2] = np.where(isio, lum * 255.0,
+                                lum * 150.0).astype(np.uint8)
+      v[:, :, 3] = 255
+      surface.mark_dirty()
+
+   cr.set_source_rgb(0.60, 0.90, 1.0)
+   cr.new_sub_path()
+   cr.arc(cx, cy, 3.5 + min(act, 3.0), 0, 6.2831853)
+   cr.fill()
+   cr.set_source_rgb(0.45, 0.85, 1.0)
+   cr.new_sub_path()
+   cr.arc(sx, sy, 16.0, 0, 6.2831853)
+   cr.fill()

@@ -1,0 +1,120 @@
+def Init():
+   # --- author : claude
+   # --- a clay tablet being impressed.  A stylus is pressed in and the clay
+   # --- keeps the shape - the wedge is a depression, lit from one side, and
+   # --- nothing can be un-pressed.  The tablet fills up, is fired, and a
+   # --- fresh one is taken.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Scribing")
+   STR.SetFParam1Name("Stylus")
+   STR.SetFParam2Name("Clay")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : press hard, deep wedges
+   # ---    trigger : a fresh tablet
+
+   GLB.res = 2
+   GLB.nx = 1280 // GLB.res
+   GLB.ny = 720 // GLB.res
+   GLB.small = cairo.ImageSurface(cairo.FORMAT_ARGB32, GLB.nx, GLB.ny)
+   GLB.sst = GLB.small.get_stride() // 4
+   GLB.sv = np.ndarray(shape=(GLB.ny, GLB.sst, 4), dtype=np.uint8,
+                       buffer=GLB.small.get_data())
+   GLB.stamp = cairo.ImageSurface(cairo.FORMAT_ARGB32, GLB.nx, GLB.ny)
+   GLB.scr = cairo.Context(GLB.stamp)
+   GLB.pst = GLB.stamp.get_stride() // 4
+   GLB.pv = np.ndarray(shape=(GLB.ny, GLB.pst, 4), dtype=np.uint8,
+                       buffer=GLB.stamp.get_data())
+
+   def fresh():
+      GLB.d = np.zeros((GLB.ny, GLB.nx), dtype=np.float32)
+      GLB.cx = 40.0
+      GLB.cy = GLB.ny - 40.0
+   GLB.fresh = fresh
+   GLB.fresh()
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.5, 7.0)
+   f1 = STR.F1mix(5.0, 13.0)
+   f2 = STR.F2()
+
+   if trig:
+      GLB.fresh()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   # --- the wedges pressed this frame, drawn into a scratch surface and
+   # --- then read back as depth : far cheaper than poking a numpy field
+   s = GLB.scr
+   s.set_operator(cairo.OPERATOR_SOURCE)
+   s.set_source_rgba(0, 0, 0, 0)
+   s.paint()
+   s.set_operator(cairo.OPERATOR_OVER)
+   s.set_source_rgb(1, 1, 1)
+
+   n = int(f0)
+   if np.random.random() < (f0 % 1.0):
+      n = n + 1
+   sz = f1
+   for k in range(n):
+      # --- a sign is a few wedges in one of four orientations
+      nw = 2 + np.random.randint(4)
+      for w in range(nw):
+         d = np.random.randint(0, 4)
+         a = d * 0.7854 + (np.random.random() - 0.5) * 0.2
+         jx = (np.random.random() - 0.5) * sz * 1.4
+         jy = (np.random.random() - 0.5) * sz * 1.1
+         s.save()
+         s.translate(GLB.cx + jx, GLB.cy + jy)
+         s.rotate(a)
+         # --- the head of the wedge and the tail it is dragged out into
+         s.move_to(-sz * 0.5, -sz * 0.34)
+         s.line_to(-sz * 0.5, sz * 0.34)
+         s.line_to(sz * 0.62, 0.0)
+         s.close_path()
+         s.fill()
+         s.restore()
+
+      GLB.cx = GLB.cx + sz * 2.3
+      if GLB.cx > GLB.nx - 40:
+         GLB.cx = 40.0
+         GLB.cy = GLB.cy - sz * 2.6
+         if GLB.cy < 40:
+            GLB.fresh()
+            return
+   GLB.stamp.flush()
+
+   press = 1.5 if acc else 0.9
+   GLB.d = np.minimum(GLB.d + (GLB.pv[:, :GLB.nx, 1] > 60) * press, 3.0)
+   d = GLB.d
+
+   # --- light from the upper left : a depression is dark on the side facing
+   # --- the light and bright on the far lip
+   gx = np.zeros((GLB.ny, GLB.nx), dtype=np.float32)
+   gy = np.zeros((GLB.ny, GLB.nx), dtype=np.float32)
+   gx[:, 1:] = d[:, 1:] - d[:, :-1]
+   gy[1:] = d[1:] - d[:-1]
+   shade = np.clip(0.62 + gx * 0.55 - gy * 0.55 - d * 0.10, 0.0, 1.25)
+   c = hsv_to_rgb((0.07 + f2 * 0.08) % 1.0, 0.42, 1.0)
+   GLB.sv[:, :GLB.nx, 0] = np.clip(shade * c[0] * 205.0,
+                                   0, 255).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 1] = np.clip(shade * c[1] * 178.0,
+                                   0, 255).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 2] = np.clip(shade * c[2] * 140.0,
+                                   0, 255).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 3] = 255
+   GLB.small.mark_dirty()
+   pat = cairo.SurfacePattern(GLB.small)
+   pat.set_filter(cairo.FILTER_NEAREST)
+   m = cairo.Matrix()
+   m.scale(1.0 / GLB.res, 1.0 / GLB.res)
+   pat.set_matrix(m)
+   cr.set_source(pat)
+   cr.paint()

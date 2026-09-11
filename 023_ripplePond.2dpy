@@ -1,0 +1,95 @@
+def Init():
+   # --- author : claude
+   # --- drops land on the beat and their wavefronts ride over each other
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Wavelength")
+   STR.SetFParam2Name("Spread")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : drops land in mirrored pairs
+   # ---    trigger : drop one right now, dead centre
+
+   GLB.drops = []
+   GLB.lastbeat = -1
+
+   def drop(x, y, hue):
+      GLB.drops.append([x, y, 0.0, hue])
+      if len(GLB.drops) > 6:
+         del GLB.drops[0]
+   GLB.drop = drop
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.06, 0.6)
+   f1 = STR.F1mix(14.0, 90.0)
+   f2 = STR.F2mix(1.5, 9.0)
+
+   itime = STR.IT()
+   time  = itime + STR.FT()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,f0)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   if itime != GLB.lastbeat:
+      GLB.lastbeat = itime
+      x = np.random.randint(140, 1141)
+      y = np.random.randint(100, 621)
+      h = np.random.random()
+      GLB.drop(x, y, h)
+      if acc:
+         GLB.drop(1280 - x, 720 - y, (h + 0.5) % 1.0)
+   if trig:
+      GLB.drop(640, 360, np.random.random())
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   cr.set_line_cap(cairo.LINE_CAP_ROUND)
+
+   dead = []
+   for i in range(len(GLB.drops)):
+      d = GLB.drops[i]
+      d[2] = d[2] + f2
+      life = 1.0 - d[2] / 900.0
+      if life <= 0:
+         dead.append(i)
+         continue
+
+      # --- All of this drop's crests go into ONE path and ONE stroke.  Each
+      # --- stroke() is a separate composite pass over the shape, so batching
+      # --- them is far cheaper than a stroke per ring.  For the same reason
+      # --- the colour is scaled opaque rather than drawn with an alpha - on
+      # --- black it reads the same and costs well under half as much.
+      amp = life * life
+      k = 0
+      any = 0
+      while k < 3:
+         r = d[2] - k * f1
+         if r > 2 and r < 1020:
+            cr.new_sub_path()
+            cr.arc(d[0], d[1], r, 0, 2 * pi)
+            any = 1
+         k = k + 1
+
+      if any:
+         if GLB.xmode:
+            rr,gg,bb = hsv_to_rgb((d[3] + d[2] * 0.0006) % 1.0, 0.8, 1.0)
+         else:
+            rr = gg = bb = 1.0
+         v = amp * (0.4 + 0.6 * d[3])
+         cr.set_source_rgb(bb * v, gg * v, rr * v)
+         cr.set_line_width(1.0 + 2.4 * amp)
+         cr.stroke()
+
+   dead.reverse()
+   for i in dead:
+      del GLB.drops[i]

@@ -1,0 +1,79 @@
+def Init():
+   # --- author : claude
+   # --- Brown's pollen grains.  Each is knocked about by water molecules it
+   # --- is far too big to see, so it walks at random - and the mean square
+   # --- of how far it has gone grows in proportion to time, which is the
+   # --- observation that settled whether atoms were real.
+   # --- The grains wrap, so the field is never emptied.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Temperature")
+   STR.SetFParam1Name("Grain Size")
+   STR.SetFParam2Name("Trails")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : a current drifts the whole field
+   # ---    trigger : new sample
+
+   GLB.st = surface.get_stride() // 4
+   GLB.n = 150
+
+   def sample():
+      GLB.px = np.random.random(GLB.n) * 1280.0
+      GLB.py = np.random.random(GLB.n) * 720.0
+      GLB.vx = np.zeros(GLB.n)
+      GLB.vy = np.zeros(GLB.n)
+      # --- bigger grains are knocked about less, which is the whole point
+      GLB.rr = 2.0 + np.random.random(GLB.n) ** 2 * 9.0
+      GLB.hu = np.random.random(GLB.n)
+   GLB.sample = sample
+   GLB.sample()
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.2, 4.0)
+   f1 = STR.F1mix(0.4, 2.2)
+   f2 = STR.F2mix(3.0, 8.0)
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.sample()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8,
+                  buffer=surface.get_data())
+   np.subtract(v, np.right_shift(v, int(f2)), out=v)
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   # --- the kick a grain takes goes down with its size, and the drag goes
+   # --- up, so the little ones jitter and the big ones barely move
+   kick = f0 / GLB.rr
+   GLB.vx = GLB.vx * 0.82 + np.random.standard_normal(GLB.n) * kick
+   GLB.vy = GLB.vy * 0.82 + np.random.standard_normal(GLB.n) * kick
+   if acc:
+      GLB.vx = GLB.vx + cos(time * 0.5) * 0.8
+      GLB.vy = GLB.vy + sin(time * 0.37) * 0.8
+   px = GLB.px
+   py = GLB.py
+   GLB.px = np.mod(px + GLB.vx, 1280.0)
+   GLB.py = np.mod(py + GLB.vy, 720.0)
+
+   for i in range(GLB.n):
+      # --- a grain that wrapped would otherwise draw a line across the frame
+      if abs(GLB.px[i] - px[i]) > 40.0 or abs(GLB.py[i] - py[i]) > 40.0:
+         continue
+      c = hsv_to_rgb((GLB.hu[i] * 0.35 + 0.08) % 1.0, 0.55, 1.0)
+      cr.set_source_rgba(c[2], c[1], c[0], 0.85)
+      cr.set_line_width(GLB.rr[i] * f1 * 0.5)
+      cr.set_line_cap(cairo.LINE_CAP_ROUND)
+      cr.move_to(px[i], py[i])
+      cr.line_to(GLB.px[i], GLB.py[i])
+      cr.stroke()

@@ -1,0 +1,96 @@
+def Init():
+   # --- author : claude
+   # --- a parquet deformation.  A tiling is morphed by tiny steps from one
+   # --- column of the grid to the next, so the left edge is one pattern and
+   # --- the right edge another, and every tile in between is a legal tiling
+   # --- of its own.  The whole field scrolls, so the transformation runs
+   # --- through the frame forever and never arrives.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Scroll")
+   STR.SetFParam1Name("Tile Size")
+   STR.SetFParam2Name("Palette")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : the deformation runs vertically as well
+   # ---    trigger : next pair of tilings
+
+   GLB.st = surface.get_stride() // 4
+   GLB.off = 0.0
+   GLB.pair = 0
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 1.4)
+   f1 = STR.F1mix(48.0, 110.0)
+   f2 = STR.F2()
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.pair = (GLB.pair + 1) % 3
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   GLB.off = GLB.off + f0
+
+   cr.set_source_rgba(0, 0, 0, 1)
+   cr.rectangle(0, 0, 1280, 720)
+   cr.fill()
+
+   g = f1
+   nx = int(1280 / g) + 3
+   ny = int(720 / g) + 3
+   # --- the tiles are drawn slightly under size and the black ground shows
+   # --- between them as the grout.  Stroking every tile as well as filling
+   # --- it doubles the tile count in cairo terms and this frame already has
+   # --- several hundred of them.
+   ins = 0.46
+
+   for j in range(ny):
+      for i in range(nx):
+         x = i * g - (GLB.off % g)
+         y = j * g
+         # --- how far through the deformation this tile is.  It depends on
+         # --- position, not on time, so the pattern is a standing
+         # --- transformation that the scroll carries past the window.
+         u = (x + GLB.off) / 900.0
+         if acc:
+            u = u + y / 700.0
+         t = 0.5 + 0.5 * sin(u * 1.4)
+         c = hsv_to_rgb((f2 + t * 0.45 + j * 0.01) % 1.0, 0.62,
+                        0.40 + 0.55 * t)
+         cr.set_source_rgb(c[2], c[1], c[0])
+         cr.save()
+         cr.translate(x, y)
+         if GLB.pair == 0:
+            # --- square relaxing into a pinwheel
+            a = t * 0.7854
+            r = g * ins
+            cr.move_to(cos(a) * r, sin(a) * r)
+            for k in range(1, 4):
+               b = a + k * 1.5708
+               cr.line_to(cos(b) * r, sin(b) * r)
+            cr.close_path()
+         elif GLB.pair == 1:
+            # --- square opening out into a hexagon
+            r = g * ins
+            cr.move_to(r, 0)
+            for k in range(1, 7):
+               b = k * 6.2831853 / 6.0
+               rr = r * (1.0 - t) if (k % 3) == 0 else r
+               cr.line_to(cos(b) * rr, sin(b) * rr)
+            cr.close_path()
+         else:
+            # --- straight brick coursing shearing into a herringbone
+            cr.move_to(-g * ins, -g * 0.22)
+            cr.line_to(g * ins, -g * 0.22 + t * g * 0.44)
+            cr.line_to(g * ins, g * 0.22 + t * g * 0.44)
+            cr.line_to(-g * ins, g * 0.22)
+            cr.close_path()
+         cr.fill()
+         cr.restore()

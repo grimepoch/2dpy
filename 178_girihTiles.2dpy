@@ -1,0 +1,106 @@
+def Init():
+   # --- author : claude
+   # --- Islamic strapwork, built the traditional way : an eight point star
+   # --- and cross lattice with the straps woven over and under.
+   # --- The motif is public domain; the geometry here is generated, not traced.
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Cell Size")
+   STR.SetFParam1Name("Strap Width")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : gold on lapis
+   # ---    trigger : flip the weave
+
+   GLB.par = 0
+
+   def star(cx, cy, R, n, rot, inner):
+      # --- the classic n pointed star as one closed path
+      cr.new_sub_path()
+      for i in range(n * 2):
+         a = rot + i * pi / n
+         rr = R if i % 2 == 0 else R * inner
+         if i == 0:
+            cr.move_to(cx + cos(a) * rr, cy + sin(a) * rr)
+         else:
+            cr.line_to(cx + cos(a) * rr, cy + sin(a) * rr)
+      cr.close_path()
+   GLB.star = star
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(145.0, 260.0)
+   f1 = STR.F1mix(0.05, 0.22)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.par = 1 - GLB.par
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   if acc:
+      bg = (0.16, 0.07, 0.02)
+      c1 = (0.22, 0.72, 0.98)
+      c2 = (0.55, 0.86, 1.00)
+   else:
+      bg = hsv_to_rgb((f2 + 0.55) % 1.0, 0.8, 0.16)
+      c1 = hsv_to_rgb(f2, 0.75, 1.0)
+      c2 = hsv_to_rgb((f2 + 0.12) % 1.0, 0.45, 1.0)
+
+   cr.set_source_rgb(bg[2], bg[1], bg[0])
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cs = f0
+   nx = int(1280 / cs) + 2
+   ny = int(720 / cs) + 2
+   R = cs * 0.5
+   sw = cs * f1
+   rot = time * 0.04
+
+   cr.set_line_join(cairo.LINE_JOIN_MITER)
+   cr.set_line_cap(cairo.LINE_CAP_BUTT)
+
+   # --- two passes: casing then core, so the straps read as woven ribbon
+   for layer in range(2):
+      if layer == 0:
+         cr.set_source_rgb(bg[2] * 0.4, bg[1] * 0.4, bg[0] * 0.4)
+         w = sw + 5.0
+      else:
+         cr.set_source_rgb(c1[2], c1[1], c1[0])
+         w = sw
+      cr.set_line_width(w)
+      for j in range(ny):
+         for i in range(nx):
+            x = (i - 0.5) * cs
+            y = (j - 0.5) * cs
+            # --- stars sit on one sublattice, crosses on the other
+            if (i + j) % 2 == GLB.par:
+               GLB.star(x, y, R * 0.82, 8, rot, 0.42)
+            else:
+               GLB.star(x, y, R * 0.55, 4, rot + pi * 0.25, 0.45)
+      cr.stroke()
+
+   # --- the connecting straps that tie the lattice together
+   cr.set_source_rgb(c2[2], c2[1], c2[0])
+   cr.set_line_width(sw * 0.55)
+   for j in range(ny):
+      for i in range(nx):
+         x = (i - 0.5) * cs
+         y = (j - 0.5) * cs
+         if (i + j) % 2 != GLB.par:
+            continue
+         for k in range(4):
+            a = rot + k * pi * 0.5 + pi * 0.25
+            cr.move_to(x + cos(a) * R * 0.42, y + sin(a) * R * 0.42)
+            cr.line_to(x + cos(a) * R * 1.18, y + sin(a) * R * 1.18)
+   cr.stroke()

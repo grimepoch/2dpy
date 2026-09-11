@@ -1,0 +1,98 @@
+def Init():
+   # --- author : claude
+   # --- metaballs : an inverse square field summed over drifting centres and
+   # --- cut at a threshold, so the blobs stretch and merge as they meet
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Threshold")
+   STR.SetFParam1Name("Balls")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : contour bands instead of a solid cut
+   # ---    trigger : rescatter
+
+   GLB.res = 10
+   GLB.nx = int(1280 / GLB.res) + 1
+   GLB.ny = int(720 / GLB.res) + 1
+   xs = (np.arange(GLB.nx, dtype=np.float32) * GLB.res).reshape(1, GLB.nx, 1)
+   ys = (np.arange(GLB.ny, dtype=np.float32) * GLB.res).reshape(GLB.ny, 1, 1)
+   GLB.X = xs
+   GLB.Y = ys
+   GLB.nmax = 12
+
+   def scatter():
+      GLB.px = np.random.random(GLB.nmax) * 1280.0
+      GLB.py = np.random.random(GLB.nmax) * 720.0
+      GLB.vx = (np.random.random(GLB.nmax) - 0.5) * 7.0
+      GLB.vy = (np.random.random(GLB.nmax) - 0.5) * 7.0
+      GLB.rr = 40.0 + np.random.random(GLB.nmax) * 90.0
+   GLB.scatter = scatter
+   GLB.scatter()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.35, 2.2)
+   f1 = STR.F1mix(2.0, 12.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.scatter()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   n = int(f1)
+
+   GLB.px[:n] = GLB.px[:n] + GLB.vx[:n]
+   GLB.py[:n] = GLB.py[:n] + GLB.vy[:n]
+   GLB.vx[:n] = np.where((GLB.px[:n] < 40) | (GLB.px[:n] > 1240), -GLB.vx[:n], GLB.vx[:n])
+   GLB.vy[:n] = np.where((GLB.py[:n] < 40) | (GLB.py[:n] > 680), -GLB.vy[:n], GLB.vy[:n])
+   GLB.px[:n] = np.clip(GLB.px[:n], 40, 1240)
+   GLB.py[:n] = np.clip(GLB.py[:n], 40, 680)
+
+   dx = GLB.X - GLB.px[:n].reshape(1, 1, n)
+   dy = GLB.Y - GLB.py[:n].reshape(1, 1, n)
+   r2 = dx * dx + dy * dy + 1.0
+   fld = np.sum((GLB.rr[:n] * GLB.rr[:n]).reshape(1, 1, n) / r2, axis=2)
+
+   cr.set_source_rgb(0.02, 0.01, 0.03)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   # --- either one solid cut, or a stack of nested contours
+   if acc:
+      levels = [f0 * 0.5, f0 * 0.75, f0, f0 * 1.6, f0 * 2.6]
+   else:
+      levels = [f0]
+
+   res = GLB.res
+   for li in range(len(levels)):
+      mask = fld > levels[li]
+      t = li / (len(levels) * 1.0)
+      r,g,b = hsv_to_rgb((f2 + t * 0.3) % 1.0, 0.85 - 0.4 * t, 0.45 + 0.55 * t)
+      if GLB.xmode:
+         cr.set_source_rgba(b, g, r, 0.55)
+      else:
+         cr.set_source_rgb(b, g, r)
+      # --- rows collapse into runs, which is what makes a blob cheap
+      for j in range(GLB.ny):
+         row = mask[j]
+         k = 0
+         while k < GLB.nx:
+            if not row[k]:
+               k = k + 1
+               continue
+            k2 = k
+            while k2 < GLB.nx and row[k2]:
+               k2 = k2 + 1
+            cr.rectangle(k * res, j * res, (k2 - k) * res, res + 1)
+            k = k2
+      cr.fill()

@@ -1,0 +1,94 @@
+def Init():
+   # --- author : claude
+   # --- contour map of the spectrum : each slot pushes a lobe out of the
+   # --- contours, and the dashes crawl so the lines stay alive
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Crawl")
+   STR.SetFParam1Name("Contours")
+   STR.SetFParam2Name("Relief")
+   # ---    accent : solid lines
+   # ---    trigger : radial <-> banded
+
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   GLB.n = 12 if GLB.slots == 24 else GLB.slots
+   GLB.lvl = []
+   for i in range(GLB.n):
+      GLB.lvl.append(0.0)
+   GLB.steps = 128
+   GLB.th = np.linspace(0.0, 2.0 * pi, GLB.steps)
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 70.0)
+   f1 = STR.F1mix(4.0, 16.0)
+   f2 = STR.F2mix(20.0, 180.0)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   n = GLB.n
+   for k in range(n):
+      GLB.lvl[k] = GLB.lvl[k] * 0.91
+
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if ids == 0:
+         continue
+      k = (note % 12) if GLB.mode == "midi" else i
+      if k < n:
+         v = velo / 127.0
+         if v > GLB.lvl[k]:
+            GLB.lvl[k] = v
+
+   cr.set_source_rgb(0.03, 0.04, 0.05)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   th = GLB.th
+   nc = int(f1)
+
+   # --- one lobe per slot, summed onto every contour
+   lobe = np.zeros(GLB.steps)
+   for k in range(n):
+      c = k * 2.0 * pi / n
+      d = np.abs(np.mod(th - c + pi, 2.0 * pi) - pi)
+      lobe = lobe + GLB.lvl[k] * np.exp(-(d * d) * 6.0)
+
+   cr.set_line_cap(cairo.LINE_CAP_BUTT)
+   for c in range(nc):
+      u = (c + 1) / (nc + 1.0)
+      if GLB.xmode:
+         rr = 30.0 + u * 330.0 + lobe * f2 * (1.0 - u)
+      else:
+         rr = 30.0 + u * 330.0 + lobe * f2 * u
+      xs = (640.0 + np.cos(th) * rr).tolist()
+      ys = (360.0 + np.sin(th) * rr * 0.72).tolist()
+      t = c / (nc * 1.0)
+      r,g,b = hsv_to_rgb((0.42 + t * 0.3) % 1.0, 0.5 + 0.4 * t, 0.45 + 0.55 * t)
+      cr.set_source_rgb(b, g, r)
+      cr.set_line_width(1.2 + 1.8 * t)
+      if not acc:
+         cr.set_dash([9.0, 6.0], time * f0 * (1.0 if c % 2 == 0 else -1.0))
+      cr.move_to(xs[0], ys[0])
+      for i in range(1, GLB.steps):
+         cr.line_to(xs[i], ys[i])
+      cr.close_path()
+      cr.stroke()
+   cr.set_dash([])

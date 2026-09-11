@@ -1,0 +1,134 @@
+def Init():
+   # --- author : claude
+   # --- an anatomical plate : a segmented form with leader lines out to
+   # --- numbered labels, in the style of an engraved atlas
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Segments")
+   STR.SetFParam1Name("Explode")
+   STR.SetFParam2Name("Tint")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : plate hatched
+   # ---    trigger : new subject
+
+   GLB.terms = ["FIG I","FIG II","A","B","C","D","E","F","G","H","K","L"]
+
+   def subject():
+      GLB.s = []
+      for i in range(12):
+         GLB.s.append([np.random.random() * 6.28,
+                       0.35 + np.random.random() * 0.55,
+                       0.25 + np.random.random() * 0.5,
+                       np.random.random()])
+   GLB.subject = subject
+   GLB.subject()
+
+   def text(x, y, s):
+      cr.save()
+      cr.translate(x, y)
+      cr.scale(1.0, -1.0)
+      cr.move_to(0, 0)
+      cr.show_text(s)
+      cr.restore()
+   GLB.text = text
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(3.0, 12.0)
+   f1 = STR.F1mix(0.0, 160.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.subject()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   paper = (0.92, 0.91, 0.86)
+   ink = (0.16, 0.14, 0.18)
+   cr.set_source_rgb(paper[2], paper[1], paper[0])
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   n = int(f0)
+   cx = 560.0
+   cy = 360.0
+   R = 210.0
+   ex = f1
+
+   cr.select_font_face("serif", cairo.FONT_SLANT_ITALIC, cairo.FONT_WEIGHT_NORMAL)
+   cr.set_font_size(21)
+
+   for k in range(n):
+      s = GLB.s[k]
+      a = s[0] + time * 0.05
+      # --- each segment slides outward along its own bearing
+      ox = cos(a) * ex * s[2]
+      oy = sin(a) * ex * s[2]
+      px = cx + cos(a) * R * s[1] + ox
+      py = cy + sin(a) * R * s[1] * 0.9 + oy
+      rr = 34.0 + 46.0 * s[2]
+
+      if GLB.xmode:
+         c = hsv_to_rgb((s[3] + f2) % 1.0, 0.45, 0.85)
+      else:
+         c = hsv_to_rgb((0.05 + s[3] * 0.08 + f2 * 0.1) % 1.0, 0.35, 0.80)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      cr.save()
+      cr.translate(px, py)
+      cr.rotate(a)
+      cr.scale(1.0, 0.62)
+      cr.new_sub_path()
+      cr.arc(0, 0, rr, 0, 2 * pi)
+      cr.restore()
+      cr.fill_preserve()
+      cr.set_source_rgb(ink[2], ink[1], ink[0])
+      cr.set_line_width(2)
+      cr.stroke()
+
+      if acc:
+         # --- engraver's hatching inside the segment
+         cr.save()
+         cr.translate(px, py)
+         cr.rotate(a)
+         cr.scale(1.0, 0.62)
+         cr.new_path()
+         cr.arc(0, 0, rr, 0, 2 * pi)
+         cr.clip()
+         cr.set_source_rgba(ink[2], ink[1], ink[0], 0.55)
+         cr.set_line_width(1.2)
+         j = -14
+         while j < 14:
+            cr.move_to(-rr, j * 7.0)
+            cr.line_to(rr, j * 7.0 + rr)
+            j = j + 1
+         cr.stroke()
+         cr.restore()
+
+      # --- the leader line out to the label
+      lx = 1020.0
+      ly = 660.0 - k * (600.0 / n)
+      cr.set_source_rgb(ink[2], ink[1], ink[0])
+      cr.set_line_width(1.2)
+      cr.move_to(px + rr * 0.7, py)
+      cr.line_to(lx - 34, ly + 6)
+      cr.line_to(lx - 10, ly + 6)
+      cr.stroke()
+      cr.new_sub_path()
+      cr.arc(px + rr * 0.7, py, 3.2, 0, 2 * pi)
+      cr.fill()
+      GLB.text(lx, ly, GLB.terms[k % len(GLB.terms)])
+
+   cr.set_source_rgb(ink[2], ink[1], ink[0])
+   cr.set_line_width(3)
+   cr.rectangle(46, 46, 1188, 628)
+   cr.stroke()

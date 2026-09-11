@@ -1,0 +1,95 @@
+def Init():
+   # --- author : claude
+   # --- a kaleidoscope : a handful of strokes drawn once into a wedge, then
+   # --- mirrored and rotated around the centre
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Mirrors")
+   STR.SetFParam2Name("Scatter")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : mirrors drop out, plain rotation
+   # ---    trigger : new set of shapes
+
+   GLB.hue = 0.0
+
+   def newshapes():
+      GLB.sh = []
+      for i in range(7):
+         GLB.sh.append([np.random.random(),                    # --- r along wedge
+                        (np.random.random() - 0.5),            # --- angle in wedge
+                        np.random.random(),                    # --- size
+                        np.random.random(),                    # --- hue
+                        np.random.randint(0, 3),               # --- kind
+                        (np.random.random() - 0.5) * 0.05])    # --- drift
+   GLB.newshapes = newshapes
+   GLB.newshapes()
+
+   def wedge(half, t, sc):
+      # --- everything for one slice of the pie, drawn about the origin
+      for s in GLB.sh:
+         a = s[1] * half * 1.7 + s[5] * t * 6.0
+         rr = 70.0 + s[0] * 480.0 * sc
+         x = cos(a) * rr
+         y = sin(a) * rr
+         sz = 6.0 + s[2] * 46.0
+         r,g,b = hsv_to_rgb((GLB.hue + s[3] * 0.5) % 1.0, 0.85, 1.0)
+         cr.set_source_rgb(b, g, r)
+         if s[4] == 0:
+            cr.new_sub_path()
+            cr.arc(x, y, sz, 0, 2 * pi)
+            cr.fill()
+         elif s[4] == 1:
+            cr.set_line_width(3)
+            cr.move_to(x - sz, y)
+            cr.line_to(x + sz, y + sz * 0.6)
+            cr.stroke()
+         else:
+            cr.rectangle(x - sz * 0.5, y - sz * 0.5, sz, sz)
+            cr.fill()
+   GLB.wedge = wedge
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.06, 0.7)
+   f1 = STR.F1mix(3.0, 12.0)
+   f2 = STR.F2mix(0.35, 1.25)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.newshapes()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,f0)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   GLB.hue = (GLB.hue + 0.0022) % 1.0
+
+   n = int(f1)
+   step = 2.0 * pi / n
+   half = step * 0.5
+
+   cr.save()
+   cr.translate(640, 360)
+   cr.rotate(time * 0.12)
+   for k in range(n):
+      cr.save()
+      cr.rotate(k * step)
+      GLB.wedge(half, time, f2)
+      if not acc:
+         # --- the mirror image of the same wedge
+         cr.scale(1.0, -1.0)
+         GLB.wedge(half, time, f2)
+      cr.restore()
+   cr.restore()

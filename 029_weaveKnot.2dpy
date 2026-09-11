@@ -1,0 +1,93 @@
+def Init():
+   # --- author : claude
+   # --- basket weave : warp and weft ribbons that really pass over and under
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Strands")
+   STR.SetFParam2Name("Ribbon")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : shadow gap between ribbons
+   # ---    trigger : flip the over/under parity
+
+   GLB.parity = 0
+   GLB.hue = 0.0
+
+   def strand(vertical, k, n, wob, t, wide, col):
+      # --- one ribbon, drawn as a wobbling thick line across the whole screen
+      cr.set_line_width(wide)
+      cr.set_line_cap(cairo.LINE_CAP_BUTT)
+      cr.set_source_rgb(col[2], col[1], col[0])
+      if vertical:
+         x = (k + 0.5) * 1280.0 / n
+         cr.move_to(x + wob * sin(t), -10)
+         for s in range(1, 9):
+            cr.line_to(x + wob * sin(t + s * 0.5), s * 90.0)
+      else:
+         y = (k + 0.5) * 720.0 / n
+         cr.move_to(-10, y + wob * sin(t))
+         for s in range(1, 9):
+            cr.line_to(s * 160.0, y + wob * sin(t + s * 0.5))
+      cr.stroke()
+   GLB.strand = strand
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.35, 1.0)
+   f1 = STR.F1mix(4.0, 15.0)
+   f2 = STR.F2mix(0.25, 0.95)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.parity = 1 - GLB.parity
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,f0)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   GLB.hue = (GLB.hue + 0.0015) % 1.0
+
+   nv = int(f1)
+   nh = int(f1 * 720.0 / 1280.0) + 1
+   wide = (1280.0 / nv) * f2
+   wob  = 14.0 * sin(time * 0.4) + 6.0
+
+   # --- pass 1 : every ribbon flat
+   for k in range(nv):
+      c = hsv_to_rgb((GLB.hue + k * 0.03) % 1.0, 0.55, 1.0)
+      if acc:
+         GLB.strand(1, k, nv, wob, time * 0.6 + k, wide + 8, (0,0,0))
+      GLB.strand(1, k, nv, wob, time * 0.6 + k, wide, c)
+   for k in range(nh):
+      c = hsv_to_rgb((GLB.hue + 0.45 + k * 0.03) % 1.0, 0.55, 1.0)
+      if acc:
+         GLB.strand(0, k, nh, wob, time * 0.6 + k, wide + 8, (0,0,0))
+      GLB.strand(0, k, nh, wob, time * 0.6 + k, wide, c)
+
+   # --- pass 2 : put the vertical ribbon back on top in every other cell,
+   # --- clipped to that cell only, which is what sells the weave
+   cw = 1280.0 / nv
+   ch = 720.0 / nh
+   for i in range(nv):
+      for j in range(nh):
+         if (i + j) % 2 != GLB.parity:
+            continue
+         cr.save()
+         cr.rectangle(i * cw, j * ch, cw, ch)
+         cr.clip()
+         c = hsv_to_rgb((GLB.hue + i * 0.03) % 1.0, 0.55, 1.0)
+         if acc:
+            GLB.strand(1, i, nv, wob, time * 0.6 + i, wide + 8, (0,0,0))
+         GLB.strand(1, i, nv, wob, time * 0.6 + i, wide, c)
+         cr.restore()

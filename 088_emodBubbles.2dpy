@@ -1,0 +1,124 @@
+def Init():
+   # --- author : claude
+   # --- bubbles released by the slots, rising and wobbling.  A loud slot
+   # --- releases bigger and faster ones from its own vent.
+   # --- note : screen y=0 is the BOTTOM, so bubbles rise toward y=720
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Rise")
+   STR.SetFParam1Name("Size")
+   STR.SetFParam2Name("Hue")
+   # ---    accent : bubbles pop at the top
+   # ---    trigger : vents move
+
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   GLB.n = 12 if GLB.slots == 24 else GLB.slots
+   GLB.lvl = []
+   for i in range(GLB.n):
+      GLB.lvl.append(0.0)
+   GLB.b = []
+   GLB.pops = []
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.5, 6.0)
+   f1 = STR.F1mix(8.0, 40.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   n = GLB.n
+   for k in range(n):
+      GLB.lvl[k] = GLB.lvl[k] * 0.90
+
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if ids == 0:
+         continue
+      k = (note % 12) if GLB.mode == "midi" else i
+      if k < n:
+         v = velo / 127.0
+         if v > GLB.lvl[k]:
+            GLB.lvl[k] = v
+
+   # --- release
+   for k in range(n):
+      v = GLB.lvl[k]
+      if v > 0.10 and np.random.random() < v * 0.55:
+         x = (k + 0.5) * 1280.0 / n
+         if GLB.xmode:
+            x = 640.0 + (x - 640.0) * 0.35
+         GLB.b.append([x + (np.random.random() - 0.5) * 40.0, 10.0,
+                       f1 * (0.35 + 0.9 * v) * (0.6 + np.random.random() * 0.8),
+                       np.random.random() * 6.28, k / (n * 1.0), v])
+   while len(GLB.b) > 130:
+      del GLB.b[0]
+
+   cr.set_source_rgb(0.02, 0.04, 0.07)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   dead = []
+   for i in range(len(GLB.b)):
+      q = GLB.b[i]
+      # --- bigger bubbles rise faster
+      q[1] = q[1] + f0 * (0.4 + q[2] * 0.05)
+      q[3] = q[3] + 0.08
+      x = q[0] + sin(q[3]) * q[2] * 0.5
+      if q[1] > 720 + q[2]:
+         if acc:
+            GLB.pops.append([x, 710.0, q[2], 1.0])
+         dead.append(i)
+         continue
+      r,g,b = hsv_to_rgb((f2 + q[4] * 0.4) % 1.0, 0.55, 1.0)
+      rad = q[2]
+      # --- a bubble is a rim, not a disc: radial gradient does it in one fill
+      rg = cairo.RadialGradient(x, q[1], rad * 0.35, x, q[1], rad)
+      rg.add_color_stop_rgba(0.0, b, g, r, 0.06)
+      rg.add_color_stop_rgba(0.78, b, g, r, 0.14)
+      rg.add_color_stop_rgba(0.93, b, g, r, 0.85)
+      rg.add_color_stop_rgba(1.0, b, g, r, 0.0)
+      cr.set_source(rg)
+      cr.rectangle(x - rad, q[1] - rad, rad * 2, rad * 2)
+      cr.fill()
+      # --- highlight
+      cr.set_source_rgba(1, 1, 1, 0.5)
+      cr.rectangle(x - rad * 0.45, q[1] + rad * 0.32, rad * 0.22, rad * 0.16)
+      cr.fill()
+
+   dead.reverse()
+   for i in dead:
+      del GLB.b[i]
+
+   pd = []
+   for i in range(len(GLB.pops)):
+      p = GLB.pops[i]
+      p[3] = p[3] - 0.08
+      if p[3] <= 0:
+         pd.append(i)
+         continue
+      cr.set_source_rgba(1, 1, 1, p[3] * 0.6)
+      cr.set_line_width(2)
+      cr.new_sub_path()
+      cr.arc(p[0], p[1], p[2] * (1.0 + (1.0 - p[3]) * 1.5), 0, 2 * pi)
+      cr.stroke()
+   pd.reverse()
+   for i in pd:
+      del GLB.pops[i]

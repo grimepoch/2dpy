@@ -1,0 +1,100 @@
+def Init():
+   # --- author : claude
+   # --- the Stern-Brocot tree.  Every fraction in lowest terms appears
+   # --- exactly once, and each is the mediant of the two above it - add the
+   # --- numerators, add the denominators.  The tree is drawn a level at a
+   # --- time and then slides up to make room, so it descends forever.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Descent")
+   STR.SetFParam1Name("Levels")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : follow one path down, the continued fraction
+   # ---    trigger : new path
+
+   GLB.st = surface.get_stride() // 4
+   GLB.off = 0.0
+   GLB.path = 0
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 0.9)
+   f1 = STR.F1mix(5.0, 9.99)
+   f2 = STR.F2()
+
+   if trig:
+      GLB.path = np.random.randint(0, 1 << 10)
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   GLB.off = GLB.off + f0
+
+   cr.set_source_rgba(0, 0, 0, 1)
+   cr.rectangle(0, 0, 1280, 720)
+   cr.fill()
+
+   nl = int(f1)
+   lh = 110.0
+   cr.select_font_face("sans", cairo.FONT_SLANT_NORMAL,
+                       cairo.FONT_WEIGHT_NORMAL)
+   cr.set_font_size(15.0)
+
+   # --- each level is built as the mediants of the level above, which is
+   # --- the definition of the tree
+   lefts = [[0, 1]]
+   rights = [[1, 0]]
+   nodes = [[1, 1]]
+   for lv in range(nl):
+      y = 90.0 + lv * lh - (GLB.off % lh)
+      if y < -40 or y > 760:
+         pass
+      n = len(nodes)
+      for i in range(n):
+         p = nodes[i][0]
+         q = nodes[i][1]
+         x = 1280.0 * (i + 0.5) / n
+         val = p / (q * 1.0)
+         c = hsv_to_rgb((f2 + val * 0.5) % 1.0, 0.72,
+                        0.45 + 0.55 / (1.0 + q * 0.12))
+         on = acc and ((GLB.path >> lv) & 1) == (1 if i * 2 >= n else 0)
+         cr.set_source_rgb(c[2], c[1], c[0])
+         rr = 4.0 + 26.0 / (1.0 + q * 0.30)
+         if on:
+            rr = rr * 1.6
+         cr.new_sub_path()
+         cr.arc(x, y, rr, 0, 6.2831853)
+         cr.fill()
+         if rr > 9.0:
+            cr.set_source_rgb(0.05, 0.05, 0.06)
+            cr.save()
+            cr.translate(x - 11, y + 4)
+            cr.scale(1, -1)
+            cr.move_to(0, 0)
+            cr.show_text(str(p) + "/" + str(q))
+            cr.restore()
+      # --- descend : between every neighbouring pair, insert their mediant
+      nl2 = []
+      nr2 = []
+      nn = []
+      for i in range(n):
+         a = lefts[i]
+         b = nodes[i]
+         c2 = rights[i]
+         nl2.append(a)
+         nn.append([a[0] + b[0], a[1] + b[1]])
+         nr2.append(b)
+         nl2.append(b)
+         nn.append([b[0] + c2[0], b[1] + c2[1]])
+         nr2.append(c2)
+      lefts = nl2
+      rights = nr2
+      nodes = nn
+      if len(nodes) > 96:
+         break

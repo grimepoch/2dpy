@@ -1,0 +1,72 @@
+def Init():
+   # --- author : claude
+   # --- what the miter limit is actually for : at a sharp corner a mitered
+   # --- join shoots out to a spike, and raising the limit lets it.
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Miter Limit")
+   STR.SetFParam1Name("Points")
+   STR.SetFParam2Name("Width")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : round joins instead, for comparison
+   # ---    trigger : star <-> gear profile
+
+   GLB.spin = 0.0
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(1.0, 30.0)
+   f1 = STR.F1mix(3.0, 16.0)
+   f2 = STR.F2mix(2.0, 34.0)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   cr.set_source_rgb(0.02, 0.02, 0.04)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   GLB.spin = GLB.spin + 0.006
+   n = int(f1)
+
+   cr.save()
+   cr.translate(640, 360)
+
+   if acc:
+      cr.set_line_join(cairo.LINE_JOIN_ROUND)
+   else:
+      cr.set_line_join(cairo.LINE_JOIN_MITER)
+      cr.set_miter_limit(f0)
+
+   for ring in range(5):
+      rr = 70.0 + ring * 62.0
+      inner = rr * (0.45 + 0.2 * sin(time * 0.7 + ring))
+      t = ring / 4.0
+      r,g,b = hsv_to_rgb((t * 0.4 + time * 0.04) % 1.0, 0.8, 1.0)
+      cr.set_source_rgb(b, g, r)
+      cr.set_line_width(f2 * (1.0 - t * 0.5))
+      sp = GLB.spin * (1.0 if ring % 2 == 0 else -1.0)
+      cr.new_path()
+      for i in range(n * 2 + 1):
+         a = i * pi / n + sp
+         rad = rr if i % 2 == 0 else inner
+         if GLB.xmode and i % 2 == 1:
+            rad = rr * 0.92
+         if i == 0:
+            cr.move_to(cos(a) * rad, sin(a) * rad)
+         else:
+            cr.line_to(cos(a) * rad, sin(a) * rad)
+      cr.close_path()
+      cr.stroke()
+
+   cr.restore()

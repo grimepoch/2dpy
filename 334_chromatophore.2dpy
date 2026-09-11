@@ -1,0 +1,89 @@
+def Init():
+   # --- author : claude
+   # --- cuttlefish skin.  Each chromatophore is a sac of pigment with
+   # --- muscles round it; pull and it opens into a disc, release and it
+   # --- shrinks to a point.  Waves of activation run across the sheet -
+   # --- passing clouds - so the animal's pattern is always moving.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Wave Speed")
+   STR.SetFParam1Name("Density")
+   STR.SetFParam2Name("Pigment")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : a startle display, everything opens at once
+   # ---    trigger : new skin
+
+   GLB.st = surface.get_stride() // 4
+
+   def skin():
+      # --- every one is a cairo arc, so this is a frame-time decision
+      n = 680
+      GLB.n = n
+      GLB.px = np.random.random(n) * 1280.0
+      GLB.py = np.random.random(n) * 720.0
+      GLB.pr = 6.0 + np.random.random(n) * 16.0
+      # --- three pigment classes, as the animal has
+      GLB.pk = np.random.randint(0, 3, n)
+      GLB.pp = np.random.random(n) * 6.283
+   GLB.skin = skin
+   GLB.skin()
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.05, 1.1)
+   f1 = STR.F1mix(0.25, 1.0)
+   f2 = STR.F2()
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.skin()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   # --- the skin itself, a pale leather
+   cr.set_source_rgb(0.62, 0.70, 0.76)
+   cr.rectangle(0, 0, 1280, 720)
+   cr.fill()
+
+   t = time * f0
+   # --- a travelling band of activation, plus a slower one crossing it
+   # --- a single travelling band, sharpened.  Multiplying two broad sines
+   # --- leaves every chromatophore half open and the wave cannot be seen.
+   act = np.sin(GLB.px * 0.008 + GLB.py * 0.004 - t * 3.0) * 0.65 + \
+       np.sin(GLB.py * 0.011 + t * 1.7) * 0.35
+   if acc:
+      act = act * 0.15 + 0.85
+   open_ = np.clip((act + 0.35) * 2.2, 0.0, 1.0)
+
+   nsh = int(GLB.n * f1)
+   pig = [[0.10, 0.14, 0.42], [0.12, 0.30, 0.62], [0.16, 0.10, 0.16]]
+   for k in range(3):
+      c0 = pig[k]
+      c = hsv_to_rgb((f2 * 0.2 + k * 0.06) % 1.0, 0.55, 1.0)
+      cr.set_source_rgb(c0[0] * c[2] * 2.0, c0[1] * c[1] * 2.0,
+                        c0[2] * c[0] * 2.0)
+      for i in range(nsh):
+         if GLB.pk[i] != k:
+            continue
+         o = open_[i]
+         if o < 0.04:
+            continue
+         cr.new_sub_path()
+         cr.arc(GLB.px[i], GLB.py[i], GLB.pr[i] * o, 0, 6.2831853)
+      cr.fill()
+
+   # --- iridophores underneath, which show through wherever the
+   # --- chromatophores above them are shut
+   cr.set_source_rgba(0.85, 0.95, 0.75, 0.12)
+   for i in range(0, nsh, 7):
+      if open_[i] > 0.25:
+         continue
+      cr.new_sub_path()
+      cr.arc(GLB.px[i], GLB.py[i], GLB.pr[i] * 0.8, 0, 6.2831853)
+   cr.fill()

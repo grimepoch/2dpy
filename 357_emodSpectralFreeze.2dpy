@@ -1,0 +1,75 @@
+def Init():
+   # --- author : claude
+   # --- a spectral freeze.  The analysis is held and replayed with the phase
+   # --- advanced but the magnitudes locked, so a moment of sound is
+   # --- stretched out indefinitely - it keeps moving without going anywhere,
+   # --- which is exactly what it sounds like.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Freeze")
+   STR.SetFParam1Name("Bins")
+   STR.SetFParam2Name("Smear")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : capture a new moment
+   # ---    trigger : release the freeze
+
+   GLB.st = surface.get_stride() // 4
+   GLB.nb = 96
+   GLB.mag = np.zeros(GLB.nb, dtype=np.float32)
+   GLB.frz = np.zeros(GLB.nb, dtype=np.float32)
+   GLB.pha = np.random.random(GLB.nb).astype(np.float32) * 6.283
+   GLB.held = 1
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 1.0)
+   f1 = STR.F1mix(24.0, 96.0)
+   f2 = STR.F2mix(2.0, 6.0)
+
+   if trig:
+      GLB.held = 1 - GLB.held
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   nb = int(f1)
+   live = np.zeros(GLB.nb, dtype=np.float32)
+   for i in range(GLB.slots):
+      d = STR.GetSlotData(i)
+      if d[0] == 0:
+         continue
+      b = int(d[1]) % nb
+      live[b] = max(live[b], d[2] / 127.0)
+   GLB.mag = np.maximum(live, GLB.mag * 0.85)
+   if acc or GLB.held == 0:
+      GLB.frz = GLB.mag.copy()
+
+   # --- the magnitudes are held; only the phase moves on.  That is the
+   # --- whole trick, and why it neither decays nor repeats.
+   GLB.pha = np.mod(GLB.pha + 0.03 + np.arange(GLB.nb) * 0.0016, 6.2831853)
+   use = GLB.frz * f0 + GLB.mag * (1.0 - f0)
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8,
+                  buffer=surface.get_data())
+   np.subtract(v, np.right_shift(v, int(f2)), out=v)
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   bw = 1280.0 / nb
+   for b in range(nb):
+      m = use[b]
+      if m < 0.015:
+         continue
+      # --- the bin's phase sets where in its lane the energy sits, so a
+      # --- frozen chord shimmers instead of standing still
+      y = 360.0 + sin(GLB.pha[b]) * 250.0 * (0.3 + m)
+      c = hsv_to_rgb((b / (nb * 1.0)) % 1.0, 0.78, min(0.35 + m, 1.0))
+      cr.set_source_rgba(c[2], c[1], c[0], 0.9)
+      cr.rectangle(b * bw + 1, y - m * 40.0, bw - 2, m * 80.0 + 2.0)
+      cr.fill()

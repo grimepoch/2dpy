@@ -1,0 +1,109 @@
+def Init():
+   # --- author : claude
+   # --- every note throws its own letter at the screen : the glyph outline is
+   # --- pulled with text_path, so it can be scaled, spun and outlined
+   # --- note : screen y=0 is the BOTTOM, so glyph y is NEGATED when drawn
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Size")
+   STR.SetFParam2Name("Spin")
+   # ---    accent : outlines only
+   # ---    trigger : letters <-> note names
+
+   # --- 10 slots = FFT analysis bins, 24 slots = MIDI notes
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   GLB.names = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"]
+   GLB.hits = []
+   GLB.prev = []
+   for i in range(24):
+      GLB.prev.append(0)
+
+   def hit(k, velo):
+      s = GLB.names[k % 12] if GLB.xmode else "ABCDEFGHIJKL"[k % 12]
+      GLB.hits.append([640.0 + (np.random.random() - 0.5) * 820.0,
+                       360.0 + (np.random.random() - 0.5) * 440.0,
+                       0.0, velo, s, (np.random.random() - 0.5) * 2.0,
+                       k / 12.0])
+      if len(GLB.hits) > 22:
+         del GLB.hits[0]
+   GLB.hit = hit
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.08, 0.7)
+   f1 = STR.F1mix(80.0, 300.0)
+   f2 = STR.F2mix(0.0, 3.0)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if GLB.mode == "midi":
+         if ids != 0 and GLB.prev[i] != ids:
+            GLB.hit(note, velo / 127.0)
+         GLB.prev[i] = ids
+      else:
+         if velo > 72 and GLB.prev[i] <= 72:
+            GLB.hit(i, velo / 127.0)
+         GLB.prev[i] = velo
+
+   cr.set_source_rgba(0, 0, 0, f0)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cr.select_font_face("sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+   cr.set_line_join(cairo.LINE_JOIN_ROUND)
+
+   dead = []
+   for i in range(len(GLB.hits)):
+      h = GLB.hits[i]
+      h[2] = h[2] + 0.030
+      if h[2] >= 1.0:
+         dead.append(i)
+         continue
+      # --- pop out fast, then drift and fade
+      g = h[2]
+      pop = 1.0 - pow(1.0 - g, 3.0)
+      size = f1 * (0.35 + 0.65 * h[3]) * (0.25 + 0.95 * pop)
+      a = 1.0 - g * g
+      r,gg,b = hsv_to_rgb((h[6] + time * 0.02) % 1.0, 0.8, 1.0)
+
+      cr.set_font_size(size)
+      e = cr.text_extents(h[4])
+      cr.save()
+      cr.translate(h[0], h[1])
+      cr.rotate(h[5] * f2 * g)
+      cr.scale(1.0, -1.0)
+      cr.move_to(-e.width * 0.5 - e.x_bearing, -e.height * 0.5)
+      if acc:
+         cr.text_path(h[4])
+         cr.restore()
+         cr.set_source_rgba(b, gg, r, a)
+         cr.set_line_width(2.0 + 4.0 * h[3])
+         cr.stroke()
+      else:
+         cr.set_source_rgba(b, gg, r, a)
+         cr.show_text(h[4])
+         cr.restore()
+
+   dead.reverse()
+   for i in dead:
+      del GLB.hits[i]

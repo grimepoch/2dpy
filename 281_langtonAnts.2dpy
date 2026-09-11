@@ -1,0 +1,127 @@
+def Init():
+   # --- author : claude
+   # --- Langton's ants.  An ant turns on the colour of the cell it is
+   # --- standing on and then flips that colour, so the trail it leaves is
+   # --- also the only instruction it will ever get.  Left alone one ant
+   # --- makes noise for ten thousand steps and then abruptly builds a
+   # --- highway; several ants keep wrecking each other's.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Speed")
+   STR.SetFParam1Name("Ants")
+   STR.SetFParam2Name("Palette")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : ants ignore the rule and turn at random
+   # ---    trigger : wipe the plane
+
+   GLB.res = 3
+   GLB.gx = 1280 // GLB.res
+   GLB.gy = 720 // GLB.res
+   GLB.small = cairo.ImageSurface(cairo.FORMAT_ARGB32, GLB.gx, GLB.gy)
+   GLB.sst = GLB.small.get_stride() // 4
+   GLB.sv = np.ndarray(shape=(GLB.gy, GLB.sst, 4), dtype=np.uint8,
+                       buffer=GLB.small.get_data())
+   GLB.ns = 4
+   GLB.pal = np.zeros((8, 3), dtype=np.float32)
+   GLB.cap = 12
+
+   def wipe():
+      GLB.g = np.zeros((GLB.gy, GLB.gx), dtype=np.int32)
+      # --- plain python lists, not numpy arrays.  The step loop touches
+      # --- these thousands of times a frame and numpy scalar indexing is
+      # --- several times the cost of a list element for single values.
+      GLB.ax = []
+      GLB.ay = []
+      GLB.ad = []
+      for i in range(GLB.cap):
+         GLB.ax.append(int(np.random.randint(GLB.gx // 4, GLB.gx - GLB.gx // 4)))
+         GLB.ay.append(int(np.random.randint(GLB.gy // 4, GLB.gy - GLB.gy // 4)))
+         GLB.ad.append(int(np.random.randint(0, 4)))
+   GLB.wipe = wipe
+   GLB.wipe()
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(30.0, 300.0)
+   f1 = STR.F1mix(1.0, 11.99)
+   f2 = STR.F2()
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.wipe()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   na = int(f1)
+   g = GLB.g
+   steps = int(f0)
+   dxs = [0, 1, 0, -1]
+   dys = [-1, 0, 1, 0]
+
+   # --- the ants have to be stepped one at a time : each one reads a cell
+   # --- the one before it may just have flipped, and that coupling is the
+   # --- entire behaviour
+   gl = g.tolist()
+   ax = GLB.ax
+   ay = GLB.ay
+   ad = GLB.ad
+   ns = GLB.ns
+   gx = GLB.gx
+   gy = GLB.gy
+   for s in range(steps):
+      for i in range(na):
+         x = ax[i]
+         y = ay[i]
+         c = gl[y][x]
+         if acc:
+            t = (s * 7 + i * 3 + x + y) % 4
+         else:
+            t = 1 if (c % 2) == 0 else 3
+         d = (ad[i] + t) % 4
+         ad[i] = d
+         gl[y][x] = (c + 1) % ns
+         nx = x + dxs[d]
+         ny = y + dys[d]
+         if nx < 0:
+            nx = gx - 1
+         elif nx >= gx:
+            nx = 0
+         if ny < 0:
+            ny = gy - 1
+         elif ny >= gy:
+            ny = 0
+         ax[i] = nx
+         ay[i] = ny
+   g = np.array(gl, dtype=np.int32)
+   GLB.g = g
+
+   for k in range(GLB.ns):
+      c = hsv_to_rgb((f2 + k / (GLB.ns * 1.0)) % 1.0, 0.75,
+                     0.10 if k == 0 else 1.0)
+      GLB.pal[k, 0] = c[0] * 255.0
+      GLB.pal[k, 1] = c[1] * 255.0
+      GLB.pal[k, 2] = c[2] * 255.0
+   col = GLB.pal[g]
+   GLB.sv[:, :GLB.gx, 0] = col[:, :, 0].astype(np.uint8)
+   GLB.sv[:, :GLB.gx, 1] = col[:, :, 1].astype(np.uint8)
+   GLB.sv[:, :GLB.gx, 2] = col[:, :, 2].astype(np.uint8)
+   GLB.sv[:, :GLB.gx, 3] = 255
+   GLB.small.mark_dirty()
+   pat = cairo.SurfacePattern(GLB.small)
+   pat.set_filter(cairo.FILTER_NEAREST)
+   m = cairo.Matrix()
+   m.scale(1.0 / GLB.res, 1.0 / GLB.res)
+   pat.set_matrix(m)
+   cr.set_source(pat)
+   cr.paint()
+
+   cr.set_source_rgb(0.35, 1.0, 1.0)
+   for i in range(na):
+      cr.rectangle(GLB.ax[i] * GLB.res - 2, GLB.ay[i] * GLB.res - 2, 5, 5)
+   cr.fill()

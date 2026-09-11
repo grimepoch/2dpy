@@ -1,0 +1,93 @@
+def Init():
+   # --- author : claude
+   # --- a vocoder bank.  The analysis filters measure the envelope in each
+   # --- band and those envelopes are imposed on the carrier, band for band -
+   # --- so what is drawn is the matrix of gains, which is the whole of what
+   # --- a vocoder knows about the sound going through it.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Bands")
+   STR.SetFParam1Name("Release")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : freeze the formants
+   # ---    trigger : shift the carrier bank
+
+   GLB.st = surface.get_stride() // 4
+   GLB.nb = 20
+   GLB.env = np.zeros(GLB.nb, dtype=np.float32)
+   GLB.hold = np.zeros(GLB.nb, dtype=np.float32)
+   GLB.hist = np.zeros((GLB.nb, 64), dtype=np.float32)
+   GLB.col = 0
+   GLB.shift = 0
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(6.0, 20.99)
+   f1 = STR.F1mix(0.70, 0.98)
+   f2 = STR.F2()
+
+   if trig:
+      GLB.shift = (GLB.shift + 3) % GLB.nb
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   nb = int(f0)
+   # --- each slot drives the band its pitch falls in
+   lev = np.zeros(GLB.nb, dtype=np.float32)
+   for i in range(GLB.slots):
+      d = STR.GetSlotData(i)
+      if d[0] == 0:
+         continue
+      b = int(d[1]) % nb
+      lev[b] = max(lev[b], d[2] / 127.0)
+   GLB.env = np.maximum(lev, GLB.env * f1)
+   if not acc:
+      GLB.hold = GLB.env
+   use = GLB.hold
+
+   GLB.hist[:, GLB.col] = use
+   GLB.col = (GLB.col + 1) % 64
+
+   cr.set_source_rgba(0, 0, 0, 1)
+   cr.rectangle(0, 0, 1280, 720)
+   cr.fill()
+
+   bw = 1280.0 / nb
+   # --- the history, scrolling back in time behind the live bar
+   for t in range(64):
+      col = (GLB.col - 1 - t) % 64
+      a = 1.0 - t / 64.0
+      # --- one fill per time row, not one per cell.  Sixty four rows times
+      # --- twenty bands is 1280 separate fills a frame otherwise.
+      y = 700.0 - t * 9.0
+      for grp in range(4):
+         cr.new_path()
+         any_ = False
+         for b in range(grp, nb, 4):
+            l = GLB.hist[b, col]
+            if l < 0.02:
+               continue
+            h = l * 300.0
+            cr.rectangle(b * bw + 2, y - h * 0.12, bw - 4, h * 0.12)
+            any_ = True
+         if not any_:
+            continue
+         c = hsv_to_rgb((f2 + grp / 4.0 * 0.7) % 1.0, 0.78, 0.9)
+         cr.set_source_rgba(c[2], c[1], c[0], a * 0.85)
+         cr.fill()
+
+   # --- the live band gains, as a bar graph at the bottom
+   for b in range(nb):
+      l = use[(b + GLB.shift) % nb]
+      c = hsv_to_rgb((f2 + b / (nb * 1.0) * 0.7) % 1.0, 0.80, 0.4 + 0.6 * l)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      h = 14.0 + l * 180.0
+      cr.rectangle(b * bw + 3, 700.0, bw - 6, -h)
+      cr.fill()

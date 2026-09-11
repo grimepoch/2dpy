@@ -1,0 +1,127 @@
+def Init():
+   # --- author : claude
+   # --- concreteVerse crossed with boids : the poem is poured into a shape
+   # --- that is itself the centre of mass of a flock
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Flock")
+   STR.SetFParam1Name("Text Size")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : show the flock
+   # ---    trigger : scatter
+
+   GLB.txt = "WORDS MOVE TOGETHER UNTIL THEY MEAN SOMETHING "
+   GLB.n = 46
+
+   def scatter():
+      GLB.px = np.random.random(GLB.n) * 1280.0
+      GLB.py = np.random.random(GLB.n) * 720.0
+      a = np.random.random(GLB.n) * 6.28
+      GLB.vx = np.cos(a) * 3.0
+      GLB.vy = np.sin(a) * 3.0
+   GLB.scatter = scatter
+   GLB.scatter()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 0.05)
+   f1 = STR.F1mix(14.0, 30.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.scatter()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   n = GLB.n
+   px = GLB.px
+   py = GLB.py
+   dx = px.reshape(n, 1) - px.reshape(1, n)
+   dy = py.reshape(n, 1) - py.reshape(1, n)
+   d2 = dx * dx + dy * dy
+   near = d2 < 40000.0
+   close = (d2 < 2600.0) & (d2 > 0.0)
+   cnt = np.sum(near, axis=1)
+   cnt = np.where(cnt < 1, 1, cnt)
+   cxm = np.dot(near, px) / cnt
+   cym = np.dot(near, py) / cnt
+   sx = np.sum(np.where(close, dx, 0.0), axis=1)
+   sy = np.sum(np.where(close, dy, 0.0), axis=1)
+   GLB.vx = (GLB.vx + (cxm - px) * f0 + sx * 0.006) * 0.94
+   GLB.vy = (GLB.vy + (cym - py) * f0 + sy * 0.006) * 0.94
+   GLB.px = np.clip(px + GLB.vx, 30.0, 1250.0)
+   GLB.py = np.clip(py + GLB.vy, 30.0, 690.0)
+
+   cr.set_source_rgb(0.03, 0.02, 0.05)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   lx = GLB.px.tolist()
+   ly = GLB.py.tolist()
+
+   if acc:
+      cr.set_source_rgba(0.3, 0.4, 0.7, 0.35)
+      for i in range(n):
+         cr.rectangle(lx[i] - 2, ly[i] - 2, 4, 4)
+      cr.fill()
+
+   # --- the poem is set on a grid, but only where a bird is nearby
+   cr.select_font_face("mono", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+   sz = f1
+   cr.set_font_size(sz)
+   adv = cr.text_extents("M").x_advance
+   lh = sz * 1.1
+   nx = int(1280 / adv)
+   ny = int(720 / lh)
+   idx = 0
+   m = len(GLB.txt)
+
+   # --- Nearest-bird distance for the WHOLE grid in one numpy pass.  Doing
+   # --- it cell by cell was over 100k python iterations a frame.
+   GX = ((np.arange(nx) + 0.5) * adv).reshape(1, nx, 1)
+   GY = ((np.arange(ny) + 0.8) * lh).reshape(ny, 1, 1)
+   bx = GLB.px[::3].reshape(1, 1, -1)
+   by = GLB.py[::3].reshape(1, 1, -1)
+   d2g = (GX - bx) ** 2 + (GY - by) ** 2
+   best = np.min(d2g, axis=2)
+   live = best < 12000.0
+
+   cr.save()
+   cr.scale(1.0, -1.0)
+   bands = 6
+   buckets = []
+   for b in range(bands):
+      buckets.append([])
+   bq = np.clip(((1.0 - best / 12000.0) * bands).astype(np.int32), 0, bands - 1)
+   ys, xs = np.nonzero(live)
+   yl = ys.tolist()
+   xl = xs.tolist()
+   bl = bq[ys, xs].tolist()
+   for k in range(len(xl)):
+      ch = GLB.txt[k % m]
+      if ch == " ":
+         continue
+      buckets[bl[k]].append([(xl[k] + 0.5) * adv, -((yl[k] + 0.8) * lh), ch])
+
+   for b in range(bands):
+      t = b / (bands - 1.0)
+      if GLB.xmode:
+         c = hsv_to_rgb((f2 + t * 0.5) % 1.0, 0.8, 1.0)
+      else:
+         c = hsv_to_rgb((f2 + t * 0.1) % 1.0, 0.5, 0.35 + 0.65 * t)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      for q in buckets[b]:
+         cr.move_to(q[0], q[1])
+         cr.show_text(q[2])
+   cr.restore()

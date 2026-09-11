@@ -1,0 +1,87 @@
+def Init():
+   # --- author : claude
+   # --- celticKnot crossed with warpTunnel : the interlace is wrapped round
+   # --- the tunnel wall, so the strapwork recedes with the rings
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Speed")
+   STR.SetFParam2Name("Strands")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : single colour rope
+   # ---    trigger : reverse
+
+   GLB.rings = 16
+   GLB.z = 0.0
+   GLB.dir = 1.0
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.25, 1.0)
+   f1 = STR.F1mix(0.003, 0.04)
+   f2 = STR.F2mix(5.0, 16.0)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.dir = -GLB.dir
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   cr.set_source_rgba(0, 0, 0, f0)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   GLB.z = (GLB.z + f1 * GLB.dir) % 1.0
+   cx = 640.0 + 150.0 * sin(time * 0.22)
+   cy = 360.0 + 85.0 * cos(time * 0.29)
+   nstr = int(f2)
+
+   cr.set_line_cap(cairo.LINE_CAP_ROUND)
+
+   # --- far rings first, and each ring drawn casing then core so the
+   # --- strands appear to pass through one another
+   for i in range(GLB.rings - 1, -1, -1):
+      d = ((i / (GLB.rings * 1.0)) + GLB.z) % 1.0
+      zz = 0.05 + d * d * 3.0
+      R = 130.0 / zz
+      if R > 1700:
+         continue
+      near = 1.0 - d
+      px = cx * near + 640.0 * d
+      py = cy * near + 360.0 * d
+      w = 26.0 * near
+      if w < 0.7:
+         continue
+      phase = time * 0.5 * (1.0 if i % 2 else -1.0) + i * 0.4
+
+      for layer in range(2):
+         if layer == 0:
+            cr.set_source_rgb(0, 0, 0)
+            cr.set_line_width(w + 7.0 * near)
+         else:
+            if acc:
+               c = hsv_to_rgb(0.12, 0.5, near * near)
+            else:
+               c = hsv_to_rgb((d * 0.7 + time * 0.03) % 1.0, 0.8, near * near)
+            cr.set_source_rgb(c[2], c[1], c[0])
+            cr.set_line_width(w)
+         for k in range(nstr):
+            a0 = k * 2.0 * pi / nstr + phase
+            a1 = a0 + 2.0 * pi / nstr
+            # --- each strand is an arc that weaves in and out of the ring
+            cr.new_path()
+            steps = 7
+            for st in range(steps + 1):
+               u = st / (steps * 1.0)
+               a = a0 + (a1 - a0) * u
+               rr = R * (1.0 + 0.16 * sin(u * pi) * (1.0 if k % 2 else -1.0))
+               cr.line_to(px + cos(a) * rr, py + sin(a) * rr)
+            cr.stroke()

@@ -1,0 +1,105 @@
+def Init():
+   # --- author : claude
+   # --- a soap film draining.  Gravity pulls the film down so it thins at
+   # --- the top, and the interference colours march down with it - the
+   # --- famous black spot appears at the top just before it bursts, because
+   # --- the film there has got thinner than a wavelength.
+   # --- note : screen y=0 is the BOTTOM, so the film thins at HIGH y
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Drain")
+   STR.SetFParam1Name("Turbulence")
+   STR.SetFParam2Name("Spectrum")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : breathe on it, the film churns
+   # ---    trigger : blow a new bubble
+
+   GLB.res = 3
+   GLB.nx = 1280 // GLB.res
+   GLB.ny = 720 // GLB.res
+   GLB.small = cairo.ImageSurface(cairo.FORMAT_ARGB32, GLB.nx, GLB.ny)
+   GLB.sst = GLB.small.get_stride() // 4
+   GLB.sv = np.ndarray(shape=(GLB.ny, GLB.sst, 4), dtype=np.uint8,
+                       buffer=GLB.small.get_data())
+   yy, xx = np.meshgrid(np.arange(GLB.ny), np.arange(GLB.nx), indexing="ij")
+   GLB.iy = yy.astype(np.float32)
+   GLB.ix = xx.astype(np.float32)
+   GLB.nb = 220
+   GLB.pal = np.zeros((GLB.nb, 3), dtype=np.float32)
+   for i in range(GLB.nb):
+      c = hsv_to_rgb(i / (GLB.nb * 1.0), 0.70, 1.0)
+      GLB.pal[i, 0] = c[0] * 255.0
+      GLB.pal[i, 1] = c[1] * 255.0
+      GLB.pal[i, 2] = c[2] * 255.0
+
+   def blow():
+      GLB.cx = GLB.nx * 0.5
+      GLB.cy = GLB.ny * 0.5
+      GLB.rad = GLB.ny * 0.42
+      d = np.sqrt((GLB.ix - GLB.cx) ** 2 + (GLB.iy - GLB.cy) ** 2)
+      GLB.inside = d < GLB.rad
+      GLB.d = d
+      GLB.th = np.where(GLB.inside, 2.2, 0.0).astype(np.float32)
+      GLB.th = GLB.th + np.random.random((GLB.ny, GLB.nx)) * 0.06
+   GLB.blow = blow
+   GLB.blow()
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0004, 0.008)
+   f1 = STR.F1mix(0.02, 0.34)
+   f2 = STR.F2mix(2.0, 9.0)
+   time = STR.IT() + STR.FT()
+
+   # --- the film has gone : blow another
+   if trig or GLB.th[GLB.inside].max() < 0.10:
+      GLB.blow()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   th = GLB.th
+   # --- drainage : the film runs downhill, so the top gets thinner.  Down
+   # --- the screen is toward row 0, so material moves that way.
+   k = f1
+   th[1:] = th[1:] + (th[:-1] - th[1:]) * k * 0.5
+   th[:-1] = th[:-1] + (th[1:] - th[:-1]) * k
+   th[:, 1:] = th[:, 1:] + (th[:, :-1] - th[:, 1:]) * k * 0.5
+   th[:, :-1] = th[:, :-1] + (th[:, 1:] - th[:, :-1]) * k * 0.5
+   flow = f0 * (2.5 if acc else 1.0)
+   th[:-1] = th[:-1] + th[1:] * flow
+   th[1:] = th[1:] * (1.0 - flow)
+   if acc:
+      th = th + (np.random.random((GLB.ny, GLB.nx)) - 0.5) * 0.02
+   th = np.where(GLB.inside, th, 0.0)
+   np.clip(th, 0.0, 3.0, out=th)
+   GLB.th = th
+
+   # --- order of interference sets the colour; below about a tenth the
+   # --- film is thinner than a wavelength and goes black
+   # --- wrap into the palette with a floor rather than np.mod, which costs
+   # --- about twenty times as much on a grid this size
+   t = th * f2
+   q = ((t - np.floor(t)) * GLB.nb).astype(np.int32)
+   np.clip(q, 0, GLB.nb - 1, out=q)
+   c = GLB.pal[q]
+   vis = np.clip(th * 7.0, 0.0, 1.0)
+   rim = np.clip((GLB.rad - GLB.d) * 0.45, 0.0, 1.0)
+   amp = vis * rim
+   GLB.sv[:, :GLB.nx, 0] = np.clip(c[:, :, 0] * amp, 0, 255).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 1] = np.clip(c[:, :, 1] * amp, 0, 255).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 2] = np.clip(c[:, :, 2] * amp, 0, 255).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 3] = 255
+   GLB.small.mark_dirty()
+   pat = cairo.SurfacePattern(GLB.small)
+   pat.set_filter(cairo.FILTER_NEAREST)
+   m = cairo.Matrix()
+   m.scale(1.0 / GLB.res, 1.0 / GLB.res)
+   pat.set_matrix(m)
+   cr.set_source(pat)
+   cr.paint()

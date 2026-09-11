@@ -1,0 +1,109 @@
+def Init():
+   # --- author : claude
+   # --- glyph rain where each column belongs to a slot : a loud slot makes
+   # --- its column fall faster and burn brighter
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Speed")
+   STR.SetFParam1Name("Tail")
+   STR.SetFParam2Name("Hue")
+   # ---    accent : heads flare white
+   # ---    trigger : letters <-> digits
+
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   GLB.setA = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+   GLB.setB = "0123456789+-*/<>=#"
+   GLB.n = 12 if GLB.slots == 24 else GLB.slots
+   GLB.cw = 22
+   GLB.cols = int(1280 / GLB.cw)
+   GLB.lvl = []
+   for i in range(GLB.n):
+      GLB.lvl.append(0.0)
+   GLB.y = []
+   GLB.ch = []
+   for i in range(GLB.cols):
+      GLB.y.append(np.random.random() * 900.0)
+      col = []
+      for k in range(22):
+         col.append(np.random.randint(0, 26))
+      GLB.ch.append(col)
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(2.0, 24.0)
+   f1 = STR.F1mix(5.0, 20.0)
+   f2 = STR.F2()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   n = GLB.n
+   for k in range(n):
+      GLB.lvl[k] = GLB.lvl[k] * 0.90
+
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if ids == 0:
+         continue
+      k = (note % 12) if GLB.mode == "midi" else i
+      if k < n:
+         v = velo / 127.0
+         if v > GLB.lvl[k]:
+            GLB.lvl[k] = v
+
+   cr.set_source_rgb(0, 0, 0)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cs = GLB.setB if GLB.xmode else GLB.setA
+   ls = len(cs)
+   cr.select_font_face("mono", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+   cr.set_font_size(GLB.cw)
+
+   tail = int(f1)
+
+   # --- flip once for the whole field
+   cr.save()
+   cr.scale(1.0, -1.0)
+
+   for i in range(GLB.cols):
+      k = int(i * n / GLB.cols)
+      v = GLB.lvl[k]
+      GLB.y[i] = GLB.y[i] - f0 * (0.25 + v * 1.6)
+      if GLB.y[i] < -tail * GLB.cw:
+         GLB.y[i] = 720.0 + np.random.random() * 400.0
+      GLB.ch[i][np.random.randint(0, 22)] = np.random.randint(0, ls)
+
+      x = i * GLB.cw
+      for t in range(tail):
+         y = GLB.y[i] + t * GLB.cw
+         if y < -GLB.cw or y > 720 + GLB.cw:
+            continue
+         b = 1.0 - t / (tail * 1.0)
+         b = b * b * (0.25 + 0.75 * v)
+         if t == 0 and acc:
+            cr.set_source_rgb(1, 1, 1)
+         else:
+            r,g,bl = hsv_to_rgb((f2 + k / (n * 1.0) * 0.35) % 1.0, 0.85, b)
+            cr.set_source_rgb(bl, g, r)
+         cr.move_to(x, -y)
+         # --- the two character sets are different lengths, so an index
+         # --- seeded against the longer one must be folded before use
+         cr.show_text(cs[GLB.ch[i][t % 22] % ls])
+
+   cr.restore()

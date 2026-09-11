@@ -1,0 +1,139 @@
+def Init():
+   # --- author : claude
+   # --- a Penrose tiling lit by the material : each rhomb belongs to a slot,
+   # --- so the aperiodic pattern picks up the rhythm without ever repeating
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Decay")
+   STR.SetFParam1Name("Depth")
+   STR.SetFParam2Name("Zoom")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+   # ---    accent : outlines
+   # ---    trigger : rebuild
+
+   GLB.phi = (1.0 + sqrt(5.0)) * 0.5
+   GLB.depth = 0
+   GLB.n = 12 if GLB.slots == 24 else GLB.slots
+   GLB.lvl = []
+   for i in range(GLB.n):
+      GLB.lvl.append(0.0)
+
+   def deflate(tris):
+      out = []
+      p = GLB.phi
+      for t in tris:
+         k = t[0]
+         a = t[1]
+         b = t[2]
+         c = t[3]
+         if k == 0:
+            q = [a[0] + (b[0] - a[0]) / p, a[1] + (b[1] - a[1]) / p]
+            out.append([0, c, q, b])
+            out.append([1, q, c, a])
+         else:
+            q = [b[0] + (a[0] - b[0]) / p, b[1] + (a[1] - b[1]) / p]
+            r = [b[0] + (c[0] - b[0]) / p, b[1] + (c[1] - b[1]) / p]
+            out.append([1, r, c, a])
+            out.append([0, r, q, b])
+            out.append([1, q, a, r])
+         if len(out) > 520:
+            return out
+      return out
+   GLB.deflate = deflate
+
+   def build(depth):
+      tris = []
+      for i in range(10):
+         b = [cos((2 * i - 1) * pi / 10.0), sin((2 * i - 1) * pi / 10.0)]
+         c = [cos((2 * i + 1) * pi / 10.0), sin((2 * i + 1) * pi / 10.0)]
+         if i % 2 == 0:
+            t = b
+            b = c
+            c = t
+         tris.append([0, [0.0, 0.0], b, c])
+      for g in range(depth):
+         tris = GLB.deflate(tris)
+         if len(tris) > 460:
+            break
+      GLB.tris = tris
+      GLB.depth = depth
+   GLB.build = build
+   GLB.build(4)
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.80, 0.985)
+   f1 = STR.F1mix(3.0, 5.0)
+   f2 = STR.F2mix(320.0, 800.0)
+
+   time = STR.IT() + STR.FT()
+
+   d = int(f1)
+   if trig or d != GLB.depth:
+      GLB.build(d)
+      if trig:
+         GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   n = GLB.n
+   for k in range(n):
+      GLB.lvl[k] = GLB.lvl[k] * f0
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if ids == 0:
+         continue
+      k = (note % 12) if GLB.mode == "midi" else i
+      if k < n:
+         v = velo / 127.0
+         if v > GLB.lvl[k]:
+            GLB.lvl[k] = v
+
+   cr.set_source_rgb(0.02, 0.02, 0.04)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cr.save()
+   cr.translate(640, 360)
+   cr.rotate(time * 0.03)
+   sc = f2
+   cr.scale(sc, sc)
+
+   # --- bucket the rhombs by slot, so this is n fills not 460
+   buckets = []
+   for k in range(n):
+      buckets.append([])
+   for i in range(len(GLB.tris)):
+      buckets[i % n].append(GLB.tris[i])
+
+   for k in range(n):
+      v = GLB.lvl[k]
+      if GLB.xmode:
+         c = hsv_to_rgb((f2 * 0.0 + k / (n * 1.0) * 0.9) % 1.0, 0.8, 0.15 + 0.85 * v)
+      else:
+         c = hsv_to_rgb((0.55 + k / (n * 1.0) * 0.2) % 1.0, 0.7 - 0.3 * v,
+                        0.15 + 0.85 * v)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      for t in buckets[k]:
+         cr.move_to(t[1][0], t[1][1])
+         cr.line_to(t[2][0], t[2][1])
+         cr.line_to(t[3][0], t[3][1])
+         cr.close_path()
+      if acc:
+         cr.set_line_width(1.5 / sc)
+         cr.stroke()
+      else:
+         cr.fill()
+
+   cr.restore()

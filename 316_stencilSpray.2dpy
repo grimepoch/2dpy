@@ -1,0 +1,122 @@
+def Init():
+   # --- author : claude
+   # --- stencils sprayed one over another on a wall.  Paint lands as a cloud
+   # --- of droplets through a cut mask, and nothing is ever cleaned off - so
+   # --- every layer part-hides the one under it and the wall gets deeper
+   # --- rather than busier.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Spray")
+   STR.SetFParam1Name("Overspray")
+   STR.SetFParam2Name("Can")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : hold the can closer, hard edges and runs
+   # ---    trigger : cut a new stencil
+
+   GLB.st = surface.get_stride() // 4
+   GLB.tick = 0
+
+   def newstencil():
+      GLB.kind = np.random.randint(0, 5)
+      GLB.sx = np.random.random() * 800.0 + 240.0
+      GLB.sy = np.random.random() * 400.0 + 160.0
+      GLB.ss = np.random.random() * 110.0 + 90.0
+      GLB.sa = np.random.random() * 6.283
+      GLB.sh = np.random.random()
+      GLB.tick = 0
+   GLB.newstencil = newstencil
+   GLB.newstencil()
+
+   def cut(c, grow):
+      # --- the stencil path, built at a given size.  It is needed twice per
+      # --- frame - once for the paint and once, slightly larger, for the
+      # --- overspray that creeps under the edge - so it lives here rather
+      # --- than being written out twice.
+      c.save()
+      c.translate(GLB.sx, GLB.sy)
+      c.rotate(GLB.sa)
+      s = GLB.ss * grow
+      k = GLB.kind
+      if k == 0:
+         c.move_to(0, -s)
+         for i in range(1, 5):
+            c.line_to(sin(i * 1.2566) * s, -cos(i * 1.2566) * s)
+         c.close_path()
+      elif k == 1:
+         c.set_fill_rule(cairo.FILL_RULE_EVEN_ODD)
+         c.new_sub_path()
+         c.arc(0, 0, s, 0, 6.2831853)
+         c.new_sub_path()
+         c.arc(0, 0, s * 0.55, 0, 6.2831853)
+      elif k == 2:
+         for i in range(5):
+            c.rectangle(-s + i * s * 0.42, -s * 0.8, s * 0.22, s * 1.6)
+      elif k == 3:
+         c.move_to(-s, -s * 0.5)
+         c.curve_to(-s * 0.3, -s * 1.5, s * 0.3, s * 0.5, s, -s * 0.5)
+         c.curve_to(s * 0.3, s * 1.2, -s * 0.3, -s * 0.2, -s, -s * 0.5)
+         c.close_path()
+      else:
+         c.set_fill_rule(cairo.FILL_RULE_EVEN_ODD)
+         for i in range(4):
+            a = i * 1.5708
+            c.new_sub_path()
+            c.arc(cos(a) * s * 0.5, sin(a) * s * 0.5, s * 0.45, 0, 6.2831853)
+      c.clip()
+      # --- back to device space WITHOUT restoring : cr.restore() puts back
+      # --- the clip region as well as the matrix, so restoring here would
+      # --- throw the stencil away and spray a plain rectangle instead
+      c.identity_matrix()
+   GLB.cut = cut
+
+   cr.set_source_rgb(0.18, 0.19, 0.21)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(60.0, 700.0)
+   f1 = STR.F1mix(1.0, 16.0)
+   f2 = STR.F2()
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.newstencil()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   GLB.tick = GLB.tick + 1
+   # --- a can empties, then the next stencil goes up
+   if GLB.tick > 90:
+      GLB.newstencil()
+
+   GLB.cut(cr, 1.0)
+
+   # --- droplets.  The can is held off the wall, so the cloud is soft and
+   # --- the coverage builds instead of arriving all at once.
+   spread = 2.0 if acc else f1
+   c = hsv_to_rgb((GLB.sh + f2) % 1.0, 0.72, 0.95)
+   n = int(f0)
+   px = GLB.sx + (np.random.random(n) - 0.5) * GLB.ss * 3.0
+   py = GLB.sy + (np.random.random(n) - 0.5) * GLB.ss * 3.0
+   rr = np.random.random(n) * spread + 0.8
+   cr.set_source_rgba(c[2], c[1], c[0], 0.30)
+   for i in range(n):
+      cr.new_sub_path()
+      cr.arc(px[i], py[i], rr[i], 0, 6.2831853)
+   cr.fill()
+   cr.restore()
+
+   # --- overspray creeps a little way under the edge of the cut, so it is
+   # --- clipped to the same shape grown slightly - not left unclipped,
+   # --- which just sprays the bounding box of the droplet cloud
+   if not acc:
+      GLB.cut(cr, 1.10)
+      cr.set_source_rgba(c[2], c[1], c[0], 0.05)
+      for i in range(n // 6):
+         cr.new_sub_path()
+         cr.arc(px[i], py[i], rr[i] * 1.6, 0, 6.2831853)
+      cr.fill()
+      cr.restore()

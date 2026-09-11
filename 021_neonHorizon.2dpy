@@ -1,0 +1,122 @@
+def Init():
+   # --- author : claude
+   # --- the one true sunset : perspective grid, slitted sun, ridgeline
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Speed")
+   STR.SetFParam1Name("Grid")
+   STR.SetFParam2Name("Sun Size")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : ridgeline lights up
+   # ---    trigger : new mountain profile
+
+   GLB.hz = 300.0
+   GLB.z  = 0.0
+
+   def ridge():
+      GLB.peaks = []
+      x = -60.0
+      while x < 1340:
+         w = np.random.randint(70, 190)
+         h = np.random.randint(30, 150)
+         GLB.peaks.append([x, w, h])
+         x = x + w * 0.62
+   GLB.ridge = ridge
+   GLB.ridge()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.002, 0.06)
+   f1 = STR.F1mix(6.0, 26.0)
+   f2 = STR.F2mix(90.0, 260.0)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.ridge()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   hz = GLB.hz
+
+   # --- sky gradient, deep violet up top down to hot magenta at the horizon
+   lg = cairo.LinearGradient(0, 720, 0, hz)
+   lg.add_color_stop_rgb(0.0, 0.35, 0.02, 0.10)
+   lg.add_color_stop_rgb(0.6, 0.55, 0.05, 0.42)
+   lg.add_color_stop_rgb(1.0, 0.75, 0.25, 1.00)
+   cr.set_source(lg)
+   cr.rectangle(0, hz, 1280, 720 - hz)
+   cr.fill()
+
+   # --- sun, with the horizontal slits cut out of it
+   cr.save()
+   cr.new_sub_path()
+   cr.arc(640, hz + 60, f2, 0, 2 * pi)
+   cr.clip()
+   sg = cairo.LinearGradient(0, hz - f2, 0, hz + 60 + f2)
+   sg.add_color_stop_rgb(0.0, 0.25, 0.35, 1.00)
+   sg.add_color_stop_rgb(1.0, 0.95, 0.95, 1.00)
+   cr.set_source(sg)
+   cr.rectangle(640 - f2, hz - f2, f2 * 2, f2 * 2 + 120)
+   cr.fill()
+   cr.set_source_rgb(0.35, 0.02, 0.10)
+   k = 0
+   while k < 16:
+      # --- slits get thicker toward the bottom of the disc
+      yy = hz + 60 - f2 + k * (f2 * 2.0 / 16.0)
+      cr.rectangle(640 - f2, yy, f2 * 2, 2 + k * 0.55)
+      k = k + 1
+   cr.fill()
+   cr.restore()
+
+   # --- mountains sitting on the horizon
+   cr.set_source_rgb(0.12, 0.02, 0.06)
+   cr.move_to(-60, hz)
+   for p in GLB.peaks:
+      cr.line_to(p[0] + p[1] * 0.5, hz + p[2])
+      cr.line_to(p[0] + p[1], hz)
+   cr.line_to(1340, hz)
+   cr.close_path()
+   cr.fill()
+   if acc:
+      cr.set_source_rgb(0.9, 0.4, 1.0)
+      cr.set_line_width(2)
+      cr.move_to(-60, hz)
+      for p in GLB.peaks:
+         cr.line_to(p[0] + p[1] * 0.5, hz + p[2])
+         cr.line_to(p[0] + p[1], hz)
+      cr.stroke()
+
+   # --- ground
+   cr.set_source_rgb(0.10, 0.01, 0.04)
+   cr.rectangle(0, 0, 1280, hz)
+   cr.fill()
+
+   GLB.z = (GLB.z + f0) % 1.0
+   cr.set_source_rgb(0.90, 0.20, 0.95)
+   cr.set_line_width(2)
+
+   # --- lines running away from us, spaced so they bunch up at the horizon
+   n = int(f1)
+   for i in range(n):
+      d = ((i / (n * 1.0)) + GLB.z) % 1.0
+      y = hz * (1.0 - d * d)
+      if y < 1:
+         continue
+      cr.move_to(0, y)
+      cr.line_to(1280, y)
+   cr.stroke()
+
+   # --- and the ones running to the vanishing point
+   cr.set_source_rgb(0.55, 0.12, 0.85)
+   for i in range(-14, 15):
+      cr.move_to(640 + i * 22, hz)
+      cr.line_to(640 + i * 420, 0)
+   cr.stroke()

@@ -1,0 +1,103 @@
+def Init():
+   # --- author : claude
+   # --- the opening crawl : lines recede toward a vanishing point, each one
+   # --- scaled and faded by its own depth
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Speed")
+   STR.SetFParam1Name("Perspective")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : starfield behind
+   # ---    trigger : back to the top
+
+   GLB.lines = ["EPISODE II", "", "THE RETURN OF", "THE FRAME BUFFER", "",
+                "IT IS A PERIOD OF RENDER WAR.", "REBEL NODES, STRIKING FROM A",
+                "HIDDEN GRAPH, HAVE WON THEIR", "FIRST VICTORY AGAINST THE",
+                "EVIL DROPPED FRAME EMPIRE.", "",
+                "DURING THE BATTLE, ENGINEERS", "MANAGED TO STEAL SECRET",
+                "PLANS TO THE EMPIRE'S ULTIMATE", "WEAPON, THE FULL SCREEN",
+                "ALPHA FILL, A COMPOSITE OP", "WITH ENOUGH COST TO DESTROY",
+                "AN ENTIRE FRAME BUDGET."]
+   GLB.scroll = 0.0
+   GLB.stars = []
+   for i in range(140):
+      GLB.stars.append([np.random.random() * 1280.0, np.random.random() * 720.0,
+                        np.random.random()])
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 3.2)
+   f1 = STR.F1mix(0.25, 1.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.scroll = 0.0
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   cr.set_source_rgb(0.0, 0.0, 0.0)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   if acc:
+      cr.set_source_rgb(0.85, 0.88, 0.95)
+      for st in GLB.stars:
+         sz = 1.0 + st[2] * 2.0
+         cr.rectangle(st[0], st[1], sz, sz)
+      cr.fill()
+
+   GLB.scroll = GLB.scroll + f0
+   total = len(GLB.lines) * 70.0 + 900.0
+   if GLB.scroll > total:
+      GLB.scroll = -200.0
+
+   cr.select_font_face("sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+
+   col = hsv_to_rgb(f2, 0.85, 1.0)
+   # --- horizon the text recedes toward
+   hz = 700.0
+   base = 40.0
+
+   for i in range(len(GLB.lines)):
+      s = GLB.lines[i]
+      if s == "":
+         continue
+      # --- distance travelled by this line, 0 at the bottom of the screen
+      d = GLB.scroll - i * 70.0
+      if d < 0 or d > 900.0:
+         continue
+      # --- perspective: everything converges on hz as d grows
+      u = d / 900.0
+      p = 1.0 - u
+      y = base + (hz - base) * (1.0 - p * p * f1 - (1.0 - f1) * p)
+      sc = p * p * 1.6 + 0.05
+      if sc < 0.02:
+         continue
+      a = p * 1.6
+      if a > 1.0:
+         a = 1.0
+      if u < 0.06:
+         a = a * (u / 0.06)
+
+      cr.set_font_size(52.0 * sc)
+      e = cr.text_extents(s)
+      if e.width < 1:
+         continue
+      cr.set_source_rgba(col[2], col[1], col[0], a)
+      cr.save()
+      cr.translate(640.0 - e.width * 0.5 - e.x_bearing, y)
+      cr.scale(1.0, -1.0)
+      cr.move_to(0, 0)
+      cr.show_text(s)
+      cr.restore()

@@ -1,0 +1,85 @@
+def Init():
+   # --- author : claude
+   # --- a moving gradient pushed through a 4x4 ordered dither, the way an old
+   # --- 1 bit display would have to render it.  Every lit cell goes into one
+   # --- path and one fill, so the cell count barely costs anything.
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Dot Size")
+   STR.SetFParam1Name("Contrast")
+   STR.SetFParam2Name("Sweep")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : invert
+   # ---    trigger : bars <-> rings
+
+   GLB.bayer = np.array([[ 0, 8, 2,10],
+                         [12, 4,14, 6],
+                         [ 3,11, 1, 9],
+                         [15, 7,13, 5]], dtype=np.float32) / 16.0
+   GLB.bs = 0
+
+   def build(bs):
+      nx = int(1280 / bs) + 1
+      ny = int(720 / bs) + 1
+      GLB.nx = nx
+      GLB.ny = ny
+      xs = np.arange(nx, dtype=np.float32)
+      ys = np.arange(ny, dtype=np.float32)
+      GLB.gx = np.tile(xs.reshape(1, nx), (ny, 1)) * bs
+      GLB.gy = np.tile(ys.reshape(ny, 1), (1, nx)) * bs
+      # --- threshold map tiled out to the grid
+      GLB.th = GLB.bayer[np.arange(ny)[:, None] % 4, np.arange(nx)[None, :] % 4]
+      GLB.bs = bs
+   GLB.build = build
+   GLB.build(14)
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(6.0, 34.0)
+   f1 = STR.F1mix(0.6, 3.0)
+   f2 = STR.F2mix(0.1, 2.0)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   bs = int(f0)
+   if bs < 6:
+      bs = 6
+   if bs != GLB.bs:
+      GLB.build(bs)
+
+   # --- the image being dithered
+   if GLB.xmode:
+      d = np.sqrt((GLB.gx - 640.0) ** 2 + (GLB.gy - 360.0) ** 2)
+      v = 0.5 + 0.5 * np.sin(d * 0.02 * f2 - time * 2.0)
+   else:
+      v = 0.5 + 0.5 * np.sin((GLB.gx * 0.004 + GLB.gy * 0.002) * f2 * 2.0 - time * 1.6)
+   v = np.clip((v - 0.5) * f1 + 0.5, 0.0, 1.0)
+
+   on = v > GLB.th
+   if acc:
+      on = np.logical_not(on)
+
+   # --- clear, no trails: ordered dither wants a clean frame
+   cr.set_source_rgb(0,0,0)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   ys, xs = np.nonzero(on)
+   cr.set_source_rgb(1,1,1)
+   d = bs - 1
+   if d < 2:
+      d = 2
+   for k in range(len(xs)):
+      cr.rectangle(int(xs[k]) * bs, int(ys[k]) * bs, d, d)
+   cr.fill()

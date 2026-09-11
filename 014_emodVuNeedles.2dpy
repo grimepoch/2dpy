@@ -1,0 +1,147 @@
+def Init():
+   # --- author : claude
+   # --- a rack of moving coil meters.  Needles have real mass, so they
+   # --- overshoot and settle rather than snapping to the value.
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Ballistics")
+   STR.SetFParam1Name("Damping")
+   STR.SetFParam2Name("Gain")
+   # ---    accent : peak lamps
+   # ---    trigger : cream faces <-> black faces
+
+   # --- 10 slots = FFT analysis bins, 24 slots = MIDI notes
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   GLB.n = 12 if GLB.slots == 24 else GLB.slots
+   if GLB.n > 12:
+      GLB.n = 12
+   GLB.pos = []
+   GLB.vel = []
+   GLB.pk  = []
+   for i in range(GLB.n):
+      GLB.pos.append(0.0)
+      GLB.vel.append(0.0)
+      GLB.pk.append(0.0)
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.02, 0.45)
+   f1 = STR.F1mix(0.99, 0.70)
+   f2 = STR.F2mix(0.5, 2.2)
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   cr.set_source_rgb(0.05, 0.04, 0.06)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   n = GLB.n
+   tgt = []
+   for k in range(n):
+      tgt.append(0.0)
+
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if ids == 0:
+         continue
+      k = (note % 12) if GLB.mode == "midi" else i
+      if k < n:
+         v = (velo / 127.0) * f2
+         if v > tgt[k]:
+            tgt[k] = v
+
+   # --- meter layout
+   cols = 4 if n > 6 else 3
+   rows = int((n + cols - 1) / cols)
+   bw = 1280.0 / cols
+   bh = 720.0 / rows
+
+   for k in range(n):
+      # --- spring toward the target, with damping: that is the ballistics
+      GLB.vel[k] = (GLB.vel[k] + (tgt[k] - GLB.pos[k]) * f0) * f1
+      GLB.pos[k] = GLB.pos[k] + GLB.vel[k]
+      if GLB.pos[k] < 0:
+         GLB.pos[k] = 0.0
+         GLB.vel[k] = 0.0
+      if GLB.pos[k] > GLB.pk[k]:
+         GLB.pk[k] = GLB.pos[k]
+      GLB.pk[k] = GLB.pk[k] - 0.004
+
+      cx = (k % cols) * bw + bw * 0.5
+      cy = 720.0 - (int(k / cols) * bh) - bh * 0.72
+      w = bw * 0.42
+      h = bh * 0.40
+
+      # --- face
+      if GLB.xmode:
+         cr.set_source_rgb(0.10, 0.09, 0.11)
+         ink = (0.85, 0.88, 0.92)
+      else:
+         cr.set_source_rgb(0.72, 0.86, 0.94)
+         ink = (0.10, 0.10, 0.12)
+      cr.rectangle(cx - w, cy - h * 0.55, w * 2, h * 1.5)
+      cr.fill()
+      cr.set_source_rgb(0.02, 0.02, 0.02)
+      cr.set_line_width(3)
+      cr.rectangle(cx - w, cy - h * 0.55, w * 2, h * 1.5)
+      cr.stroke()
+
+      # --- scale arc and ticks
+      rad = h * 1.15
+      cr.set_source_rgb(ink[2], ink[1], ink[0])
+      cr.set_line_width(2)
+      cr.new_sub_path()
+      cr.arc(cx, cy - h * 0.35, rad, pi * 0.20, pi * 0.80)
+      cr.stroke()
+      # --- the display is y-flipped, so sweeping the angle UP runs the
+      # --- needle right to left.  Count down instead: rest at the left,
+      # --- full scale (and the red ticks) at the right.
+      for t in range(7):
+         a = pi * 0.80 - (pi * 0.60) * t / 6.0
+         if t >= 5:
+            cr.set_source_rgb(0.1, 0.1, 0.9)
+         cr.move_to(cx + cos(a) * rad, cy - h * 0.35 + sin(a) * rad)
+         cr.line_to(cx + cos(a) * (rad - 9), cy - h * 0.35 + sin(a) * (rad - 9))
+         cr.stroke()
+
+      # --- needle
+      v = GLB.pos[k]
+      if v > 1.15:
+         v = 1.15
+      a = pi * 0.80 - (pi * 0.60) * v
+      cr.set_source_rgb(0.10, 0.10, 0.92)
+      cr.set_line_width(3)
+      cr.set_line_cap(cairo.LINE_CAP_ROUND)
+      cr.move_to(cx, cy - h * 0.35)
+      cr.line_to(cx + cos(a) * (rad + 4), cy - h * 0.35 + sin(a) * (rad + 4))
+      cr.stroke()
+      cr.set_source_rgb(0.1, 0.1, 0.1)
+      cr.new_sub_path()
+      cr.arc(cx, cy - h * 0.35, 5, 0, 2 * pi)
+      cr.fill()
+
+      # --- peak lamp
+      if acc or GLB.pk[k] > 0.85:
+         lit = GLB.pk[k] > 0.85
+         if lit:
+            cr.set_source_rgb(0.15, 0.15, 1.0)
+         else:
+            cr.set_source_rgb(0.12, 0.10, 0.22)
+         cr.new_sub_path()
+         cr.arc(cx + w - 16, cy + h * 0.78, 7, 0, 2 * pi)
+         cr.fill()

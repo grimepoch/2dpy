@@ -1,0 +1,124 @@
+def Init():
+   # --- author : claude
+   # --- a parametric EQ display : each slot is a band, its level becomes the
+   # --- gain of a bell, and the bells sum into one response curve
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Q")
+   STR.SetFParam1Name("Gain")
+   STR.SetFParam2Name("Hue")
+   # ---    accent : show each band's own bell
+   # ---    trigger : fill under the curve
+
+   # --- 10 slots = FFT analysis bins, 24 slots = MIDI notes
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   GLB.n = 12 if GLB.slots == 24 else GLB.slots
+   GLB.lvl = []
+   for i in range(GLB.n):
+      GLB.lvl.append(0.0)
+   GLB.pts = 200
+   GLB.u = np.linspace(0.0, 1.0, GLB.pts)
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(4.0, 60.0)
+   f1 = STR.F1mix(40.0, 260.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   n = GLB.n
+   for k in range(n):
+      GLB.lvl[k] = GLB.lvl[k] * 0.88
+
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if ids == 0:
+         continue
+      k = (note % 12) if GLB.mode == "midi" else i
+      if k < n:
+         v = velo / 127.0
+         if v > GLB.lvl[k]:
+            GLB.lvl[k] = v
+
+   cr.set_source_rgb(0.03, 0.03, 0.05)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   # --- grid
+   cr.set_source_rgba(0.25, 0.25, 0.32, 1.0)
+   cr.set_line_width(1)
+   for k in range(1, 8):
+      y = 720.0 * k / 8.0
+      cr.move_to(0, y)
+      cr.line_to(1280, y)
+   for k in range(1, 12):
+      x = 1280.0 * k / 12.0
+      cr.move_to(x, 0)
+      cr.line_to(x, 720)
+   cr.stroke()
+
+   u = GLB.u
+   tot = np.zeros(GLB.pts)
+   for k in range(n):
+      c = (k + 0.5) / n
+      d = (u - c) * f0
+      bell = GLB.lvl[k] / (1.0 + d * d)
+      tot = tot + bell
+      if acc:
+         r,g,b = hsv_to_rgb((f2 + k / (n * 1.0) * 0.5) % 1.0, 0.8, 1.0)
+         cr.set_source_rgba(b, g, r, 0.45)
+         cr.set_line_width(1.5)
+         ys = 360.0 + bell * f1
+         cr.move_to(0, 360.0)
+         lb = (360.0 + bell * f1).tolist()
+         for p in range(GLB.pts):
+            cr.line_to(p * 1280.0 / (GLB.pts - 1.0), lb[p])
+         cr.stroke()
+
+   ly = (360.0 + tot * f1).tolist()
+
+   r,g,b = hsv_to_rgb((f2 + time * 0.02) % 1.0, 0.7, 1.0)
+
+   if GLB.xmode:
+      cr.set_source_rgba(b, g, r, 0.35)
+      cr.move_to(0, 360.0)
+      for p in range(GLB.pts):
+         cr.line_to(p * 1280.0 / (GLB.pts - 1.0), ly[p])
+      cr.line_to(1280, 360.0)
+      cr.close_path()
+      cr.fill()
+
+   cr.set_source_rgb(b, g, r)
+   cr.set_line_width(3.5)
+   cr.move_to(0, ly[0])
+   for p in range(1, GLB.pts):
+      cr.line_to(p * 1280.0 / (GLB.pts - 1.0), ly[p])
+   cr.stroke()
+
+   # --- band handles
+   for k in range(n):
+      c = (k + 0.5) / n
+      x = c * 1280.0
+      idx = int(c * (GLB.pts - 1))
+      r,g,b = hsv_to_rgb((f2 + k / (n * 1.0) * 0.5) % 1.0, 0.85, 1.0)
+      cr.set_source_rgb(b, g, r)
+      cr.rectangle(x - 5, ly[idx] - 5, 10, 10)
+      cr.fill()

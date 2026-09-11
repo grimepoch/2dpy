@@ -1,0 +1,142 @@
+def Init():
+   # --- author : claude
+   # --- the zodiac wheel as a note display : each sign is a pitch class, and
+   # --- the aspect lines are the intervals actually sounding
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Decay")
+   STR.SetFParam1Name("Size")
+   STR.SetFParam2Name("Hue")
+   # ---    accent : parchment chart
+   # ---    trigger : show the interval names
+
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   GLB.glyph = "TVIXYZabcdef"
+   GLB.names = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"]
+   GLB.lvl = []
+   for i in range(12):
+      GLB.lvl.append(0.0)
+
+   def text(x, y, s):
+      cr.save()
+      cr.translate(x, y)
+      cr.scale(1.0, -1.0)
+      cr.move_to(0, 0)
+      cr.show_text(s)
+      cr.restore()
+   GLB.text = text
+
+   def ring(cx, cy, r, w):
+      cr.new_sub_path()
+      cr.arc(cx, cy, r + w, 0, 2 * pi)
+      cr.arc_negative(cx, cy, r - w, 2 * pi, 0)
+      cr.close_path()
+   GLB.ring = ring
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.80, 0.99)
+   f1 = STR.F1mix(200.0, 330.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   for k in range(12):
+      GLB.lvl[k] = GLB.lvl[k] * f0
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if ids == 0:
+         continue
+      k = (note % 12) if GLB.mode == "midi" else int(i * 12.0 / GLB.slots)
+      v = velo / 127.0
+      if GLB.mode == "audio" and velo < 25:
+         continue
+      if v > GLB.lvl[k]:
+         GLB.lvl[k] = v
+
+   if acc:
+      bg = (0.80, 0.88, 0.94)
+      ink = (0.16, 0.14, 0.22)
+   else:
+      bg = (0.04, 0.03, 0.07)
+      ink = hsv_to_rgb(f2, 0.30, 1.0)
+
+   cr.set_source_rgb(bg[2], bg[1], bg[0])
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cx = 640.0
+   cy = 360.0
+   R = f1
+   cr.set_source_rgb(ink[2], ink[1], ink[0])
+   for rr in (R, R * 0.80, R * 0.22):
+      GLB.ring(cx, cy, rr, 1.6)
+   cr.fill()
+
+   cr.set_line_width(1.2)
+   for k in range(12):
+      a = k * pi / 6.0 + time * 0.01
+      cr.move_to(cx + cos(a) * R * 0.22, cy + sin(a) * R * 0.22)
+      cr.line_to(cx + cos(a) * R, cy + sin(a) * R)
+   cr.stroke()
+
+   ax = []
+   ay = []
+   for k in range(12):
+      a = (k + 0.5) * pi / 6.0 + time * 0.01
+      ax.append(cx + cos(a) * R * 0.62)
+      ay.append(cy + sin(a) * R * 0.62)
+
+   lit = []
+   for k in range(12):
+      if GLB.lvl[k] > 0.06:
+         lit.append(k)
+
+   cr.set_line_cap(cairo.LINE_CAP_ROUND)
+   for i in range(len(lit)):
+      for j in range(i + 1, len(lit)):
+         a = lit[i]
+         b = lit[j]
+         iv = (b - a) % 12
+         v = GLB.lvl[a] * GLB.lvl[b]
+         c = hsv_to_rgb((f2 + iv / 12.0 * 0.7) % 1.0, 0.85, 1.0)
+         cr.set_source_rgb(c[2] * v, c[1] * v, c[0] * v)
+         cr.set_line_width(1.0 + 6.0 * v)
+         cr.move_to(ax[a], ay[a])
+         cr.line_to(ax[b], ay[b])
+         cr.stroke()
+
+   cr.select_font_face("serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+   cr.set_font_size(R * 0.12)
+   for k in range(12):
+      v = GLB.lvl[k]
+      a = (k + 0.5) * pi / 6.0 + time * 0.01
+      x = cx + cos(a) * R * 0.90
+      y = cy + sin(a) * R * 0.90
+      c = hsv_to_rgb((f2 + k / 12.0 * 0.8) % 1.0, 0.75, 0.30 + 0.70 * v)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      cr.new_sub_path()
+      cr.arc(x, y, R * 0.055 + R * 0.05 * v, 0, 2 * pi)
+      cr.fill()
+      s = GLB.names[k] if GLB.xmode else GLB.glyph[k]
+      e = cr.text_extents(s)
+      cr.set_source_rgb(ink[2], ink[1], ink[0])
+      GLB.text(x - e.width * 0.5 - e.x_bearing, y - e.height * 0.5, s)

@@ -1,0 +1,94 @@
+def Init():
+   # --- author : claude
+   # --- pendulumWave crossed with type : each bob is a letter, and the row
+   # --- is tuned so the word scatters and reassembles on a cycle
+   # --- note : screen y=0 is the BOTTOM, so the bobs hang DOWN
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Cycle")
+   STR.SetFParam1Name("Text Size")
+   STR.SetFParam2Name("Swing")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : draw the threads
+   # ---    trigger : next word
+
+   GLB.words = ["PENDULUM","HARMONIC","OSCILLATE","CADENCE","RESONANT"]
+   GLB.w = 0
+   GLB.t0 = 0.0
+   GLB.pivot = 690.0
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(8.0, 60.0)
+   f1 = STR.F1mix(40.0, 110.0)
+   f2 = STR.F2mix(0.1, 0.9)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.w = (GLB.w + 1) % len(GLB.words)
+      GLB.t0 = time
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   t = time - GLB.t0
+   s = GLB.words[GLB.w]
+   n = len(s)
+
+   cr.set_source_rgb(0.02, 0.02, 0.05)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cycle = f0
+   pv = GLB.pivot
+   span = 1080.0
+   x0 = (1280.0 - span) * 0.5
+
+   cr.set_source_rgb(0.28, 0.26, 0.32)
+   cr.rectangle(x0 - 20, pv - 4, span + 40, 9)
+   cr.fill()
+
+   cr.select_font_face("sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+   cr.set_font_size(f1)
+
+   for k in range(n):
+      osc = 22.0 + k
+      w = 2.0 * pi * osc / cycle
+      L = (9.81 * cycle * cycle) / (4.0 * pi * pi * osc * osc) * 2600.0
+      if L > 520:
+         L = 520.0
+      if L < 110:
+         L = 110.0
+      a = f2 * cos(w * t)
+      px = x0 + span * (k + 0.5) / n
+      bx = px + sin(a) * L
+      by = pv - cos(a) * L
+
+      if acc:
+         cr.set_source_rgba(0.6, 0.58, 0.66, 0.7)
+         cr.set_line_width(1.2)
+         cr.move_to(px, pv)
+         cr.line_to(bx, by)
+         cr.stroke()
+
+      tt = k / (n * 1.0)
+      if GLB.xmode:
+         c = hsv_to_rgb((tt * 0.85 + time * 0.03) % 1.0, 0.8, 1.0)
+      else:
+         c = hsv_to_rgb((0.55 + tt * 0.2) % 1.0, 0.65, 1.0)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      e = cr.text_extents(s[k])
+      cr.save()
+      cr.translate(bx, by)
+      cr.rotate(-a)
+      cr.scale(1.0, -1.0)
+      cr.move_to(-e.width * 0.5 - e.x_bearing, -e.height * 0.5)
+      cr.show_text(s[k])
+      cr.restore()

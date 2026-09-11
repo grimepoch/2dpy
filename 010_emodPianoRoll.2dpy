@@ -1,0 +1,104 @@
+def Init():
+   # --- author : claude
+   # --- piano roll : held notes draw themselves as bars growing out of the
+   # --- playhead, and the paper scrolls away underneath
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Scroll")
+   STR.SetFParam1Name("Lane Size")
+   STR.SetFParam2Name("Hue")
+   # ---    accent : keybed lights up
+   # ---    trigger : chromatic <-> fold to one octave
+
+   # --- 10 slots = FFT analysis bins, 24 slots = MIDI notes
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   GLB.black = [0,1,0,1,0,0,1,0,1,0,1,0]
+   GLB.sur2 = surface.create_similar(cairo.CONTENT_COLOR_ALPHA, 1280, 720)
+   GLB.cr2  = cairo.Context(GLB.sur2)
+   GLB.carry = 0.0
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(1.0, 12.0)
+   f1 = STR.F1mix(0.35, 1.0)
+   f2 = STR.F2()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   kb = 120.0
+
+   GLB.carry = GLB.carry + f0
+   sp = int(GLB.carry)
+   GLB.carry = GLB.carry - sp
+
+   if sp > 0:
+      GLB.cr2.save()
+      GLB.cr2.set_operator(cairo.OPERATOR_SOURCE)
+      GLB.cr2.set_source_surface(surface, 0, 0)
+      GLB.cr2.paint()
+      GLB.cr2.restore()
+      cr.set_source_surface(GLB.sur2, sp, 0)
+      cr.paint()
+
+   # --- wipe the strip beside the keybed that we are about to draw into
+   cr.set_source_rgb(0.03, 0.02, 0.04)
+   cr.rectangle(0, 0, kb + sp + 2, 720)
+   cr.fill()
+
+   lanes = 12 if GLB.xmode else (24 if GLB.mode == "midi" else GLB.slots)
+   lh = (720.0 / lanes) * f1
+   y0 = (720.0 - lh * lanes) * 0.5
+
+   # --- keybed down the left hand side
+   for k in range(lanes):
+      y = y0 + k * lh
+      if GLB.mode == "midi" and GLB.black[k % 12]:
+         cr.set_source_rgb(0.10, 0.09, 0.11)
+      else:
+         cr.set_source_rgb(0.82, 0.80, 0.85)
+      cr.rectangle(0, y, kb, lh - 1)
+      cr.fill()
+
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if ids == 0:
+         continue
+      if GLB.mode == "midi":
+         k = (note % 12) if GLB.xmode else (note % 24)
+      else:
+         k = i % lanes
+      if GLB.mode == "audio" and velo < 12:
+         continue
+      y = y0 + k * lh
+      v = velo / 127.0
+      r,g,b = hsv_to_rgb((f2 + k / (lanes * 2.0)) % 1.0, 0.8, 0.35 + 0.65 * v)
+      cr.set_source_rgb(b, g, r)
+      cr.rectangle(kb, y + 1, sp + 2, lh - 2)
+      cr.fill()
+      # --- lit key
+      if acc:
+         cr.set_source_rgb(b, g, r)
+      else:
+         cr.set_source_rgb(0.35, 0.95, 1.0)
+      cr.rectangle(0, y + 1, kb, lh - 2)
+      cr.fill()
+
+   # --- playhead
+   cr.set_source_rgba(1, 1, 1, 0.8)
+   cr.rectangle(kb, 0, 2, 720)
+   cr.fill()

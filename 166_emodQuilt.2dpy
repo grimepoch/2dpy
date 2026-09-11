@@ -1,0 +1,105 @@
+def Init():
+   # --- author : claude
+   # --- a pieced quilt where each block belongs to a slot : a block turns and
+   # --- brightens when its slot sounds
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Decay")
+   STR.SetFParam1Name("Block Size")
+   STR.SetFParam2Name("Palette")
+   # ---    accent : sashing between blocks
+   # ---    trigger : new colourway
+
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   GLB.n = 12 if GLB.slots == 24 else GLB.slots
+   GLB.lvl = []
+   for i in range(GLB.n):
+      GLB.lvl.append(0.0)
+
+   def dye():
+      GLB.hu = []
+      for i in range(6):
+         GLB.hu.append(np.random.random())
+   GLB.dye = dye
+   GLB.dye()
+
+   def tri(s, q):
+      p = [[0,0],[1,0],[1,1],[0,1]]
+      a = p[q]
+      b = p[(q + 1) % 4]
+      cr.move_to(s * 0.5, s * 0.5)
+      cr.line_to(a[0] * s, a[1] * s)
+      cr.line_to(b[0] * s, b[1] * s)
+      cr.close_path()
+   GLB.tri = tri
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.80, 0.985)
+   f1 = STR.F1mix(80.0, 180.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.dye()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   n = GLB.n
+   for k in range(n):
+      GLB.lvl[k] = GLB.lvl[k] * f0
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if ids == 0:
+         continue
+      k = (note % 12) if GLB.mode == "midi" else i
+      if k < n:
+         v = velo / 127.0
+         if v > GLB.lvl[k]:
+            GLB.lvl[k] = v
+
+   cr.set_source_rgb(0.08, 0.07, 0.10)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   s = f1
+   sash = s * 0.10 if acc else 0.0
+   step = s + sash
+   nx = int(1280 / step) + 2
+   ny = int(720 / step) + 2
+
+   for j in range(ny):
+      for i in range(nx):
+         k = (i * 5 + j * 7) % n
+         v = GLB.lvl[k]
+         x = i * step - step
+         y = j * step - step
+         cols = []
+         for c in range(3):
+            hu = (GLB.hu[(k + c) % 6] * (0.9 if GLB.xmode else 0.35) + f2) % 1.0
+            cols.append(hsv_to_rgb(hu, 0.70 - 0.3 * v, 0.30 + 0.70 * v))
+         cr.save()
+         cr.translate(x + s * 0.5, y + s * 0.5)
+         cr.rotate(v * pi * 0.5 + (k % 4) * pi * 0.5)
+         cr.scale(0.75 + 0.25 * v, 0.75 + 0.25 * v)
+         cr.translate(-s * 0.5, -s * 0.5)
+         for q in range(4):
+            c = cols[q % 3]
+            cr.set_source_rgb(c[2], c[1], c[0])
+            GLB.tri(s, q)
+            cr.fill()
+         cr.restore()

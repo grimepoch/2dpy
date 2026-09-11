@@ -1,0 +1,142 @@
+def Init():
+   # --- author : claude
+   # --- an LED wall driven by the slots.  The legend is rasterised once into
+   # --- a tiny offscreen surface and read back as lamp states, so real text
+   # --- can sit inside the meter without any font work per frame.
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Decay")
+   STR.SetFParam1Name("Dot Size")
+   STR.SetFParam2Name("Hue")
+   # ---    accent : peak hold lamps
+   # ---    trigger : bars <-> legend
+
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   GLB.cols = 64
+   GLB.rows = 22
+   GLB.n = 12 if GLB.slots == 24 else GLB.slots
+   GLB.lvl = []
+   GLB.pk = []
+   for i in range(GLB.n):
+      GLB.lvl.append(0.0)
+      GLB.pk.append(0.0)
+
+   GLB.sur = cairo.ImageSurface(cairo.FORMAT_ARGB32, GLB.cols, GLB.rows)
+   GLB.c2 = cairo.Context(GLB.sur)
+
+   def legend(msg):
+      c = GLB.c2
+      c.set_operator(cairo.OPERATOR_SOURCE)
+      c.set_source_rgba(0, 0, 0, 0)
+      c.paint()
+      c.set_operator(cairo.OPERATOR_OVER)
+      c.select_font_face("mono", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+      c.set_font_size(15)
+      c.set_source_rgb(1, 1, 1)
+      e = c.text_extents(msg)
+      c.move_to(GLB.cols * 0.5 - e.width * 0.5 - e.x_bearing, GLB.rows * 0.5 + 5)
+      c.show_text(msg)
+      GLB.sur.flush()
+      buf = np.ndarray(shape=(GLB.rows, GLB.sur.get_stride() // 4, 4),
+                       dtype=np.uint8, buffer=GLB.sur.get_data())
+      GLB.bits = (buf[:, :GLB.cols, 3] > 90)
+   GLB.legend = legend
+   GLB.legend("LEVEL")
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.75, 0.985)
+   f1 = STR.F1mix(7.0, 15.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+      GLB.legend("LEVEL" if GLB.xmode else "SIGNAL")
+
+   n = GLB.n
+   for k in range(n):
+      GLB.lvl[k] = GLB.lvl[k] * f0
+      GLB.pk[k] = GLB.pk[k] - 0.004
+
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if ids == 0:
+         continue
+      k = (note % 12) if GLB.mode == "midi" else i
+      if k < n:
+         v = velo / 127.0
+         if v > GLB.lvl[k]:
+            GLB.lvl[k] = v
+         if v > GLB.pk[k]:
+            GLB.pk[k] = v
+
+   cr.set_source_rgb(0.03, 0.03, 0.04)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   pitch = f1 * 1.5
+   rad = f1 * 0.46
+   w = GLB.cols * pitch
+   h = GLB.rows * pitch
+   x0 = 640.0 - w * 0.5
+   y0 = 360.0 - h * 0.5
+
+   # --- dark lamps
+   cr.set_source_rgb(0.07, 0.07, 0.09)
+   for j in range(GLB.rows):
+      yy = y0 + j * pitch
+      for i in range(GLB.cols):
+         cr.rectangle(x0 + i * pitch - rad, yy - rad, rad * 2, rad * 2)
+   cr.fill()
+
+   # --- level per column from the nearest slot
+   nb = 5
+   buckets = []
+   for b in range(nb):
+      buckets.append([])
+   peaks = []
+   for i in range(GLB.cols):
+      k = int(i * n / GLB.cols)
+      lit = int(GLB.lvl[k] * GLB.rows)
+      pk = int(GLB.pk[k] * GLB.rows)
+      for j in range(GLB.rows):
+         on = j < lit
+         if GLB.xmode and GLB.bits[GLB.rows - 1 - j][i]:
+            on = not on
+         if on:
+            buckets[int(j * nb / GLB.rows)].append([i, j])
+         elif acc and j == pk and pk > 0:
+            peaks.append([i, j])
+
+   for b in range(nb):
+      bk = buckets[b]
+      if len(bk) == 0:
+         continue
+      t = b / (nb - 1.0)
+      r,g,bl = hsv_to_rgb((f2 + 0.33 - t * 0.33) % 1.0, 0.9 - 0.3 * t, 1.0)
+      cr.set_source_rgb(bl, g, r)
+      for q in bk:
+         cr.rectangle(x0 + q[0] * pitch - rad, y0 + q[1] * pitch - rad, rad * 2, rad * 2)
+      cr.fill()
+
+   if len(peaks):
+      cr.set_source_rgb(1, 1, 1)
+      for q in peaks:
+         cr.rectangle(x0 + q[0] * pitch - rad, y0 + q[1] * pitch - rad, rad * 2, rad * 2)
+      cr.fill()

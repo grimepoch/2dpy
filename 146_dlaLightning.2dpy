@@ -1,0 +1,111 @@
+def Init():
+   # --- author : claude
+   # --- dielectric breakdown : the same growth rule as a DLA crystal, but
+   # --- biased toward a ground plane, which is what makes it a spark
+   # --- note : screen y=0 is the BOTTOM, so the strike travels down to y=0
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Growth")
+   STR.SetFParam1Name("Branching")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : flash the frame on contact
+   # ---    trigger : new strike
+
+   GLB.maxseg = 700
+
+   def strike():
+      GLB.seg = []
+      GLB.tip = [[560.0 + np.random.random() * 160.0, 700.0, -pi * 0.5, 1.0]]
+      GLB.flash = 0.0
+      GLB.done = 0
+   GLB.strike = strike
+   GLB.strike()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(4.0, 26.0)
+   f1 = STR.F1mix(0.0, 0.20)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.strike()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   GLB.flash = GLB.flash * 0.85
+   cr.set_source_rgb(0.02 + GLB.flash * 0.3, 0.02 + GLB.flash * 0.3,
+                     0.04 + GLB.flash * 0.4)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   # --- advance the tips, biased downward toward the ground plane
+   newtips = []
+   for t in GLB.tip:
+      if t[3] <= 0.05 or len(GLB.seg) >= GLB.maxseg:
+         continue
+      x0 = t[0]
+      y0 = t[1]
+      t[2] = t[2] + (np.random.random() - 0.5) * 0.7
+      # --- the field pulls the leader toward ground
+      t[2] = t[2] + (-pi * 0.5 - t[2]) * 0.25
+      d = f0 * (0.5 + 0.5 * t[3])
+      t[0] = t[0] + cos(t[2]) * d
+      t[1] = t[1] + sin(t[2]) * d
+      t[3] = t[3] * 0.996
+      GLB.seg.append([x0, y0, t[0], t[1], t[3]])
+      if t[1] < 20.0:
+         GLB.flash = 1.0
+         GLB.done = 1
+         continue
+      if t[0] < -40 or t[0] > 1320:
+         continue
+      newtips.append(t)
+      if np.random.random() < f1 and len(newtips) < 26:
+         newtips.append([t[0], t[1], t[2] + (np.random.random() - 0.5) * 1.9,
+                         t[3] * 0.68])
+   GLB.tip = newtips
+
+   if GLB.done and len(GLB.tip) == 0 and GLB.flash < 0.05:
+      GLB.strike()
+
+   # --- the ground plane
+   cr.set_source_rgb(0.10, 0.10, 0.14)
+   cr.rectangle(0, 0, 1280, 20)
+   cr.fill()
+
+   bands = 5
+   for b in range(bands):
+      lo = b / (bands * 1.0)
+      hi = (b + 1) / (bands * 1.0)
+      t = b / (bands - 1.0)
+      if GLB.xmode:
+         c = hsv_to_rgb((f2 + t * 0.5) % 1.0, 0.75, 0.45 + 0.55 * t)
+      else:
+         c = hsv_to_rgb((f2 + 0.6 + t * 0.05) % 1.0, 0.55 - 0.5 * t, 1.0)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      cr.set_line_width(0.8 + 5.0 * t)
+      cr.set_line_cap(cairo.LINE_CAP_ROUND)
+      any = 0
+      for s in GLB.seg:
+         if s[4] < lo or s[4] >= hi:
+            continue
+         cr.move_to(s[0], s[1])
+         cr.line_to(s[2], s[3])
+         any = 1
+      if any:
+         cr.stroke()
+
+   if acc and GLB.flash > 0.05:
+      cr.set_source_rgba(1, 1, 1, GLB.flash * 0.35)
+      cr.rectangle(0,0,1280,720)
+      cr.fill()

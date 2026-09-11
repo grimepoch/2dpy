@@ -1,0 +1,127 @@
+def Init():
+   # --- author : claude
+   # --- a chart compass rose with its rhumb lines : the wind rose engraved on
+   # --- portolan charts.  Public domain cartographic motif.
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Rhumbs")
+   STR.SetFParam1Name("Size")
+   STR.SetFParam2Name("Swing")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : parchment and sepia
+   # ---    trigger : 16 point <-> 32 point rose
+
+   GLB.pts = ["N","NNE","NE","ENE","E","ESE","SE","SSE",
+              "S","SSW","SW","WSW","W","WNW","NW","NNW"]
+   GLB.head = 0.0
+
+   def text(x, y, s):
+      cr.save()
+      cr.translate(x, y)
+      cr.scale(1.0, -1.0)
+      cr.move_to(0, 0)
+      cr.show_text(s)
+      cr.restore()
+   GLB.text = text
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 32.0)
+   f1 = STR.F1mix(140.0, 320.0)
+   f2 = STR.F2mix(0.0, 0.5)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   if acc:
+      bg = (0.78, 0.86, 0.94)
+      ink = (0.18, 0.24, 0.38)
+      c1 = (0.20, 0.30, 0.70)
+   else:
+      bg = (0.04, 0.05, 0.08)
+      ink = hsv_to_rgb(0.55, 0.25, 0.95)
+      c1 = hsv_to_rgb(0.08, 0.85, 1.0)
+
+   cr.set_source_rgb(bg[2], bg[1], bg[0])
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cx = 640.0
+   cy = 360.0
+   R = f1
+   GLB.head = f2 * sin(time * 0.35)
+   pts = 32 if GLB.xmode else 16
+
+   # --- rhumb lines out to the edge of the chart
+   nr = int(f0)
+   if nr > 0:
+      cr.set_source_rgba(ink[2], ink[1], ink[0], 0.35)
+      cr.set_line_width(1.0)
+      for k in range(nr):
+         a = k * 2.0 * pi / nr + GLB.head
+         cr.move_to(cx, cy)
+         cr.line_to(cx + cos(a) * 1500.0, cy + sin(a) * 1500.0)
+      cr.stroke()
+
+   # --- the points of the rose, long and short alternating
+   for k in range(pts):
+      # --- bearings run CLOCKWISE from north, but the display is y-up, so
+      # --- the angle must be negated and north put at +pi/2
+      a = -k * 2.0 * pi / pts + GLB.head + pi * 0.5
+      half = pi / pts
+      if k % (pts // 8) == 0:
+         L = R
+      elif k % (pts // 16 if pts > 16 else 1) == 0:
+         L = R * 0.72
+      else:
+         L = R * 0.52
+      # --- each point is two triangles, a lit half and a shadowed half
+      for side in range(2):
+         s = 1.0 if side == 0 else -1.0
+         cr.move_to(cx, cy)
+         cr.line_to(cx + cos(a) * L, cy + sin(a) * L)
+         cr.line_to(cx + cos(a + half * s) * L * 0.20,
+                    cy + sin(a + half * s) * L * 0.20)
+         cr.close_path()
+         if side == 0:
+            cr.set_source_rgb(c1[2], c1[1], c1[0])
+         else:
+            cr.set_source_rgb(ink[2], ink[1], ink[0])
+         cr.fill()
+
+   # --- rings, as filled annuli
+   for rr in (R * 0.20, R * 0.78, R):
+      cr.new_sub_path()
+      cr.arc(cx, cy, rr + 1.6, 0, 2 * pi)
+      cr.arc_negative(cx, cy, rr - 1.6, 2 * pi, 0)
+      cr.close_path()
+   cr.set_source_rgb(ink[2], ink[1], ink[0])
+   cr.fill()
+
+   # --- the fleur marking north, and the labels
+   cr.select_font_face("serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+   cr.set_font_size(R * 0.11)
+   for k in range(16):
+      a = -k * 2.0 * pi / 16.0 + GLB.head + pi * 0.5
+      s = GLB.pts[k]
+      if len(s) > 2 and not GLB.xmode:
+         continue
+      e = cr.text_extents(s)
+      rx = cx + cos(a) * (R * 1.12)
+      ry = cy + sin(a) * (R * 1.12)
+      if k == 0:
+         cr.set_source_rgb(c1[2], c1[1], c1[0])
+      else:
+         cr.set_source_rgb(ink[2], ink[1], ink[0])
+      GLB.text(rx - e.width * 0.5 - e.x_bearing, ry - e.height * 0.5, s)

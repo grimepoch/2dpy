@@ -1,0 +1,107 @@
+def Init():
+   # --- author : claude
+   # --- a tartan weaving itself.  The sett - the repeating sequence of
+   # --- colours and widths - is the same in warp and weft, so the cloth is
+   # --- symmetric about its diagonal, and every crossing shows whichever
+   # --- thread is on top in the twill.  The sett drifts, so the cloth is
+   # --- always becoming a different tartan.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Sett Drift")
+   STR.SetFParam1Name("Thread Count")
+   STR.SetFParam2Name("Palette")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : the twill reverses to a herringbone
+   # ---    trigger : new sett
+
+   GLB.res = 3
+   GLB.nx = 1280 // GLB.res
+   GLB.ny = 720 // GLB.res
+   GLB.small = cairo.ImageSurface(cairo.FORMAT_ARGB32, GLB.nx, GLB.ny)
+   GLB.sst = GLB.small.get_stride() // 4
+   GLB.sv = np.ndarray(shape=(GLB.ny, GLB.sst, 4), dtype=np.uint8,
+                       buffer=GLB.small.get_data())
+   yy, xx = np.meshgrid(np.arange(GLB.ny), np.arange(GLB.nx), indexing="ij")
+   GLB.iy = yy.astype(np.int32)
+   GLB.ix = xx.astype(np.int32)
+   GLB.t = 0.0
+
+   def newsett():
+      n = 5 + np.random.randint(4)
+      GLB.w = np.random.randint(3, 18, n)
+      GLB.h = np.random.random(n)
+      GLB.s = 0.35 + np.random.random(n) * 0.55
+      GLB.v = 0.25 + np.random.random(n) * 0.7
+   GLB.newsett = newsett
+   GLB.newsett()
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 0.9)
+   f1 = STR.F1mix(1.0, 5.0)
+   f2 = STR.F2()
+
+   if trig:
+      GLB.newsett()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   GLB.t = GLB.t + f0
+
+   # --- the sett, mirrored : a tartan sett is a palindrome, which is what
+   # --- makes the finished cloth symmetric about both diagonals
+   n = len(GLB.w)
+   seq = []
+   for i in range(n):
+      for k in range(int(GLB.w[i] * f1)):
+         seq.append(i)
+   for i in range(n - 2, 0, -1):
+      for k in range(int(GLB.w[i] * f1)):
+         seq.append(i)
+   L = len(seq)
+   if L < 2:
+      return
+   look = np.array(seq, dtype=np.int32)
+
+   off = int(GLB.t)
+   wi = look[(GLB.ix + off) % L]
+   we = look[(GLB.iy + off) % L]
+
+   # --- the twill : which of the two threads is on top at this crossing
+   if acc:
+      z = ((GLB.ix // 4 + GLB.iy // 4) // 3) % 2
+   else:
+      z = ((GLB.ix + GLB.iy * 2) // 3) % 2
+   top = np.where(z == 0, wi, we)
+
+   pal = np.zeros((n, 3), dtype=np.float32)
+   for i in range(n):
+      c = hsv_to_rgb((GLB.h[i] + f2) % 1.0, GLB.s[i], GLB.v[i])
+      pal[i, 0] = c[0] * 255.0
+      pal[i, 1] = c[1] * 255.0
+      pal[i, 2] = c[2] * 255.0
+   col = pal[top]
+   # --- the other thread shows a little where it passes under
+   und = pal[np.where(z == 0, we, wi)]
+   mixv = 0.80
+   GLB.sv[:, :GLB.nx, 0] = (col[:, :, 0] * mixv +
+                            und[:, :, 0] * (1.0 - mixv)).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 1] = (col[:, :, 1] * mixv +
+                            und[:, :, 1] * (1.0 - mixv)).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 2] = (col[:, :, 2] * mixv +
+                            und[:, :, 2] * (1.0 - mixv)).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 3] = 255
+   GLB.small.mark_dirty()
+   pat = cairo.SurfacePattern(GLB.small)
+   pat.set_filter(cairo.FILTER_NEAREST)
+   m = cairo.Matrix()
+   m.scale(1.0 / GLB.res, 1.0 / GLB.res)
+   pat.set_matrix(m)
+   cr.set_source(pat)
+   cr.paint()

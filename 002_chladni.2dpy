@@ -1,0 +1,83 @@
+def Init():
+   # --- author : claude
+   # --- Chladni figures : sand collecting on the nodal lines of a square plate
+   # --- driven at (n,m).  The mode numbers step on the beat.
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Mode N")
+   STR.SetFParam1Name("Mode M")
+   STR.SetFParam2Name("Grain")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : show the plate's driven field too
+   # ---    trigger : jump to a random mode pair
+
+   GLB.res = 4
+   nx = 1280 // GLB.res
+   ny = 720 // GLB.res
+   GLB.nx = nx
+   GLB.ny = ny
+   xs = (np.arange(nx, dtype=np.float32) * GLB.res) / 1280.0
+   ys = (np.arange(ny, dtype=np.float32) * GLB.res) / 720.0
+   GLB.X = np.tile(xs.reshape(1, nx), (ny, 1))
+   GLB.Y = np.tile(ys.reshape(ny, 1), (1, nx))
+   GLB.jn = 0.0
+   GLB.jm = 0.0
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(1.0, 9.0)
+   f1 = STR.F1mix(1.0, 9.0)
+   f2 = STR.F2mix(0.006, 0.042)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.jn = np.random.random() * 6.0
+      GLB.jm = np.random.random() * 6.0
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   n = f0 + GLB.jn
+   m = f1 + GLB.jm
+
+   # --- the classic square plate solution, slowly breathing
+   w = 1.0 + 0.06 * sin(time * 0.6)
+   a = np.sin(n * pi * GLB.X * w) * np.sin(m * pi * GLB.Y)
+   b = np.sin(m * pi * GLB.X) * np.sin(n * pi * GLB.Y * w)
+   fz = a - b if GLB.xmode == 0 else a + b
+
+   # --- clear screen
+   cr.set_source_rgb(0,0,0)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   if acc:
+      # --- faint look at the standing wave itself
+      lo = np.abs(fz) > 0.75
+      ys, xs = np.nonzero(lo)
+      cr.set_source_rgba(0.25, 0.10, 0.02, 1)
+      for k in range(0, len(xs), 11):
+         cr.rectangle(int(xs[k]) * GLB.res, int(ys[k]) * GLB.res, GLB.res, GLB.res)
+      cr.fill()
+
+   # --- sand settles where the plate is not moving.  A wide grain can select
+   # --- tens of thousands of cells, so thin the pile out to a fixed budget
+   # --- rather than let the frame time run away.
+   nodal = np.abs(fz) < f2
+   ys, xs = np.nonzero(nodal)
+   cnt = len(xs)
+   step = 1
+   if cnt > 5000:
+      step = int(cnt / 5000) + 1
+   cr.set_source_rgb(0.55, 0.85, 1.0)
+   r = GLB.res + 1
+   for k in range(0, cnt, step):
+      cr.rectangle(int(xs[k]) * GLB.res, int(ys[k]) * GLB.res, r, r)
+   cr.fill()

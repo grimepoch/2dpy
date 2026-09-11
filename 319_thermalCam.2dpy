@@ -1,0 +1,111 @@
+def Init():
+   # --- author : claude
+   # --- a thermal camera watching warm bodies move.  Heat is deposited where
+   # --- they are and then conducts outward and radiates away, so the image
+   # --- holds the shape of where something WAS for a second or two - the
+   # --- thermal shadow is the whole point.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Emissivity")
+   STR.SetFParam1Name("Conduction")
+   STR.SetFParam2Name("Palette")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : something very hot walks in
+   # ---    trigger : swap palette
+
+   GLB.res = 4
+   GLB.nx = 1280 // GLB.res
+   GLB.ny = 720 // GLB.res
+   GLB.small = cairo.ImageSurface(cairo.FORMAT_ARGB32, GLB.nx, GLB.ny)
+   GLB.sst = GLB.small.get_stride() // 4
+   GLB.sv = np.ndarray(shape=(GLB.ny, GLB.sst, 4), dtype=np.uint8,
+                       buffer=GLB.small.get_data())
+   yy, xx = np.meshgrid(np.arange(GLB.ny), np.arange(GLB.nx), indexing="ij")
+   GLB.iy = yy.astype(np.float32)
+   GLB.ix = xx.astype(np.float32)
+   GLB.t = np.zeros((GLB.ny, GLB.nx), dtype=np.float32)
+   GLB.n = 6
+   GLB.bx = np.random.random(GLB.n) * GLB.nx
+   GLB.by = np.random.random(GLB.n) * GLB.ny
+   GLB.ba = np.random.random(GLB.n) * 6.283
+   GLB.br = np.random.random(GLB.n) * 8.0 + 6.0
+   GLB.nb = 256
+   GLB.pal = np.zeros((GLB.nb, 3), dtype=np.float32)
+
+   def build(which):
+      for i in range(GLB.nb):
+         u = i / (GLB.nb - 1.0)
+         if which == 0:
+            # --- ironbow
+            r = min(1.0, u * 2.2)
+            g = max(0.0, min(1.0, u * 2.0 - 0.55))
+            b = max(0.0, min(1.0, u * 3.4 - 2.4)) + max(0.0, 0.5 - u) * 0.9
+         elif which == 1:
+            # --- rainbow
+            c = hsv_to_rgb((0.72 - u * 0.72) % 1.0, 0.92, min(1.0, u * 2.4))
+            r = c[0]
+            g = c[1]
+            b = c[2]
+         else:
+            # --- white hot
+            r = u
+            g = u
+            b = u
+         GLB.pal[i, 0] = min(max(r, 0.0), 1.0) * 255.0
+         GLB.pal[i, 1] = min(max(g, 0.0), 1.0) * 255.0
+         GLB.pal[i, 2] = min(max(b, 0.0), 1.0) * 255.0
+   GLB.build = build
+   GLB.which = 0
+   GLB.build(0)
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.985, 0.9995)
+   f1 = STR.F1mix(0.02, 0.20)
+   f2 = STR.F2mix(0.6, 2.2)
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.which = (GLB.which + 1) % 3
+      GLB.build(GLB.which)
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   t = GLB.t
+   k = f1
+   t[1:] = t[1:] + (t[:-1] - t[1:]) * k
+   t[:-1] = t[:-1] + (t[1:] - t[:-1]) * k
+   t[:, 1:] = t[:, 1:] + (t[:, :-1] - t[:, 1:]) * k
+   t[:, :-1] = t[:, :-1] + (t[:, 1:] - t[:, :-1]) * k
+   t = t * f0
+
+   GLB.ba = GLB.ba + (np.random.random(GLB.n) - 0.5) * 0.30
+   GLB.bx = np.mod(GLB.bx + np.cos(GLB.ba) * 1.5, GLB.nx)
+   GLB.by = np.mod(GLB.by + np.sin(GLB.ba) * 1.5, GLB.ny)
+   for i in range(GLB.n):
+      d = ((GLB.ix - GLB.bx[i]) ** 2 + (GLB.iy - GLB.by[i]) ** 2)
+      hot = 2.4 if (acc and i == 0) else 1.0
+      t = t + np.exp(-d / (GLB.br[i] * GLB.br[i])) * 0.16 * hot
+   np.clip(t, 0.0, 1.6, out=t)
+   GLB.t = t
+
+   q = np.clip(t * f2 * GLB.nb, 0, GLB.nb - 1).astype(np.int32)
+   c = GLB.pal[q]
+   GLB.sv[:, :GLB.nx, 0] = c[:, :, 0].astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 1] = c[:, :, 1].astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 2] = c[:, :, 2].astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 3] = 255
+   GLB.small.mark_dirty()
+   pat = cairo.SurfacePattern(GLB.small)
+   pat.set_filter(cairo.FILTER_NEAREST)
+   m = cairo.Matrix()
+   m.scale(1.0 / GLB.res, 1.0 / GLB.res)
+   pat.set_matrix(m)
+   cr.set_source(pat)
+   cr.paint()

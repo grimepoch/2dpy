@@ -1,0 +1,124 @@
+def Init():
+   # --- author : claude
+   # --- a painted cave, added to over a very long time.  Ochre is blown and
+   # --- daubed onto rock that is never cleaned, so later hands go straight
+   # --- over earlier ones and the wall ends up as a palimpsest rather than a
+   # --- composition.  The rock itself decides where the paint sits.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Painting")
+   STR.SetFParam1Name("Scale")
+   STR.SetFParam2Name("Pigment")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : blown hand stencils
+   # ---    trigger : a new wall
+
+   GLB.st = surface.get_stride() // 4
+   GLB.tick = 0
+
+   def mottle(k):
+      # --- the rock face that the paint will sit on
+      for i in range(k):
+         x = np.random.random() * 1280.0
+         y = np.random.random() * 720.0
+         r = 20.0 + np.random.random() * 120.0
+         v = 0.5 + np.random.random() * 0.5
+         cr.set_source_rgba(0.30 * v, 0.42 * v, 0.54 * v, 0.12)
+         cr.new_sub_path()
+         cr.arc(x, y, r, 0, 6.2831853)
+         cr.fill()
+   GLB.mottle = mottle
+
+   def wall():
+      cr.set_source_rgb(0.34, 0.46, 0.58)
+      cr.rectangle(0, 0, 1280, 720)
+      cr.fill()
+      # --- the mottling is laid over the next several frames rather than all
+      # --- at once.  A hundred big alpha arcs in one go is a 40 ms hitch,
+      # --- and this fires on a trigger - exactly when a dropped frame shows.
+      GLB.build = 7
+      GLB.tick = 0
+   GLB.wall = wall
+   GLB.build = 0
+   GLB.wall()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.02, 0.5)
+   f1 = STR.F1mix(0.5, 1.8)
+   f2 = STR.F2()
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.wall()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   GLB.tick = GLB.tick + 1
+   if GLB.build > 0:
+      GLB.build = GLB.build - 1
+      GLB.mottle(16)
+
+   if np.random.random() > f0:
+      return
+
+   # --- earth pigments only : ochre, haematite, charcoal, chalk
+   pig = [[0.16, 0.42, 0.76], [0.14, 0.22, 0.52], [0.13, 0.12, 0.12],
+          [0.78, 0.84, 0.88], [0.22, 0.50, 0.82]]
+   p = pig[np.random.randint(len(pig))]
+   cx = np.random.random() * 1100.0 + 90.0
+   cy = np.random.random() * 560.0 + 80.0
+   s = (40.0 + np.random.random() * 90.0) * f1
+
+   if acc:
+      # --- a hand held to the wall and pigment blown around it
+      cr.set_source_rgba(p[0], p[1], p[2], 0.09)
+      for k in range(240):
+         a = np.random.random() * 6.2831853
+         rr = s * (0.5 + np.random.random() * 0.9)
+         cr.new_sub_path()
+         cr.arc(cx + cos(a) * rr, cy + sin(a) * rr,
+                1.0 + np.random.random() * 2.4, 0, 6.2831853)
+      cr.fill()
+      cr.set_source_rgba(0.30, 0.42, 0.54, 0.85)
+      cr.save()
+      cr.translate(cx, cy)
+      cr.rotate(np.random.random() * 0.6 - 0.3)
+      cr.new_sub_path()
+      cr.arc(0, -s * 0.10, s * 0.30, 0, 6.2831853)
+      cr.fill()
+      for k in range(5):
+         a = -1.9708 + k * 0.48
+         cr.set_line_width(s * 0.12)
+         cr.set_line_cap(cairo.LINE_CAP_ROUND)
+         cr.move_to(0, -s * 0.10)
+         cr.line_to(cos(a) * s * 0.62, sin(a) * s * 0.62 - s * 0.10)
+         cr.stroke()
+      cr.restore()
+      return
+
+   # --- an animal, drawn as one closed outline the way the real ones are
+   cr.save()
+   cr.translate(cx, cy)
+   if np.random.random() < 0.5:
+      cr.scale(-1.0, 1.0)
+   cr.set_source_rgba(p[0], p[1], p[2], 0.55 + f2 * 0.35)
+   cr.move_to(-s, 0)
+   cr.curve_to(-s * 0.8, s * 0.42, -s * 0.2, s * 0.50, s * 0.30, s * 0.38)
+   cr.curve_to(s * 0.62, s * 0.34, s * 0.80, s * 0.52, s * 1.00, s * 0.30)
+   cr.curve_to(s * 1.16, s * 0.14, s * 0.92, -s * 0.02, s * 0.72, 0.0)
+   cr.curve_to(s * 0.40, -s * 0.06, -s * 0.30, -s * 0.10, -s * 0.70, -s * 0.30)
+   cr.curve_to(-s * 0.92, -s * 0.40, -s * 1.04, -s * 0.20, -s, 0)
+   cr.close_path()
+   cr.fill()
+   # --- legs
+   cr.set_line_width(s * 0.10)
+   cr.set_line_cap(cairo.LINE_CAP_ROUND)
+   for k in range(4):
+      lx = -s * 0.6 + k * s * 0.45
+      cr.move_to(lx, -s * 0.06)
+      cr.line_to(lx + (np.random.random() - 0.5) * s * 0.3, -s * 0.62)
+      cr.stroke()
+   cr.restore()

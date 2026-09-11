@@ -1,0 +1,85 @@
+def Init():
+   # --- author : claude
+   # --- a granular cloud.  Sound is cut into grains of a few milliseconds
+   # --- and thrown into a cloud whose position, spread and density are the
+   # --- only controls - each grain is drawn as it is scheduled and left to
+   # --- fade, so the cloud is a standing shape made of things that have
+   # --- already gone.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Density")
+   STR.SetFParam1Name("Spread")
+   STR.SetFParam2Name("Grain Size")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : the cloud collapses to a point and pitches up
+   # ---    trigger : new source position
+
+   GLB.st = surface.get_stride() // 4
+   GLB.cx = 640.0
+   GLB.cy = 360.0
+   GLB.prev = np.zeros(GLB.slots, dtype=np.float32)
+   GLB.lvl = 0.0
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(3.0, 90.0)
+   f1 = STR.F1mix(8.0, 300.0)
+   f2 = STR.F2mix(1.5, 16.0)
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.cx = 220.0 + np.random.random() * 840.0
+      GLB.cy = 160.0 + np.random.random() * 400.0
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8,
+                  buffer=surface.get_data())
+   np.subtract(v, np.right_shift(v, 4), out=v)
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   hit = 0.0
+   note = 60
+   for i in range(GLB.slots):
+      d = STR.GetSlotData(i)
+      vel = d[2] * 1.0
+      if d[0] != 0 and vel > GLB.prev[i] + 5.0:
+         hit = max(hit, vel / 127.0)
+         note = int(d[1])
+      GLB.prev[i] = vel
+   GLB.lvl = max(hit, GLB.lvl * 0.88)
+
+   spread = f1 * (0.12 if acc else 1.0)
+   n = int(f0 * (0.6 + GLB.lvl))
+   if n < 1:
+      n = 1
+   # --- the cloud is a gaussian scatter about the source, which is exactly
+   # --- how a granular synth places its grains in the stereo field
+   gx = GLB.cx + np.random.standard_normal(n) * spread
+   gy = GLB.cy + np.random.standard_normal(n) * spread * 0.62
+   sz = f2 * (0.4 + np.random.random(n) * 1.2)
+   if acc:
+      sz = sz * 0.45
+
+   for i in range(n):
+      # --- pitch sets hue, so a transposed cloud is a different colour
+      h = ((note % 12) / 12.0 + np.random.random() * 0.08) % 1.0
+      c = hsv_to_rgb(h, 0.70, 0.45 + 0.55 * GLB.lvl)
+      cr.set_source_rgba(c[2], c[1], c[0], 0.55)
+      # --- each grain has an envelope, drawn as a little lens shape
+      w = sz[i]
+      cr.save()
+      cr.translate(gx[i], gy[i])
+      cr.scale(1.0, 0.45)
+      cr.new_sub_path()
+      cr.arc(0, 0, w, 0, 6.2831853)
+      cr.restore()
+      cr.fill()

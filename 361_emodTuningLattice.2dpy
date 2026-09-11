@@ -1,0 +1,87 @@
+def Init():
+   # --- author : claude
+   # --- the just-intonation lattice.  One axis is the perfect fifth, the
+   # --- other the major third, so a triad is a compact triangle and a
+   # --- modulation is a step across the grid.  The lattice is infinite and
+   # --- the view drifts over it, so there is always more of it.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Drift")
+   STR.SetFParam1Name("Extent")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : show the comma, where the spiral fails to close
+   # ---    trigger : re-centre on the sounding chord
+
+   GLB.st = surface.get_stride() // 4
+   GLB.lit = {}
+   GLB.cx = 0.0
+   GLB.cy = 0.0
+   GLB.lvl = np.zeros(48, dtype=np.float32)
+   GLB.prev = np.zeros(GLB.slots, dtype=np.float32)
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 0.35)
+   # --- node count goes as the inverse square of this, and every node is a
+   # --- fill plus a stroke
+   f1 = STR.F1mix(88.0, 170.0)
+   f2 = STR.F2()
+   time = STR.IT() + STR.FT()
+
+   GLB.cx = GLB.cx + sin(time * 0.13) * f0
+   GLB.cy = GLB.cy + cos(time * 0.09) * f0 * 0.6
+   if trig:
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   GLB.lvl = GLB.lvl * 0.93
+   for i in range(GLB.slots):
+      d = STR.GetSlotData(i)
+      vel = d[2] * 1.0
+      if d[0] != 0 and vel > GLB.prev[i] + 5.0:
+         GLB.lvl[int(d[1]) % 48] = min(1.0, vel / 127.0)
+      GLB.prev[i] = vel
+
+   cr.set_source_rgba(0, 0, 0, 1)
+   cr.rectangle(0, 0, 1280, 720)
+   cr.fill()
+
+   g = f1
+   nx = int(1280 / g) + 3
+   ny = int(720 / g) + 3
+   cr.set_line_width(1.8)
+   for j in range(-ny, ny):
+      for i in range(-nx, nx):
+         # --- the third axis is sheared, the way the lattice is always drawn
+         x = 640.0 + (i + j * 0.5) * g - (GLB.cx % g)
+         y = 360.0 + j * g * 0.86 - (GLB.cy % g)
+         if x < -g or x > 1280 + g or y < -g or y > 720 + g:
+            continue
+         # --- which pitch class this node is : fifths across, thirds up
+         pc = (i * 7 + j * 4) % 12
+         l = GLB.lvl[pc]
+         c = hsv_to_rgb((f2 + pc / 12.0) % 1.0, 0.72, 0.52 + 0.48 * l)
+         cr.set_source_rgb(c[2], c[1], c[0])
+         cr.new_sub_path()
+         cr.arc(x, y, 5.5 + l * 18.0, 0, 6.2831853)
+         cr.fill()
+         cr.set_source_rgba(c[2], c[1], c[0], 0.55)
+         cr.move_to(x, y)
+         cr.line_to(x + g, y)
+         cr.move_to(x, y)
+         cr.line_to(x + g * 0.5, y + g * 0.86)
+         cr.stroke()
+         if acc and pc == 0:
+            # --- twelve fifths do not land back on the start; the gap is
+            # --- the Pythagorean comma
+            cr.set_source_rgba(1.0, 0.85, 0.4, 0.8)
+            cr.new_sub_path()
+            cr.arc(x, y, 11.0, 0, 6.2831853)
+            cr.stroke()

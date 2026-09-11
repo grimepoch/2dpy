@@ -1,0 +1,135 @@
+def Init():
+   # --- author : claude
+   # --- the slots are charges.  Field lines are traced through whatever
+   # --- arrangement of sources and sinks is currently sounding.
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Lines")
+   STR.SetFParam1Name("Step")
+   STR.SetFParam2Name("Hue")
+   # ---    accent : show the charges
+   # ---    trigger : alternate <-> all positive
+
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   # --- the trace is O(lines x steps x charges) in python, so the charge
+   # --- count is capped hard
+   GLB.n = 6 if GLB.slots == 24 else min(6, GLB.slots)
+   GLB.lvl = []
+   for i in range(GLB.n):
+      GLB.lvl.append(0.0)
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(10.0, 28.0)
+   f1 = STR.F1mix(6.0, 20.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   n = GLB.n
+   for k in range(n):
+      GLB.lvl[k] = GLB.lvl[k] * 0.92
+
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if ids == 0:
+         continue
+      k = (note % n) if GLB.mode == "midi" else (i % n)
+      v = velo / 127.0
+      if v > GLB.lvl[k]:
+         GLB.lvl[k] = v
+
+   cr.set_source_rgb(0.02, 0.02, 0.05)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   qx = []
+   qy = []
+   qs = []
+   for k in range(n):
+      a = k * 2.0 * pi / n + time * 0.07
+      qx.append(640.0 + cos(a) * 300.0)
+      qy.append(360.0 + sin(a) * 210.0)
+      s = 0.25 + GLB.lvl[k] * 2.0
+      if not GLB.xmode and k % 2:
+         s = -s
+      qs.append(s)
+
+   # --- f0 is the TOTAL line budget, shared out over the live charges,
+   # --- so turning every charge on does not multiply the cost
+   live = 0
+   for k in range(n):
+      if qs[k] > 0 and GLB.lvl[k] >= 0.05:
+         live = live + 1
+   if live < 1:
+      live = 1
+   per = int(f0 / live)
+   if per < 2:
+      per = 2
+   step = f1
+   maxstep = 52
+
+   bands = 5
+   for b in range(bands):
+      t = b / (bands - 1.0)
+      r,g,bl = hsv_to_rgb((f2 + t * 0.32) % 1.0, 0.7, 0.4 + 0.6 * t)
+      cr.set_source_rgb(bl, g, r)
+      cr.set_line_width(1.0 + 1.6 * t)
+      any = 0
+      for i in range(n):
+         if qs[i] <= 0 or GLB.lvl[i] < 0.05:
+            continue
+         for kk in range(b, per, bands):
+            a = kk * 2.0 * pi / per
+            x = qx[i] + cos(a) * 18.0
+            y = qy[i] + sin(a) * 18.0
+            cr.move_to(x, y)
+            any = 1
+            for s in range(maxstep):
+               ex = 0.0
+               ey = 0.0
+               for j in range(n):
+                  dx = x - qx[j]
+                  dy = y - qy[j]
+                  d2 = dx * dx + dy * dy + 60.0
+                  f = qs[j] / (d2 * sqrt(d2))
+                  ex = ex + dx * f
+                  ey = ey + dy * f
+               m = sqrt(ex * ex + ey * ey)
+               if m < 1e-12:
+                  break
+               x = x + ex / m * step
+               y = y + ey / m * step
+               if x < -40 or x > 1320 or y < -40 or y > 760:
+                  break
+               cr.line_to(x, y)
+      if any:
+         cr.stroke()
+
+   if acc:
+      for i in range(n):
+         v = GLB.lvl[i]
+         if qs[i] > 0:
+            cr.set_source_rgb(0.25, 0.4, 1.0)
+         else:
+            cr.set_source_rgb(1.0, 0.4, 0.25)
+         cr.new_sub_path()
+         cr.arc(qx[i], qy[i], 8.0 + 26.0 * v, 0, 2 * pi)
+         cr.fill()

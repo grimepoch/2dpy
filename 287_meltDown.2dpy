@@ -1,0 +1,81 @@
+def Init():
+   # --- author : claude
+   # --- the picture melts : each column of the STANDING image is pulled down
+   # --- by its own amount, so whatever was drawn sags and runs
+   # --- note : screen y=0 is the BOTTOM, so melting pulls toward y=0
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Melt")
+   STR.SetFParam1Name("Viscosity")
+   STR.SetFParam2Name("Decay")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : melt upward
+   # ---    trigger : new drip profile
+
+   GLB.st = surface.get_stride() // 4
+   GLB.nb = 96
+   GLB.drip = []
+   for i in range(GLB.nb):
+      GLB.drip.append(np.random.random())
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 6.0)
+   f1 = STR.F1()
+   f2 = STR.F2mix(4.0, 10.0)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      for i in range(GLB.nb):
+         GLB.drip[i] = np.random.random()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8, buffer=surface.get_data())
+   np.subtract(v, np.right_shift(v, int(f2)), out=v)
+
+   # --- each column band drips at its own rate
+   nb = GLB.nb
+   bw = GLB.st // nb
+   sgn = 1 if acc else -1
+   for b in range(nb):
+      x0 = b * bw
+      x1 = x0 + bw
+      d = GLB.drip[b]
+      sft = int(f0 * (d * (1.0 - f1) + f1 * (0.5 + 0.5 * sin(time * 0.7 + b * 0.3))))
+      if sft < 1:
+         continue
+      if sgn < 0:
+         v[:-sft, x0:x1] = v[sft:, x0:x1]
+      else:
+         v[sft:, x0:x1] = v[:-sft, x0:x1]
+
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   # --- fresh paint at the top for the melt to pull down
+   for k in range(7):
+      u = (k + 0.5) / 7.0
+      c = hsv_to_rgb((u * 0.8 + time * 0.03) % 1.0, 0.85, 1.0)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      w = 120 + 70 * sin(time * 0.9 + k * 1.1)
+      cr.rectangle(u * 1280 - w * 0.5, 620 if not acc else 40, w, 80)
+      cr.fill()
+   if GLB.xmode:
+      cr.set_source_rgb(1, 1, 1)
+      cr.select_font_face("sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+      cr.set_font_size(110)
+      cr.save()
+      cr.translate(420, 560 if not acc else 120)
+      cr.scale(1.0, -1.0)
+      cr.move_to(0, 0)
+      cr.show_text("MELT")
+      cr.restore()

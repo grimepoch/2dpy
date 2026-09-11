@@ -1,0 +1,132 @@
+def Init():
+   # --- author : claude
+   # --- a dust cloud in a field of wells, one well per slot.  A loud slot
+   # --- pulls hard, a quiet one lets the dust drift away again.
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Pull")
+   STR.SetFParam1Name("Drag")
+   STR.SetFParam2Name("Hue")
+   # ---    accent : wells repel instead
+   # ---    trigger : scatter the dust
+
+   # --- 10 slots = FFT analysis bins, 24 slots = MIDI notes
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   GLB.n = 12 if GLB.slots == 24 else GLB.slots
+   GLB.lvl = []
+   GLB.wx = []
+   GLB.wy = []
+   for k in range(GLB.n):
+      GLB.lvl.append(0.0)
+      a = k * 2.0 * pi / GLB.n
+      GLB.wx.append(640.0 + 330.0 * cos(a))
+      GLB.wy.append(360.0 + 220.0 * sin(a))
+
+   GLB.np = 420
+
+   def scatter():
+      GLB.px = np.random.random(GLB.np) * 1280.0
+      GLB.py = np.random.random(GLB.np) * 720.0
+      GLB.vx = (np.random.random(GLB.np) - 0.5) * 2.0
+      GLB.vy = (np.random.random(GLB.np) - 0.5) * 2.0
+   GLB.scatter = scatter
+   GLB.scatter()
+   GLB.fr = 0
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 260.0)
+   f1 = STR.F1mix(0.85, 0.995)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.scatter()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   n = GLB.n
+   for k in range(n):
+      GLB.lvl[k] = GLB.lvl[k] * 0.90
+
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if ids == 0:
+         continue
+      k = (note % 12) if GLB.mode == "midi" else i
+      if k < n:
+         v = velo / 127.0
+         if v > GLB.lvl[k]:
+            GLB.lvl[k] = v
+
+   GLB.fr = GLB.fr + 1
+   if GLB.fr % 2 == 0:
+      cr.set_source_rgba(0, 0, 0, 0.34)
+      cr.rectangle(0,0,1280,720)
+      cr.fill()
+
+   sgn = -1.0 if acc else 1.0
+   ax = np.zeros(GLB.np)
+   ay = np.zeros(GLB.np)
+
+   for k in range(n):
+      v = GLB.lvl[k]
+      if v < 0.03:
+         continue
+      # --- wells wander a little so the cloud never settles
+      wx = GLB.wx[k] + 40.0 * sin(time * 0.3 + k)
+      wy = GLB.wy[k] + 40.0 * cos(time * 0.4 + k)
+      dx = wx - GLB.px
+      dy = wy - GLB.py
+      d2 = dx * dx + dy * dy + 900.0
+      g = sgn * f0 * v / d2
+      ax = ax + dx * g
+      ay = ay + dy * g
+
+   GLB.vx = (GLB.vx + ax) * f1
+   GLB.vy = (GLB.vy + ay) * f1
+   GLB.px = np.mod(GLB.px + GLB.vx, 1280.0)
+   GLB.py = np.mod(GLB.py + GLB.vy, 720.0)
+
+   sp = np.sqrt(GLB.vx * GLB.vx + GLB.vy * GLB.vy)
+   bands = 6
+   q = np.clip((sp * 0.7).astype(np.int32), 0, bands - 1)
+   lx = GLB.px.tolist()
+   ly = GLB.py.tolist()
+
+   for bd in range(bands):
+      t = bd / (bands - 1.0)
+      r,g,b = hsv_to_rgb((f2 + t * 0.35) % 1.0, 0.85 - 0.5 * t, 0.4 + 0.6 * t)
+      cr.set_source_rgb(b, g, r)
+      sel = np.nonzero(q == bd)[0].tolist()
+      sz = 1.8 + 2.0 * t
+      for i in sel:
+         cr.rectangle(lx[i], ly[i], sz, sz)
+      cr.fill()
+
+   if GLB.xmode:
+      for k in range(n):
+         v = GLB.lvl[k]
+         if v < 0.03:
+            continue
+         r,g,b = hsv_to_rgb((f2 + k / (n * 1.0) * 0.5) % 1.0, 0.8, 1.0)
+         cr.set_source_rgba(b, g, r, 0.5)
+         cr.set_line_width(1.5)
+         cr.new_sub_path()
+         cr.arc(GLB.wx[k] + 40.0 * sin(time * 0.3 + k),
+                GLB.wy[k] + 40.0 * cos(time * 0.4 + k), 10 + 50 * v, 0, 2 * pi)
+         cr.stroke()

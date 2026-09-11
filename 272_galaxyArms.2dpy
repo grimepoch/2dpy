@@ -1,0 +1,92 @@
+def Init():
+   # --- author : claude
+   # --- a disc galaxy.  The stars are on circular orbits and the spiral is
+   # --- not drawn at all - it appears because the orbits are elliptical and
+   # --- each one is rotated a little more than the one inside it, which is
+   # --- the density wave explanation.  The canvas holds the trails.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Winding")
+   STR.SetFParam1Name("Trails")
+   STR.SetFParam2Name("Population")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : starburst
+   # ---    trigger : new galaxy
+
+   GLB.st = surface.get_stride() // 4
+   GLB.n = 2200
+
+   def newgal():
+      u = np.random.random(GLB.n)
+      # --- two populations : a concentrated bulge and a spread disc.  A
+      # --- single sqrt distribution puts almost nothing in the middle and
+      # --- the galaxy comes out as a ring.
+      bulge = np.random.random(GLB.n) < 0.38
+      GLB.r = np.where(bulge, 6.0 + u * u * 130.0, 60.0 + np.sqrt(u) * 320.0)
+      GLB.th = np.random.random(GLB.n) * 6.2831853
+      GLB.jit = (np.random.random(GLB.n) - 0.5) * 0.22
+      GLB.hue = np.random.random(GLB.n)
+   GLB.newgal = newgal
+   GLB.newgal()
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 3.2)
+   f1 = STR.F1mix(3.0, 7.0)
+   f2 = STR.F2mix(0.45, 1.0)
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.newgal()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8,
+                  buffer=surface.get_data())
+   np.subtract(v, np.right_shift(v, int(f1)), out=v)
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   # --- flat rotation curve : everything outside the core takes the same
+   # --- time to come round, which is why real discs wind up so slowly
+   GLB.th = GLB.th + (34.0 / (GLB.r + 60.0)) * 0.5
+
+   # --- each orbit is an ellipse, turned further the further out it is
+   ecc = 0.42
+   tilt = GLB.r * f0 * 0.0042
+   ct = np.cos(tilt)
+   st = np.sin(tilt)
+   ex = GLB.r * np.cos(GLB.th)
+   ey = GLB.r * (1.0 - ecc) * np.sin(GLB.th)
+   px = (ex * ct - ey * st) + 640.0
+   py = (ex * st + ey * ct) * 0.78 + 360.0
+   py = py + GLB.jit * GLB.r * 0.2
+
+   ok = (px > 1) & (px < 1278) & (py > 1) & (py < 718)
+   ix = px[ok].astype(np.int32)
+   iy = py[ok].astype(np.int32)
+   hu = GLB.hue[ok]
+   rr = GLB.r[ok]
+
+   # --- young blue stars sit in the arms, old red ones in the bulge
+   blue = (rr > 150.0) & (hu > 0.55)
+   lum = np.clip(f2 * (0.62 + 0.60 * hu), 0.0, 1.0)
+   if acc:
+      lum = np.clip(lum * 1.9, 0.0, 1.0)
+   red = np.where(blue, 120.0, 255.0) * lum
+   grn = np.where(blue, 180.0, 205.0) * lum
+   blu = np.where(blue, 255.0, 150.0) * lum
+
+   sel = (iy, ix)
+   np.maximum.at(v[:, :, 0], sel, red.astype(np.uint8))
+   np.maximum.at(v[:, :, 1], sel, grn.astype(np.uint8))
+   np.maximum.at(v[:, :, 2], sel, blu.astype(np.uint8))
+   v[:, :, 3] = 255
+   surface.mark_dirty()

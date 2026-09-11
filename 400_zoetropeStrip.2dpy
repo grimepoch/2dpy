@@ -1,0 +1,119 @@
+def Init():
+   # --- author : claude
+   # --- a phenakistoscope.  The figures round the disc are successive
+   # --- phases of one movement, and the shutter shows each of them for an
+   # --- instant as it passes - so the disc turns but the figure walks on the
+   # --- spot.  It is a loop in the most literal sense available.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Disc Speed")
+   STR.SetFParam1Name("Figures")
+   STR.SetFParam2Name("Shutter")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : the shutter slips out of phase and the figure drifts
+   # ---    trigger : next animation
+
+   GLB.st = surface.get_stride() // 4
+   GLB.ang = 0.0
+   GLB.which = 0
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 0.16)
+   f1 = STR.F1mix(7.0, 14.99)
+   f2 = STR.F2mix(0.05, 0.9)
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.which = (GLB.which + 1) % 3
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   nf = int(f1)
+   GLB.ang = GLB.ang + f0
+
+   cr.set_source_rgb(0.07, 0.07, 0.08)
+   cr.rectangle(0, 0, 1280, 720)
+   cr.fill()
+
+   # --- the disc
+   cr.set_source_rgb(0.16, 0.15, 0.18)
+   cr.new_sub_path()
+   cr.arc(640, 360, 340, 0, 6.2831853)
+   cr.fill()
+
+   for i in range(nf):
+      a = GLB.ang + i * 6.2831853 / nf
+      # --- the shutter : each figure is only lit as its slot goes past the
+      # --- top of the disc, which is what freezes the motion
+      gate = ((a + 1.5708) % 6.2831853) / 6.2831853
+      lit = 1.0 - min(abs(gate - 0.5) / (f2 * 0.5 + 0.02), 1.0)
+      if lit <= 0.0:
+         continue
+      ph = i / (nf * 1.0)
+      if acc:
+         ph = (ph + time * 0.02) % 1.0
+      x = 640.0 + cos(a) * 208.0
+      y = 360.0 + sin(a) * 208.0
+      c = hsv_to_rgb((ph * 0.8) % 1.0, 0.70, lit)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      cr.save()
+      cr.translate(x, y)
+      cr.rotate(a + 1.5708)
+      s = 104.0
+      if GLB.which == 0:
+         # --- a walking figure, one phase per slot
+         sw = sin(ph * 6.2831853)
+         cr.set_line_width(5.0)
+         cr.set_line_cap(cairo.LINE_CAP_ROUND)
+         cr.move_to(0, -s * 0.5)
+         cr.line_to(0, s * 0.15)
+         cr.stroke()
+         cr.move_to(0, s * 0.15)
+         cr.line_to(sw * s * 0.35, s * 0.6)
+         cr.move_to(0, s * 0.15)
+         cr.line_to(-sw * s * 0.35, s * 0.6)
+         cr.stroke()
+         cr.move_to(0, -s * 0.3)
+         cr.line_to(-sw * s * 0.3, -s * 0.05)
+         cr.move_to(0, -s * 0.3)
+         cr.line_to(sw * s * 0.3, -s * 0.05)
+         cr.stroke()
+         cr.new_sub_path()
+         cr.arc(0, -s * 0.65, s * 0.16, 0, 6.2831853)
+         cr.fill()
+      elif GLB.which == 1:
+         # --- a bouncing ball, squashing at the bottom
+         b = abs(sin(ph * pi))
+         sq = 1.0 + (1.0 - b) * 0.6
+         cr.save()
+         cr.translate(0, s * 0.5 - b * s * 0.8)
+         cr.scale(sq, 1.0 / sq)
+         cr.new_sub_path()
+         cr.arc(0, 0, s * 0.26, 0, 6.2831853)
+         cr.fill()
+         cr.restore()
+      else:
+         # --- a wheel of spokes turning one step per slot
+         cr.set_line_width(3.5)
+         for k in range(6):
+            b = ph * 6.2831853 / 6.0 + k * 1.0472
+            cr.move_to(0, 0)
+            cr.line_to(cos(b) * s * 0.45, sin(b) * s * 0.45)
+         cr.stroke()
+      cr.restore()
+
+   # --- the slots in the shutter disc
+   cr.set_source_rgb(0.04, 0.04, 0.05)
+   cr.set_line_width(7.0)
+   for i in range(nf):
+      a = GLB.ang + i * 6.2831853 / nf
+      cr.move_to(640 + cos(a) * 318, 360 + sin(a) * 318)
+      cr.line_to(640 + cos(a) * 340, 360 + sin(a) * 340)
+   cr.stroke()

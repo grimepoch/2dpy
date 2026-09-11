@@ -1,0 +1,138 @@
+def Init():
+   # --- author : claude
+   # --- a bean machine : balls rattle down a field of pegs and the pile at
+   # --- the bottom fills in a normal curve, one bounce at a time
+   # --- note : screen y=0 is the BOTTOM, so the balls fall toward y=0
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Drop Rate")
+   STR.SetFParam1Name("Rows")
+   STR.SetFParam2Name("Bias")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : draw the ideal curve over the pile
+   # ---    trigger : empty the bins
+
+   GLB.rows = 13
+   GLB.top = 660.0
+   GLB.binbot = 40.0
+
+   def reset():
+      GLB.bins = []
+      for i in range(GLB.rows + 1):
+         GLB.bins.append(0)
+      GLB.balls = []
+      GLB.total = 0
+   GLB.reset = reset
+   GLB.reset()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.02, 0.9)
+   f1 = STR.F1mix(7.0, 15.0)
+   f2 = STR.F2mix(0.25, 0.75)
+
+   time = STR.IT() + STR.FT()
+
+   rows = int(f1)
+   if trig or rows != GLB.rows:
+      GLB.rows = rows
+      GLB.reset()
+      if trig:
+         GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   cr.set_source_rgb(0.03, 0.02, 0.04)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   pitch = 44.0
+   rowh = (GLB.top - 150.0) / rows
+
+   # --- pegs
+   cr.set_source_rgb(0.35, 0.33, 0.40)
+   for r in range(rows):
+      y = GLB.top - r * rowh
+      for k in range(r + 1):
+         x = 640 + (k - r * 0.5) * pitch
+         cr.rectangle(x - 3, y - 3, 6, 6)
+   cr.fill()
+
+   # --- release a new ball
+   if np.random.random() < f0:
+      GLB.balls.append([640.0, GLB.top + 40.0, 0, 0.0])
+   if len(GLB.balls) > 90:
+      del GLB.balls[0]
+
+   dead = []
+   for i in range(len(GLB.balls)):
+      b = GLB.balls[i]
+      b[1] = b[1] - 7.0
+      r = b[2]
+      ytarget = GLB.top - r * rowh
+      if b[1] <= ytarget and r < rows:
+         # --- bounce left or right off this peg
+         if np.random.random() < f2:
+            b[3] = b[3] - 0.5
+         else:
+            b[3] = b[3] + 0.5
+         b[2] = r + 1
+      b[0] = 640.0 + b[3] * pitch
+      if b[1] < GLB.binbot + 30:
+         k = int(b[3] + rows * 0.5 + 0.5)
+         if k < 0:
+            k = 0
+         if k > rows:
+            k = rows
+         GLB.bins[k] = GLB.bins[k] + 1
+         GLB.total = GLB.total + 1
+         dead.append(i)
+
+   dead.reverse()
+   for i in dead:
+      del GLB.balls[i]
+
+   # --- bins
+   mx = 1
+   for v in GLB.bins:
+      if v > mx:
+         mx = v
+   bw = pitch * 0.86
+   for k in range(rows + 1):
+      x = 640 + (k - rows * 0.5) * pitch
+      h = (GLB.bins[k] / (mx * 1.0)) * 330.0
+      t = GLB.bins[k] / (mx * 1.0)
+      if GLB.xmode:
+         r,g,b = hsv_to_rgb((0.6 - t * 0.55) % 1.0, 0.85, 1.0)
+      else:
+         r,g,b = hsv_to_rgb(0.55, 0.7 - 0.5 * t, 0.45 + 0.55 * t)
+      cr.set_source_rgb(b, g, r)
+      cr.rectangle(x - bw * 0.5, GLB.binbot, bw, h)
+      cr.fill()
+
+   # --- falling balls
+   cr.set_source_rgb(0.9, 0.95, 1.0)
+   for b in GLB.balls:
+      cr.rectangle(b[0] - 5, b[1] - 5, 10, 10)
+   cr.fill()
+
+   if acc and GLB.total > 4:
+      # --- the binomial the pile is converging on
+      cr.set_source_rgb(0.2, 0.9, 1.0)
+      cr.set_line_width(3)
+      for k in range(rows + 1):
+         u = (k - rows * 0.5) / (sqrt(rows * 0.25) + 0.001)
+         p = exp(-0.5 * u * u)
+         x = 640 + (k - rows * 0.5) * pitch
+         y = GLB.binbot + p * 330.0
+         if k == 0:
+            cr.move_to(x, y)
+         else:
+            cr.line_to(x, y)
+      cr.stroke()

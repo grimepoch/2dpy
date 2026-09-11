@@ -1,0 +1,91 @@
+def Init():
+   # --- author : claude
+   # --- the harmonic series, standing on a string that never quite settles.
+   # --- Each note excites its own partials and the canvas keeps them, so two
+   # --- notes a fifth apart visibly share partials - the consonance is
+   # --- something you can see rather than only hear.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Partials")
+   STR.SetFParam1Name("Decay")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : odd partials only, the clarinet register
+   # ---    trigger : reset the series
+
+   GLB.st = surface.get_stride() // 4
+   GLB.nh = 48
+   GLB.amp = np.zeros(GLB.nh, dtype=np.float32)
+   GLB.prev = np.zeros(GLB.slots, dtype=np.float32)
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(2.0, 14.99)
+   f1 = STR.F1mix(0.90, 0.995)
+   f2 = STR.F2()
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.amp = GLB.amp * 0.0
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   GLB.amp = GLB.amp * f1
+   npart = int(f0)
+
+   for i in range(GLB.slots):
+      d = STR.GetSlotData(i)
+      vel = d[2] * 1.0
+      if d[0] != 0 and vel > GLB.prev[i] + 5.0:
+         n = int(d[1])
+         # --- the fundamental this note lands on, then its integer multiples
+         fund = 1 + (n % 12)
+         lv = vel / 127.0
+         for k in range(1, npart + 1):
+            if acc and (k % 2) == 0:
+               continue
+            h = fund * k
+            if h < GLB.nh:
+               GLB.amp[h] = min(1.0, GLB.amp[h] + lv / k)
+      GLB.prev[i] = vel
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8,
+                  buffer=surface.get_data())
+   np.subtract(v, np.right_shift(v, 5), out=v)
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   # --- each partial drawn as its own standing wave, all on one string
+   cr.set_line_width(1.6)
+   for h in range(1, GLB.nh):
+      a = GLB.amp[h]
+      if a < 0.01:
+         continue
+      c = hsv_to_rgb((f2 + h * 0.055) % 1.0, 0.78, min(1.0, 0.35 + a))
+      cr.set_source_rgb(c[2], c[1], c[0])
+      amp = a * 250.0 / (1.0 + h * 0.10)
+      ph = sin(time * (1.6 + h * 0.22))
+      npt = 90
+      for j in range(npt + 1):
+         u = j / (npt * 1.0)
+         x = 40.0 + u * 1200.0
+         y = 360.0 + sin(u * pi * h) * amp * ph
+         if j == 0:
+            cr.move_to(x, y)
+         else:
+            cr.line_to(x, y)
+      cr.stroke()
+
+      # --- the nodes, where this partial never moves
+      cr.set_source_rgba(c[2], c[1], c[0], 0.8)
+      for k in range(h + 1):
+         x = 40.0 + (k / (h * 1.0)) * 1200.0
+         cr.rectangle(x - 1.5, 357.0, 3, 6)
+      cr.fill()

@@ -1,0 +1,80 @@
+def Init():
+   # --- author : claude
+   # --- moirePlates crossed with type : two grids of the same character beat
+   # --- against each other, and the interference is the image
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Pitch")
+   STR.SetFParam1Name("Twist")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : third plate
+   # ---    trigger : next character
+
+   GLB.set = "OX+#@%8HWM"
+   GLB.i = 0
+   GLB.ang = 0.0
+
+   def plate(rot, pitch, ch, c):
+      cr.save()
+      cr.rectangle(0, 0, 1280, 720)
+      cr.clip()
+      cr.translate(640, 360)
+      cr.rotate(rot)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      cr.set_font_size(pitch * 1.15)
+      cr.scale(1.0, -1.0)
+      n = int(680.0 / pitch)
+      for j in range(-n, n + 1):
+         y = j * pitch
+         if abs(y) > 820:
+            continue
+         cr.move_to(-n * pitch, -y)
+         cr.show_text(ch * (2 * n + 1))
+      cr.restore()
+   GLB.plate = plate
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   # --- each plate is a full grid of glyphs, so a fine pitch means
+   # --- thousands of show_text calls; keep the pitch coarse
+   f0 = STR.F0mix(46.0, 88.0)
+   f1 = STR.F1mix(0.0, 0.5)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.i = (GLB.i + 1) % len(GLB.set)
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   cr.set_source_rgb(0.02, 0.02, 0.04)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cr.select_font_face("mono", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+   GLB.ang = GLB.ang + 0.003
+   ch = GLB.set[GLB.i]
+   pitch = f0
+
+   c1 = hsv_to_rgb(f2, 0.6, 1.0)
+   c2 = hsv_to_rgb((f2 + 0.5) % 1.0, 0.6, 1.0)
+
+   GLB.plate(GLB.ang, pitch, ch, c1)
+   # --- accent CHANGES the second plate rather than adding a third: a whole
+   # --- extra glyph grid is the single most expensive thing here
+   if acc:
+      c3 = hsv_to_rgb((f2 + 0.25) % 1.0, 0.6, 1.0)
+      GLB.plate(GLB.ang * 1.7, pitch * 1.07, ch, c3)
+   else:
+      GLB.plate(-GLB.ang + f1 * sin(time * 0.5),
+                pitch * (1.03 if GLB.xmode else 1.0), ch, c2)

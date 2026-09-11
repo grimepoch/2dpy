@@ -1,0 +1,140 @@
+def Init():
+   # --- author : claude
+   # --- a typewriter at work : typebars swing up and strike, the carriage
+   # --- steps left, and the page fills with slightly crooked letters
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Rate")
+   STR.SetFParam1Name("Text Size")
+   STR.SetFParam2Name("Tint")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : ribbon runs dry, letters go faint
+   # ---    trigger : new sheet
+
+   GLB.txt = ("THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG. "
+              "PACK MY BOX WITH FIVE DOZEN LIQUOR JUGS. "
+              "HOW VEXINGLY QUICK DAFT ZEBRAS JUMP. ")
+   GLB.i = 0
+   GLB.acc = 0.0
+   GLB.cols = 42
+   GLB.strike = 0.0
+   GLB.key = 0
+
+   def reset():
+      GLB.typed = []
+      GLB.i = 0
+      GLB.acc = 0.0
+   GLB.reset = reset
+   GLB.reset()
+
+   def text(x, y, s):
+      cr.save()
+      cr.translate(x, y)
+      cr.scale(1.0, -1.0)
+      cr.move_to(0, 0)
+      cr.show_text(s)
+      cr.restore()
+   GLB.text = text
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 1.1)
+   f1 = STR.F1mix(20.0, 34.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.reset()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   GLB.acc = GLB.acc + f0
+   GLB.strike = GLB.strike * 0.80
+   while GLB.acc >= 1.0:
+      GLB.acc = GLB.acc - 1.0
+      ch = GLB.txt[GLB.i % len(GLB.txt)]
+      GLB.i = GLB.i + 1
+      GLB.typed.append([ch, (np.random.random() - 0.5) * 2.2,
+                        (np.random.random() - 0.5) * 0.06,
+                        0.55 + np.random.random() * 0.45])
+      GLB.strike = 1.0
+      GLB.key = ord(ch) % 11
+      if len(GLB.typed) > GLB.cols * 9:
+         del GLB.typed[0]
+
+   paper = (0.93, 0.91, 0.86)
+   ink = (0.12, 0.10, 0.12)
+   if GLB.xmode:
+      paper = (0.07, 0.06, 0.08)
+      ink = (0.90, 0.88, 0.84)
+
+   cr.set_source_rgb(paper[2], paper[1], paper[0])
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   # --- the platen and the machine's top edge
+   cr.set_source_rgb(0.10, 0.09, 0.12)
+   cr.rectangle(0, 0, 1280, 150)
+   cr.fill()
+   cr.set_source_rgb(0.18, 0.16, 0.21)
+   cr.rectangle(0, 132, 1280, 18)
+   cr.fill()
+
+   cr.select_font_face("mono", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+   size = f1
+   cr.set_font_size(size)
+   adv = cr.text_extents("M").x_advance
+   lh = size * 1.7
+   x0 = 640.0 - adv * GLB.cols * 0.5
+
+   tint = hsv_to_rgb(f2, 0.35, 1.0)
+
+   # --- the page
+   n = len(GLB.typed)
+   for k in range(n):
+      col = k % GLB.cols
+      row = k // GLB.cols
+      y = 640.0 - row * lh
+      if y < 170:
+         continue
+      t = GLB.typed[k]
+      a = t[3]
+      if acc:
+         a = a * 0.35
+      cr.set_source_rgba(ink[2] * tint[2], ink[1] * tint[1], ink[0] * tint[0], a)
+      cr.save()
+      cr.translate(x0 + col * adv, y + t[1])
+      cr.rotate(t[2])
+      cr.scale(1.0, -1.0)
+      cr.move_to(0, 0)
+      cr.show_text(t[0])
+      cr.restore()
+
+   # --- carriage position and the typebar that just fired
+   col = n % GLB.cols
+   cx = x0 + col * adv
+   cr.set_source_rgb(0.75, 0.72, 0.80)
+   cr.rectangle(cx - 2, 150, 3, 40)
+   cr.fill()
+
+   for k in range(11):
+      a = -0.9 + k * 0.18
+      lift = 0.0
+      if k == GLB.key:
+         lift = GLB.strike
+      L = 120.0 + lift * 70.0
+      cr.set_source_rgb(0.55 + lift * 0.4, 0.52 + lift * 0.4, 0.60 + lift * 0.4)
+      cr.set_line_width(5)
+      cr.set_line_cap(cairo.LINE_CAP_ROUND)
+      cr.move_to(cx, 10)
+      cr.line_to(cx + sin(a) * L, 10 + cos(a) * L)
+      cr.stroke()

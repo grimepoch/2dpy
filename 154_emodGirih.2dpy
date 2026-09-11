@@ -1,0 +1,103 @@
+def Init():
+   # --- author : claude
+   # --- Islamic strapwork lit by the material : each star in the lattice
+   # --- belongs to a slot and brightens when that slot sounds
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Decay")
+   STR.SetFParam1Name("Cell Size")
+   STR.SetFParam2Name("Hue")
+   # ---    accent : gold on lapis
+   # ---    trigger : flip the lattice parity
+
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   GLB.n = 12 if GLB.slots == 24 else GLB.slots
+   GLB.lvl = []
+   for i in range(GLB.n):
+      GLB.lvl.append(0.0)
+   GLB.par = 0
+
+   def star(cx, cy, R, n, rot, inner):
+      cr.new_sub_path()
+      for i in range(n * 2):
+         a = rot + i * pi / n
+         rr = R if i % 2 == 0 else R * inner
+         if i == 0:
+            cr.move_to(cx + cos(a) * rr, cy + sin(a) * rr)
+         else:
+            cr.line_to(cx + cos(a) * rr, cy + sin(a) * rr)
+      cr.close_path()
+   GLB.star = star
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.78, 0.98)
+   f1 = STR.F1mix(140.0, 250.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.par = 1 - GLB.par
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   n = GLB.n
+   for k in range(n):
+      GLB.lvl[k] = GLB.lvl[k] * f0
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if ids == 0:
+         continue
+      k = (note % 12) if GLB.mode == "midi" else i
+      if k < n:
+         v = velo / 127.0
+         if v > GLB.lvl[k]:
+            GLB.lvl[k] = v
+
+   if acc:
+      bg = (0.16, 0.07, 0.02)
+   else:
+      bg = hsv_to_rgb((f2 + 0.55) % 1.0, 0.8, 0.13)
+   cr.set_source_rgb(bg[2], bg[1], bg[0])
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cs = f1
+   nx = int(1280 / cs) + 2
+   ny = int(720 / cs) + 2
+   R = cs * 0.5
+   rot = time * 0.04
+
+   cr.set_line_join(cairo.LINE_JOIN_MITER)
+   for j in range(ny):
+      for i in range(nx):
+         x = (i - 0.5) * cs
+         y = (j - 0.5) * cs
+         k = (i * 3 + j * 5) % n
+         v = GLB.lvl[k]
+         if acc:
+            c = hsv_to_rgb(0.10, 0.85 - 0.5 * v, 0.35 + 0.65 * v)
+         else:
+            c = hsv_to_rgb((f2 + k / (n * 1.0) * 0.4) % 1.0, 0.8 - 0.4 * v,
+                           0.25 + 0.75 * v)
+         cr.set_source_rgb(c[2], c[1], c[0])
+         cr.set_line_width(cs * (0.06 + 0.10 * v))
+         if (i + j) % 2 == GLB.par:
+            GLB.star(x, y, R * (0.78 + 0.14 * v), 8, rot, 0.42)
+         else:
+            GLB.star(x, y, R * (0.50 + 0.14 * v), 4, rot + pi * 0.25, 0.45)
+         cr.stroke()

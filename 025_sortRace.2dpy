@@ -1,0 +1,126 @@
+def Init():
+   # --- author : claude
+   # --- watching a sort actually run.  Bars are coloured by value, the two
+   # --- indices being compared light up white.
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Bars")
+   STR.SetFParam1Name("Steps")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : bars go monochrome
+   # ---    trigger : shuffle and switch algorithm
+
+   GLB.algo = 0
+   GLB.n = 0
+   GLB.hi = -1
+   GLB.hj = -1
+
+   def shuffle(n):
+      GLB.n = n
+      GLB.a = []
+      for i in range(n):
+         GLB.a.append((i + 1.0) / n)
+      for i in range(n - 1, 0, -1):
+         j = np.random.randint(0, i + 1)
+         t = GLB.a[i]
+         GLB.a[i] = GLB.a[j]
+         GLB.a[j] = t
+      GLB.i = 1
+      GLB.j = 0
+      GLB.done = 0
+   GLB.shuffle = shuffle
+   GLB.shuffle(96)
+
+   def step():
+      # --- one comparison of whichever algorithm is running
+      a = GLB.a
+      n = GLB.n
+      if GLB.algo == 0:
+         # --- insertion sort
+         if GLB.i >= n:
+            GLB.done = 1
+            return
+         if GLB.j >= 0 and a[GLB.j] > a[GLB.j + 1]:
+            t = a[GLB.j]
+            a[GLB.j] = a[GLB.j + 1]
+            a[GLB.j + 1] = t
+            GLB.hi = GLB.j
+            GLB.hj = GLB.j + 1
+            GLB.j = GLB.j - 1
+         else:
+            GLB.i = GLB.i + 1
+            GLB.j = GLB.i - 1
+      else:
+         # --- bubble sort
+         if GLB.i >= n:
+            GLB.done = 1
+            return
+         if GLB.j >= n - GLB.i - 1:
+            GLB.i = GLB.i + 1
+            GLB.j = 0
+            return
+         GLB.hi = GLB.j
+         GLB.hj = GLB.j + 1
+         if a[GLB.j] > a[GLB.j + 1]:
+            t = a[GLB.j]
+            a[GLB.j] = a[GLB.j + 1]
+            a[GLB.j + 1] = t
+         GLB.j = GLB.j + 1
+   GLB.step = step
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(24.0, 190.0)
+   f1 = STR.F1mix(1.0, 90.0)
+   f2 = STR.F2()
+
+   if trig:
+      GLB.algo = 1 - GLB.algo
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+      GLB.shuffle(int(f0))
+
+   n = int(f0)
+   if n != GLB.n:
+      GLB.shuffle(n)
+
+   # --- when it finishes, admire it for a moment then shuffle again
+   if GLB.done:
+      GLB.done = GLB.done + 1
+      if GLB.done > 40:
+         GLB.algo = 1 - GLB.algo
+         GLB.shuffle(n)
+   else:
+      k = int(f1)
+      for s in range(k):
+         if GLB.done:
+            break
+         GLB.step()
+
+   cr.set_source_rgb(0.03, 0.02, 0.04)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   w = 1280.0 / n
+   a = GLB.a
+   for i in range(n):
+      v = a[i]
+      if GLB.done and GLB.done > 1:
+         r,g,b = hsv_to_rgb((v * 0.4 + f2) % 1.0, 0.2, 1.0)
+      elif acc:
+         r = g = b = 0.25 + 0.75 * v
+      else:
+         r,g,b = hsv_to_rgb((v * 0.75 + f2) % 1.0, 0.85, 1.0)
+      if i == GLB.hi or i == GLB.hj:
+         r = g = b = 1.0
+      cr.set_source_rgb(b, g, r)
+      cr.rectangle(i * w, 20, w - (1 if w > 3 else 0), 20 + v * 660)
+      cr.fill()

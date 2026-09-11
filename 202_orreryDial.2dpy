@@ -1,0 +1,124 @@
+def Init():
+   # --- author : claude
+   # --- an orrery plate : nested rings carrying bodies at their own rates,
+   # --- with the elongation lines an astrolabe would show
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Rate")
+   STR.SetFParam1Name("Bodies")
+   STR.SetFParam2Name("Trails")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : brass on slate
+   # ---    trigger : new system
+
+   def system():
+      GLB.b = []
+      for i in range(9):
+         GLB.b.append([0.28 + i * 0.085 + np.random.random() * 0.03,
+                       1.0 / pow(1.0 + i * 0.6, 1.5),
+                       np.random.random() * 6.28,
+                       np.random.random(),
+                       0.4 + np.random.random() * 0.7])
+   GLB.system = system
+   GLB.system()
+   GLB.trail = []
+
+   def ring(cx, cy, r, w):
+      cr.new_sub_path()
+      cr.arc(cx, cy, r + w, 0, 2 * pi)
+      cr.arc_negative(cx, cy, r - w, 2 * pi, 0)
+      cr.close_path()
+   GLB.ring = ring
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 1.6)
+   f1 = STR.F1mix(2.0, 9.0)
+   f2 = STR.F2mix(0.0, 1.0)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.system()
+      GLB.trail = []
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   if acc:
+      bg = (0.20, 0.19, 0.22)
+      met = (0.30, 0.66, 0.88)
+   else:
+      bg = (0.03, 0.03, 0.05)
+      met = hsv_to_rgb(0.11, 0.45, 1.0)
+
+   cr.set_source_rgb(bg[2], bg[1], bg[0])
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cx = 640.0
+   cy = 360.0
+   R = 330.0
+   n = int(f1)
+
+   cr.set_source_rgb(met[2], met[1], met[0])
+   for i in range(n):
+      GLB.ring(cx, cy, GLB.b[i][0] * R, 1.0)
+   cr.fill()
+
+   xs = []
+   ys = []
+   for i in range(n):
+      b = GLB.b[i]
+      a = b[2] + time * f0 * b[1]
+      x = cx + cos(a) * b[0] * R
+      y = cy + sin(a) * b[0] * R
+      xs.append(x)
+      ys.append(y)
+
+   # --- keep a short trail of the whole configuration
+   if f2 > 0.02:
+      GLB.trail.append([xs, ys])
+      while len(GLB.trail) > int(4 + f2 * 70):
+         del GLB.trail[0]
+      m = len(GLB.trail)
+      for k in range(m):
+         t = (k + 1) / (m * 1.0)
+         tr = GLB.trail[k]
+         for i in range(min(n, len(tr[0]))):
+            c = hsv_to_rgb((GLB.b[i][3] * 0.7) % 1.0, 0.7, t * t)
+            cr.set_source_rgb(c[2], c[1], c[0])
+            cr.rectangle(tr[0][i] - 1.5, tr[1][i] - 1.5, 3, 3)
+         cr.fill()
+
+   if GLB.xmode:
+      # --- elongation lines from the centre through each body
+      cr.set_source_rgba(met[2], met[1], met[0], 0.4)
+      cr.set_line_width(1)
+      for i in range(n):
+         cr.move_to(cx, cy)
+         cr.line_to(xs[i], ys[i])
+      cr.stroke()
+
+   for i in range(n):
+      b = GLB.b[i]
+      c = hsv_to_rgb((b[3] * 0.7) % 1.0, 0.65, 1.0)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      cr.new_sub_path()
+      cr.arc(xs[i], ys[i], 5.0 + 12.0 * b[4], 0, 2 * pi)
+      cr.fill()
+
+   # --- the sun
+   rg = cairo.RadialGradient(cx, cy, 2, cx, cy, 46)
+   rg.add_color_stop_rgb(0.0, 1, 1, 1)
+   rg.add_color_stop_rgb(1.0, met[2] * 0.4, met[1] * 0.6, met[0])
+   cr.set_source(rg)
+   cr.new_sub_path()
+   cr.arc(cx, cy, 46, 0, 2 * pi)
+   cr.fill()

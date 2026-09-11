@@ -1,0 +1,112 @@
+def Init():
+   # --- author : claude
+   # --- a harp of strings.  A note plucks its string, which then rings in
+   # --- its own standing wave mode and slowly damps out.
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Damping")
+   STR.SetFParam1Name("Amplitude")
+   STR.SetFParam2Name("Hue")
+   # ---    accent : show the nodes
+   # ---    trigger : vertical <-> horizontal harp
+
+   # --- 10 slots = FFT analysis bins, 24 slots = MIDI notes
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   GLB.n = 12 if GLB.slots == 24 else GLB.slots
+   GLB.amp = []
+   GLB.ph = []
+   for i in range(GLB.n):
+      GLB.amp.append(0.0)
+      GLB.ph.append(0.0)
+   GLB.prev = []
+   for i in range(24):
+      GLB.prev.append(0)
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.90, 0.995)
+   f1 = STR.F1mix(20.0, 130.0)
+   f2 = STR.F2()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   n = GLB.n
+   for k in range(n):
+      GLB.amp[k] = GLB.amp[k] * f0
+      GLB.ph[k] = GLB.ph[k] + 0.30 + k * 0.035
+
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if GLB.mode == "midi":
+         if ids != 0 and GLB.prev[i] != ids:
+            k = note % n
+            GLB.amp[k] = velo / 127.0
+            GLB.ph[k] = 0.0
+         GLB.prev[i] = ids
+      else:
+         if ids == 0:
+            continue
+         k = i % n
+         v = velo / 127.0
+         if v > GLB.amp[k]:
+            GLB.amp[k] = v
+         GLB.prev[i] = velo
+
+   cr.set_source_rgb(0.03, 0.02, 0.05)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   pts = 46
+   cr.set_line_cap(cairo.LINE_CAP_ROUND)
+
+   for k in range(n):
+      a = GLB.amp[k]
+      # --- the k-th string rings in its (1 + k mod 4) th mode
+      mode = 1 + (k % 4)
+      t = k / (n * 1.0)
+      r,g,b = hsv_to_rgb((f2 + t * 0.4) % 1.0, 0.75, 0.35 + 0.65 * a)
+      cr.set_source_rgb(b, g, r)
+      cr.set_line_width(1.5 + 4.0 * a)
+
+      if GLB.xmode:
+         y = 60.0 + (720.0 - 120.0) * (k + 0.5) / n
+         cr.move_to(90, y)
+         for p in range(1, pts + 1):
+            u = p / (pts * 1.0)
+            d = sin(u * pi * mode) * sin(GLB.ph[k]) * a * f1
+            cr.line_to(90 + 1100 * u, y + d)
+      else:
+         x = 60.0 + (1280.0 - 120.0) * (k + 0.5) / n
+         cr.move_to(x, 60)
+         for p in range(1, pts + 1):
+            u = p / (pts * 1.0)
+            d = sin(u * pi * mode) * sin(GLB.ph[k]) * a * f1
+            cr.line_to(x + d, 60 + 600 * u)
+      cr.stroke()
+
+      if acc and a > 0.05:
+         cr.set_source_rgb(1, 1, 1)
+         for m in range(1, mode):
+            u = m / (mode * 1.0)
+            if GLB.xmode:
+               y = 60.0 + (720.0 - 120.0) * (k + 0.5) / n
+               cr.rectangle(90 + 1100 * u - 3, y - 3, 6, 6)
+            else:
+               x = 60.0 + (1280.0 - 120.0) * (k + 0.5) / n
+               cr.rectangle(x - 3, 60 + 600 * u - 3, 6, 6)
+         cr.fill()

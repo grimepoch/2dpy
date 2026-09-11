@@ -1,0 +1,125 @@
+def Init():
+   # --- author : claude
+   # --- a synoptic chart.  Pressure centres drift and deepen, the isobars
+   # --- are the contours of what they add up to, and the fronts run where
+   # --- the air masses meet - so a low winds up, occludes, and fills, and
+   # --- the next one is already coming in off the ocean.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Weather")
+   STR.SetFParam1Name("Interval")
+   STR.SetFParam2Name("Fronts")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : a deep low, tight gradient
+   # ---    trigger : new synoptic situation
+
+   GLB.res = 4
+   GLB.nx = 1280 // GLB.res
+   GLB.ny = 720 // GLB.res
+   GLB.small = cairo.ImageSurface(cairo.FORMAT_ARGB32, GLB.nx, GLB.ny)
+   GLB.sst = GLB.small.get_stride() // 4
+   GLB.sv = np.ndarray(shape=(GLB.ny, GLB.sst, 4), dtype=np.uint8,
+                       buffer=GLB.small.get_data())
+   yy, xx = np.meshgrid(np.arange(GLB.ny), np.arange(GLB.nx), indexing="ij")
+   GLB.iy = yy.astype(np.float32)
+   GLB.ix = xx.astype(np.float32)
+
+   def situation():
+      k = 6
+      GLB.cx = np.random.random(k) * GLB.nx
+      GLB.cy = np.random.random(k) * GLB.ny
+      GLB.cs = (np.random.random(k) - 0.45) * 2.0
+      GLB.cr_ = np.random.random(k) * 50.0 + 30.0
+      GLB.cv = (np.random.random(k) - 0.3) * 0.5
+   GLB.situation = situation
+   GLB.situation()
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.1, 1.4)
+   f1 = STR.F1mix(3.0, 16.0)
+   f2 = STR.F2mix(0.0, 1.0)
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.situation()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   # --- systems track west to east and are replaced at the boundary
+   GLB.cx = GLB.cx + (0.35 + GLB.cv) * f0
+   off = GLB.cx > GLB.nx + 70.0
+   if off.any():
+      n = len(GLB.cx)
+      GLB.cx = np.where(off, -70.0, GLB.cx)
+      GLB.cy = np.where(off, np.random.random(n) * GLB.ny, GLB.cy)
+      GLB.cs = np.where(off, (np.random.random(n) - 0.45) * 2.0, GLB.cs)
+      GLB.cr_ = np.where(off, np.random.random(n) * 50.0 + 30.0, GLB.cr_)
+
+   p = np.zeros((GLB.ny, GLB.nx), dtype=np.float32)
+   for i in range(len(GLB.cx)):
+      dx = GLB.ix - GLB.cx[i]
+      dy = GLB.iy - GLB.cy[i]
+      d2 = dx * dx + dy * dy
+      s = GLB.cs[i] * (2.0 if (acc and GLB.cs[i] < 0) else 1.0)
+      p = p + s * np.exp(-d2 / (GLB.cr_[i] * GLB.cr_[i] * 2.0))
+
+   # --- the isobars are contours, so they are just the fractional part of
+   # --- the pressure banded at a fixed interval
+   iv = f1
+   band = np.mod(p * iv, 1.0)
+   line = np.clip(1.0 - np.abs(band - 0.5) * 7.0, 0.0, 1.0)
+   # --- the gradient IS the wind, so tight isobars mean a gale
+   gx = p - np.roll(p, 1, axis=1)
+   gy = p - np.roll(p, 1, axis=0)
+   wind = np.clip(np.sqrt(gx * gx + gy * gy) * 90.0, 0.0, 1.0)
+
+   # --- a warm sector where the pressure is rising into a low
+   front = np.clip((gx * 60.0) * f2, -1.0, 1.0)
+   warm = np.clip(front, 0.0, 1.0)
+   cold = np.clip(-front, 0.0, 1.0)
+
+   base = 0.16 + 0.22 * np.clip(p * 0.5 + 0.5, 0.0, 1.0)
+   red = base * 120.0 + line * 210.0 + warm * wind * 150.0
+   grn = base * 150.0 + line * 220.0 + wind * 40.0
+   blu = base * 190.0 + line * 230.0 + cold * wind * 170.0
+   GLB.sv[:, :GLB.nx, 0] = np.clip(red, 0, 255).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 1] = np.clip(grn, 0, 255).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 2] = np.clip(blu, 0, 255).astype(np.uint8)
+   GLB.sv[:, :GLB.nx, 3] = 255
+   GLB.small.mark_dirty()
+   pat = cairo.SurfacePattern(GLB.small)
+   pat.set_filter(cairo.FILTER_NEAREST)
+   m = cairo.Matrix()
+   m.scale(1.0 / GLB.res, 1.0 / GLB.res)
+   pat.set_matrix(m)
+   cr.set_source(pat)
+   cr.paint()
+
+   # --- H and L, where the centres are
+   cr.select_font_face("serif", cairo.FONT_SLANT_NORMAL,
+                       cairo.FONT_WEIGHT_BOLD)
+   cr.set_font_size(46.0)
+   for i in range(len(GLB.cx)):
+      x = GLB.cx[i] * GLB.res
+      y = GLB.cy[i] * GLB.res
+      if x < -40 or x > 1320:
+         continue
+      if GLB.cs[i] < 0:
+         cr.set_source_rgb(1.0, 0.35, 0.25)
+         s = "L"
+      else:
+         cr.set_source_rgb(0.35, 0.45, 1.0)
+         s = "H"
+      cr.save()
+      cr.translate(x - 14, y + 16)
+      cr.scale(1, -1)
+      cr.move_to(0, 0)
+      cr.show_text(s)
+      cr.restore()

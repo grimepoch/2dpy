@@ -1,0 +1,115 @@
+def Init():
+   # --- author : claude
+   # --- kamon : Japanese family crests.  Rigidly circular, built from a few
+   # --- repeated elements at n fold symmetry.  Public domain tradition.
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Fold")
+   STR.SetFParam1Name("Size")
+   STR.SetFParam2Name("Element")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : white on indigo
+   # ---    trigger : single crest <-> repeating ground
+
+   GLB.spin = 0.0
+
+   def petal(r0, r1, w):
+      # --- one lozenge element pointing along +x
+      cr.move_to(r0, 0)
+      cr.curve_to(r0 + (r1 - r0) * 0.3, w, r1 - (r1 - r0) * 0.3, w, r1, 0)
+      cr.curve_to(r1 - (r1 - r0) * 0.3, -w, r0 + (r1 - r0) * 0.3, -w, r0, 0)
+      cr.close_path()
+   GLB.petal = petal
+
+   def mon(R, n, kind, ph):
+      # --- the crest: a ring, an n fold element set, and a boss
+      cr.new_sub_path()
+      cr.arc(0, 0, R, 0, 2 * pi)
+      cr.arc_negative(0, 0, R * 0.88, 2 * pi, 0)
+      cr.close_path()
+      for k in range(n):
+         a = k * 2.0 * pi / n + ph
+         cr.save()
+         cr.rotate(a)
+         if kind == 0:
+            GLB.petal(R * 0.18, R * 0.80, R * 0.17)
+         elif kind == 1:
+            cr.new_sub_path()
+            cr.arc(R * 0.50, 0, R * 0.24, 0, 2 * pi)
+            cr.close_path()
+         elif kind == 2:
+            cr.move_to(R * 0.20, -R * 0.13)
+            cr.line_to(R * 0.80, -R * 0.06)
+            cr.line_to(R * 0.80, R * 0.06)
+            cr.line_to(R * 0.20, R * 0.13)
+            cr.close_path()
+         else:
+            GLB.petal(R * 0.30, R * 0.82, R * 0.09)
+            cr.save()
+            cr.rotate(pi / n * 0.5)
+            GLB.petal(R * 0.24, R * 0.58, R * 0.07)
+            cr.restore()
+         cr.restore()
+      cr.new_sub_path()
+      cr.arc(0, 0, R * 0.15, 0, 2 * pi)
+      cr.close_path()
+   GLB.mon = mon
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(3.0, 12.0)
+   f1 = STR.F1mix(60.0, 290.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   if acc:
+      bg = (0.42, 0.16, 0.06)
+      ink = (0.96, 0.96, 0.94)
+   else:
+      bg = hsv_to_rgb((f2 + 0.5) % 1.0, 0.55, 0.12)
+      ink = hsv_to_rgb(f2, 0.25, 1.0)
+
+   cr.set_source_rgb(bg[2], bg[1], bg[0])
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   n = int(f0)
+   kind = int(f2 * 3.999)
+   GLB.spin = GLB.spin + 0.004
+   cr.set_source_rgb(ink[2], ink[1], ink[0])
+
+   if GLB.xmode:
+      # --- a repeating ground of small crests, as on a kimono
+      R = f1 * 0.28
+      sp = R * 2.6
+      j = 0
+      y = -sp
+      while y < 720 + sp:
+         x = -sp + (sp * 0.5 if j % 2 else 0.0)
+         while x < 1280 + sp:
+            cr.save()
+            cr.translate(x, y)
+            GLB.mon(R, n, kind, GLB.spin)
+            cr.restore()
+            x = x + sp
+         y = y + sp * 0.88
+         j = j + 1
+      cr.fill()
+   else:
+      cr.save()
+      cr.translate(640, 360)
+      GLB.mon(f1, n, kind, GLB.spin)
+      cr.restore()
+      cr.fill()

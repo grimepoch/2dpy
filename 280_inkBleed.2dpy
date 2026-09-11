@@ -1,0 +1,92 @@
+def Init():
+   # --- author : claude
+   # --- ink on wet paper.  Every frame the whole canvas goes through a
+   # --- 4-neighbour diffusion kernel assembled from shifted slices, so old
+   # --- ink keeps creeping outward while new ink lands on top of it.
+   # --- The weights are chosen so nothing can overflow uint8:
+   # ---    wet : v/2 + 4*(v/8) = v      dry : v*3/4 + 4*(v/16) = v
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Wetness")
+   STR.SetFParam1Name("Drops")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : draw with the nib
+   # ---    trigger : blot the page
+
+   GLB.st = surface.get_stride() // 4
+   GLB.q = np.zeros((720, GLB.st, 4), dtype=np.uint8)
+   GLB.nx = 640.0
+   GLB.ny = 360.0
+   GLB.na = 0.0
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0()
+   f1 = STR.F1()
+   f2 = STR.F2()
+   time = STR.IT() + STR.FT()
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8,
+                  buffer=surface.get_data())
+   q = GLB.q
+   if f0 > 0.45:
+      np.right_shift(v, 3, out=q)
+      np.right_shift(v, 1, out=v)
+   else:
+      np.right_shift(v, 4, out=q)
+      np.subtract(v, np.right_shift(v, 2), out=v)
+   np.add(v[:, :-1], q[:, 1:], out=v[:, :-1])
+   np.add(v[:, 1:], q[:, :-1], out=v[:, 1:])
+   np.add(v[:-1], q[1:], out=v[:-1])
+   np.add(v[1:], q[:-1], out=v[1:])
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+      c = hsv_to_rgb(np.random.random(), 0.8, 1.0)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      cr.new_sub_path()
+      cr.arc(np.random.random() * 1280.0, np.random.random() * 720.0,
+             40.0 + np.random.random() * 60.0, 0, 6.2831853)
+      cr.fill()
+
+   # --- the nib : a pen wandering the page, pressed down on accent
+   GLB.na = GLB.na + (np.random.random() - 0.5) * 0.9
+   px = GLB.nx
+   py = GLB.ny
+   GLB.nx = GLB.nx + cos(GLB.na) * 14.0
+   GLB.ny = GLB.ny + sin(GLB.na) * 14.0
+   if GLB.nx < 40 or GLB.nx > 1240:
+      GLB.na = pi - GLB.na
+      GLB.nx = min(max(GLB.nx, 40.0), 1240.0)
+   if GLB.ny < 40 or GLB.ny > 680:
+      GLB.na = -GLB.na
+      GLB.ny = min(max(GLB.ny, 40.0), 680.0)
+   if acc:
+      c = hsv_to_rgb((f2 + time * 0.02) % 1.0, 0.85, 1.0)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      cr.set_line_width(9.0)
+      cr.set_line_cap(cairo.LINE_CAP_ROUND)
+      cr.move_to(px, py)
+      cr.line_to(GLB.nx, GLB.ny)
+      cr.stroke()
+
+   # --- loose drops
+   nd = int(f1 * 5.0)
+   for i in range(nd):
+      c = hsv_to_rgb((f2 + np.random.random() * 0.25) % 1.0, 0.9, 1.0)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      cr.new_sub_path()
+      cr.arc(np.random.random() * 1280.0, np.random.random() * 720.0,
+             3.0 + np.random.random() * 14.0, 0, 6.2831853)
+      cr.fill()

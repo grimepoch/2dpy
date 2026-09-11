@@ -1,0 +1,86 @@
+def Init():
+   # --- author : claude
+   # --- the undertone series.  Divide a frequency by the whole numbers
+   # --- instead of multiplying and you get the mirror of the harmonic
+   # --- series - a minor chord where the overtones give a major one.  Each
+   # --- division is drawn as a nested ring, so a note is a whole set of
+   # --- them at once.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Divisions")
+   STR.SetFParam1Name("Decay")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : the overtone series instead, for comparison
+   # ---    trigger : reseat the fundamental
+
+   GLB.st = surface.get_stride() // 4
+   GLB.amp = np.zeros(16, dtype=np.float32)
+   GLB.ph = np.zeros(16, dtype=np.float32)
+   GLB.fund = 1.0
+   GLB.prev = np.zeros(GLB.slots, dtype=np.float32)
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(2.0, 11.99)
+   f1 = STR.F1mix(0.88, 0.995)
+   f2 = STR.F2()
+
+   if trig:
+      GLB.fund = 0.7 + np.random.random() * 0.8
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   nd = int(f0)
+   GLB.amp = GLB.amp * f1
+   for i in range(GLB.slots):
+      d = STR.GetSlotData(i)
+      vel = d[2] * 1.0
+      if d[0] != 0 and vel > GLB.prev[i] + 5.0:
+         GLB.fund = 0.6 + (int(d[1]) % 24) / 20.0
+         lv = vel / 127.0
+         for k in range(nd):
+            GLB.amp[k] = min(1.0, GLB.amp[k] + lv / (1.0 + k * 0.35))
+      GLB.prev[i] = vel
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8,
+                  buffer=surface.get_data())
+   np.subtract(v, np.right_shift(v, 4), out=v)
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   cr.set_line_cap(cairo.LINE_CAP_ROUND)
+   for k in range(nd):
+      a = GLB.amp[k]
+      if a < 0.01:
+         continue
+      n = k + 1
+      # --- dividing gives the undertones, multiplying the overtones.  The
+      # --- two are mirror images and sound nothing alike.
+      if acc:
+         fr = GLB.fund * n
+         rr = 40.0 + n * 22.0
+      else:
+         fr = GLB.fund / n
+         rr = 40.0 + (1.0 / n) * 300.0
+      GLB.ph[k] = GLB.ph[k] + fr * 0.06
+      c = hsv_to_rgb((f2 + k * 0.07) % 1.0, 0.75, min(0.3 + a, 1.0))
+      cr.set_source_rgba(c[2], c[1], c[0], 0.9)
+      cr.set_line_width(1.4 + a * 9.0)
+      # --- a stroked ring per partial, so segment count is frame time
+      nseg = 44
+      cr.move_to(640 + rr, 360)
+      for s in range(1, nseg + 1):
+         b = s * 6.2831853 / nseg
+         # --- n lobes on the nth member, so the ratio is visible directly
+         rad = rr * (1.0 + 0.10 * a * sin(b * n + GLB.ph[k]))
+         cr.line_to(640 + cos(b) * rad, 360 + sin(b) * rad * 0.9)
+      cr.close_path()
+      cr.stroke()

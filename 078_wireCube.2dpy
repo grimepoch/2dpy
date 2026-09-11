@@ -1,0 +1,156 @@
+def Init():
+   # --- author : claude
+   # --- wireframe solids tumbling in three dimensions, projected by hand.
+   # --- Edges nearer the camera are drawn brighter and thicker.
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Spin")
+   STR.SetFParam1Name("Scale")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : add the body diagonals
+   # ---    trigger : next solid
+
+   def cube():
+      v = []
+      for i in range(8):
+         v.append([1.0 if i & 1 else -1.0, 1.0 if i & 2 else -1.0, 1.0 if i & 4 else -1.0])
+      e = []
+      for i in range(8):
+         for j in range(i + 1, 8):
+            d = 0
+            if (i & 1) != (j & 1):
+               d = d + 1
+            if (i & 2) != (j & 2):
+               d = d + 1
+            if (i & 4) != (j & 4):
+               d = d + 1
+            if d == 1:
+               e.append([i, j])
+      return [v, e]
+
+   def octa():
+      v = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]]
+      e = []
+      for i in range(6):
+         for j in range(i + 1, 6):
+            if i // 2 != j // 2:
+               e.append([i, j])
+      return [v, e]
+
+   def tetra():
+      v = [[1,1,1],[1,-1,-1],[-1,1,-1],[-1,-1,1]]
+      e = []
+      for i in range(4):
+         for j in range(i + 1, 4):
+            e.append([i, j])
+      return [v, e]
+
+   def prism():
+      v = []
+      for k in range(6):
+         a = k * pi / 3.0
+         v.append([cos(a), sin(a), -1.0])
+      for k in range(6):
+         a = k * pi / 3.0
+         v.append([cos(a), sin(a), 1.0])
+      e = []
+      for k in range(6):
+         e.append([k, (k + 1) % 6])
+         e.append([6 + k, 6 + (k + 1) % 6])
+         e.append([k, 6 + k])
+      return [v, e]
+
+   GLB.solids = [cube(), octa(), tetra(), prism()]
+   GLB.s = 0
+   GLB.ax = 0.0
+   GLB.ay = 0.0
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 0.06)
+   f1 = STR.F1mix(90.0, 330.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.s = (GLB.s + 1) % len(GLB.solids)
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   cr.set_source_rgba(0, 0, 0, 0.45)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   GLB.ax = GLB.ax + f0
+   GLB.ay = GLB.ay + f0 * 0.63
+
+   ca = cos(GLB.ax)
+   sa = sin(GLB.ax)
+   cb = cos(GLB.ay)
+   sb = sin(GLB.ay)
+   cc = cos(time * 0.11)
+   sc = sin(time * 0.11)
+
+   v = GLB.solids[GLB.s][0]
+   e = GLB.solids[GLB.s][1]
+   sz = f1
+   dist = 4.2
+
+   px = []
+   py = []
+   pz = []
+   for p in v:
+      x = p[0]
+      y = p[1]
+      z = p[2]
+      # --- rotate about x, then y, then z
+      y2 = y * ca - z * sa
+      z2 = y * sa + z * ca
+      x2 = x * cb + z2 * sb
+      z3 = -x * sb + z2 * cb
+      x3 = x2 * cc - y2 * sc
+      y3 = x2 * sc + y2 * cc
+      k = dist / (dist - z3 * 0.75)
+      px.append(640.0 + x3 * sz * k)
+      py.append(360.0 + y3 * sz * k)
+      pz.append(z3)
+
+   edges = e
+   if acc and GLB.s == 0:
+      edges = e + [[0,7],[1,6],[2,5],[3,4]]
+
+   cr.set_line_cap(cairo.LINE_CAP_ROUND)
+   # --- band the edges by depth so nearer ones read as nearer
+   bands = 5
+   for b in range(bands):
+      lo = -1.0 + 2.0 * b / bands
+      hi = -1.0 + 2.0 * (b + 1) / bands
+      t = b / (bands - 1.0)
+      r,g,bl = hsv_to_rgb((f2 + t * 0.2) % 1.0, 0.8 if GLB.xmode else 0.45, 0.35 + 0.65 * t)
+      cr.set_source_rgb(bl, g, r)
+      cr.set_line_width(1.0 + 6.0 * t)
+      any = 0
+      for ed in edges:
+         zm = (pz[ed[0]] + pz[ed[1]]) * 0.5
+         if zm < lo or zm >= hi:
+            continue
+         cr.move_to(px[ed[0]], py[ed[0]])
+         cr.line_to(px[ed[1]], py[ed[1]])
+         any = 1
+      if any:
+         cr.stroke()
+
+   # --- vertices
+   cr.set_source_rgb(1, 1, 1)
+   for i in range(len(px)):
+      cr.rectangle(px[i] - 3, py[i] - 3, 6, 6)
+   cr.fill()

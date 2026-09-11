@@ -1,0 +1,131 @@
+def Init():
+   # --- author : claude
+   # --- a cabinet drawer of beetles : each specimen bilaterally symmetric,
+   # --- pinned and labelled, in the manner of an entomological plate
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Specimens")
+   STR.SetFParam1Name("Size")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : wings opened
+   # ---    trigger : new collection
+
+   def collect():
+      GLB.b = []
+      for i in range(12):
+         GLB.b.append([0.5 + np.random.random() * 0.7,
+                       0.3 + np.random.random() * 0.5,
+                       np.random.random(),
+                       np.random.randint(3, 7),
+                       np.random.random() * 0.5])
+   GLB.collect = collect
+   GLB.collect()
+
+   def beetle(s, b, open2, c1, c2):
+      # --- body
+      cr.set_source_rgb(c1[2], c1[1], c1[0])
+      cr.move_to(0, -s)
+      cr.curve_to(s * b[1], -s * 0.5, s * b[1], s * 0.55, 0, s)
+      cr.curve_to(-s * b[1], s * 0.55, -s * b[1], -s * 0.5, 0, -s)
+      cr.close_path()
+      cr.fill()
+      # --- elytra, opened on accent
+      cr.set_source_rgb(c2[2], c2[1], c2[0])
+      for sgn in (-1.0, 1.0):
+         cr.save()
+         cr.rotate(sgn * open2)
+         cr.move_to(0, -s * 0.55)
+         cr.curve_to(sgn * s * b[1] * 0.95, -s * 0.3,
+                     sgn * s * b[1] * 0.95, s * 0.5, 0, s * 0.85)
+         cr.close_path()
+         cr.fill()
+         cr.restore()
+      # --- head and pronotum
+      cr.set_source_rgb(c1[2] * 0.6, c1[1] * 0.6, c1[0] * 0.6)
+      cr.new_sub_path()
+      cr.arc(0, -s * 0.92, s * 0.24, 0, 2 * pi)
+      cr.fill()
+      # --- legs and antennae
+      cr.set_source_rgb(c1[2] * 0.5, c1[1] * 0.5, c1[0] * 0.5)
+      cr.set_line_width(s * 0.055)
+      cr.set_line_cap(cairo.LINE_CAP_ROUND)
+      for k in range(3):
+         u = -0.45 + k * 0.38
+         for sgn in (-1.0, 1.0):
+            cr.move_to(sgn * s * b[1] * 0.5, s * u)
+            cr.line_to(sgn * s * (b[1] + 0.55), s * (u + 0.18))
+            cr.line_to(sgn * s * (b[1] + 0.80), s * (u - 0.12))
+      for sgn in (-1.0, 1.0):
+         cr.move_to(sgn * s * 0.12, -s * 1.05)
+         cr.line_to(sgn * s * 0.42, -s * 1.55)
+      cr.stroke()
+   GLB.beetle = beetle
+
+   def text(x, y, s):
+      cr.save()
+      cr.translate(x, y)
+      cr.scale(1.0, -1.0)
+      cr.move_to(0, 0)
+      cr.show_text(s)
+      cr.restore()
+   GLB.text = text
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(1.0, 12.0)
+   f1 = STR.F1mix(40.0, 130.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.collect()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   cr.set_source_rgb(0.91, 0.89, 0.83)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   n = int(f0)
+   cols = 4
+   rows = int((n + cols - 1) / cols)
+   cr.select_font_face("serif", cairo.FONT_SLANT_ITALIC, cairo.FONT_WEIGHT_NORMAL)
+   cr.set_font_size(17)
+
+   for k in range(n):
+      b = GLB.b[k]
+      cx = ((k % cols) + 0.5) * 1280.0 / cols
+      cy = 720.0 - (int(k / cols) + 0.5) * 720.0 / rows
+      s = f1 * b[0]
+      op = (0.75 if acc else 0.0) + 0.06 * sin(time * 1.1 + k)
+      if GLB.xmode:
+         c1 = hsv_to_rgb((b[2] + f2) % 1.0, 0.85, 0.85)
+         c2 = hsv_to_rgb((b[2] + f2 + 0.1) % 1.0, 0.7, 1.0)
+      else:
+         c1 = hsv_to_rgb((b[2] * 0.16 + 0.05 + f2 * 0.1) % 1.0, 0.75, 0.45)
+         c2 = hsv_to_rgb((b[2] * 0.16 + 0.08 + f2 * 0.1) % 1.0, 0.6, 0.72)
+      # --- the pin
+      cr.set_source_rgb(0.55, 0.55, 0.58)
+      cr.set_line_width(2.5)
+      cr.move_to(cx, cy + s * 1.3)
+      cr.line_to(cx, cy - s * 1.5)
+      cr.stroke()
+      cr.save()
+      cr.translate(cx, cy)
+      cr.rotate(b[4] - 0.25)
+      GLB.beetle(s, b, op, c1, c2)
+      cr.restore()
+      cr.set_source_rgb(0.20, 0.18, 0.22)
+      lab = "sp. %02d" % (k + 1)
+      e = cr.text_extents(lab)
+      GLB.text(cx - e.width * 0.5, cy - s * 1.75, lab)

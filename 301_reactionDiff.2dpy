@@ -1,0 +1,95 @@
+def Init():
+   # --- author : claude
+   # --- Gray-Scott reaction diffusion : two chemicals, one feeding on the
+   # --- other.  Each frame's concentrations come entirely from the previous
+   # --- frame's, which is what lets spots divide and stripes crawl.
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Feed")
+   STR.SetFParam1Name("Kill")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : show chemical A instead of B
+   # ---    trigger : inoculate a fresh patch
+
+   GLB.res = 4
+   GLB.nx = 1280 // GLB.res
+   GLB.ny = 720 // GLB.res
+   GLB.small = cairo.ImageSurface(cairo.FORMAT_ARGB32, GLB.nx, GLB.ny)
+   GLB.sst = GLB.small.get_stride() // 4
+   GLB.sv = np.ndarray(shape=(GLB.ny, GLB.sst, 4), dtype=np.uint8,
+                       buffer=GLB.small.get_data())
+
+   def seed():
+      GLB.A = np.ones((GLB.ny, GLB.nx), dtype=np.float32)
+      GLB.B = np.zeros((GLB.ny, GLB.nx), dtype=np.float32)
+      for k in range(14):
+         x = np.random.randint(6, GLB.nx - 6)
+         y = np.random.randint(6, GLB.ny - 6)
+         GLB.B[y-4:y+4, x-4:x+4] = 1.0
+   GLB.seed = seed
+   GLB.seed()
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.020, 0.062)
+   f1 = STR.F1mix(0.050, 0.068)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+      x = np.random.randint(6, GLB.nx - 6)
+      y = np.random.randint(6, GLB.ny - 6)
+      GLB.B[y-5:y+5, x-5:x+5] = 1.0
+
+   A = GLB.A
+   B = GLB.B
+   # --- two steps per frame so the pattern actually moves
+   for s in range(2):
+      la = np.zeros_like(A)
+      lb = np.zeros_like(B)
+      la[1:-1,1:-1] = (A[:-2,1:-1] + A[2:,1:-1] + A[1:-1,:-2] + A[1:-1,2:]
+                       - 4.0 * A[1:-1,1:-1])
+      lb[1:-1,1:-1] = (B[:-2,1:-1] + B[2:,1:-1] + B[1:-1,:-2] + B[1:-1,2:]
+                       - 4.0 * B[1:-1,1:-1])
+      ab = A * B * B
+      A = A + (0.20 * la - ab + f0 * (1.0 - A))
+      B = B + (0.09 * lb + ab - (f0 + f1) * B)
+      np.clip(A, 0.0, 1.0, out=A)
+      np.clip(B, 0.0, 1.0, out=B)
+   GLB.A = A
+   GLB.B = B
+
+   fld = A if acc else B
+   bands = 24
+   q = np.clip((fld * bands).astype(np.int32), 0, bands - 1)
+   pal = np.zeros((bands, 4), dtype=np.uint8)
+   for bd in range(bands):
+      t = bd / (bands - 1.0)
+      if GLB.xmode:
+         c = hsv_to_rgb((f2 + t * 0.85) % 1.0, 0.85, 0.15 + 0.85 * t)
+      else:
+         c = hsv_to_rgb((f2 + t * 0.20) % 1.0, 0.9 - 0.6 * t, 0.10 + 0.90 * t)
+      pal[bd][0] = int(c[2] * 255)
+      pal[bd][1] = int(c[1] * 255)
+      pal[bd][2] = int(c[0] * 255)
+      pal[bd][3] = 255
+
+   GLB.sv[:, :GLB.nx] = pal[q]
+   GLB.small.mark_dirty()
+   pat = cairo.SurfacePattern(GLB.small)
+   pat.set_filter(cairo.FILTER_NEAREST)
+   m = cairo.Matrix()
+   m.scale(1.0 / GLB.res, 1.0 / GLB.res)
+   pat.set_matrix(m)
+   cr.set_source(pat)
+   cr.paint()

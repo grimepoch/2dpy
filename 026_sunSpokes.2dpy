@@ -1,0 +1,83 @@
+def Init():
+   # --- author : claude
+   # --- a rotating sunburst of wedges, with a counter-turning inner wheel
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Spokes")
+   STR.SetFParam2Name("Duty")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : strobe, every other wedge drops out
+   # ---    trigger : solid wedges <-> outlines
+
+   GLB.ang = 0.0
+   GLB.hue = 0.0
+
+   def wedge(cx, cy, r0, r1, a0, a1):
+      cr.new_sub_path()
+      cr.arc(cx, cy, r1, a0, a1)
+      cr.arc_negative(cx, cy, r0, a1, a0)
+      cr.close_path()
+   GLB.wedge = wedge
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.25, 1.0)
+   f1 = STR.F1mix(3.0, 34.0)
+   f2 = STR.F2mix(0.12, 0.92)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,f0)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   GLB.ang = GLB.ang + 0.012
+   GLB.hue = (GLB.hue + 0.003) % 1.0
+
+   n = int(f1)
+   if n < 2:
+      n = 2
+   step = 2.0 * pi / n
+   duty = step * f2
+   cr.set_line_width(3)
+
+   # --- outer burst
+   for k in range(n):
+      if acc and k % 2:
+         continue
+      a0 = GLB.ang + k * step
+      r,g,b = hsv_to_rgb((GLB.hue + k * 0.7 / n) % 1.0, 0.75, 1.0)
+      cr.set_source_rgb(b, g, r)
+      GLB.wedge(640, 360, 150 + 40 * sin(time * 0.8 + k), 820, a0, a0 + duty)
+      if GLB.xmode:
+         cr.stroke()
+      else:
+         cr.fill()
+
+   # --- inner wheel turning the other way
+   m = int(n * 0.6)
+   if m < 2:
+      m = 2
+   step2 = 2.0 * pi / m
+   for k in range(m):
+      a0 = -GLB.ang * 1.7 + k * step2
+      r,g,b = hsv_to_rgb((GLB.hue + 0.5 + k * 0.5 / m) % 1.0, 0.6, 1.0)
+      cr.set_source_rgb(b, g, r)
+      GLB.wedge(640, 360, 40, 140 + 30 * cos(time * 1.1 + k), a0, a0 + step2 * f2)
+      if GLB.xmode:
+         cr.stroke()
+      else:
+         cr.fill()

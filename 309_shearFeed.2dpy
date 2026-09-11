@@ -1,0 +1,90 @@
+def Init():
+   # --- author : claude
+   # --- the standing image is sheared a little every frame : each row of the
+   # --- PREVIOUS pixels is pulled sideways by its own amount, so straight
+   # --- marks turn into ribbons over time
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Shear")
+   STR.SetFParam1Name("Wavelength")
+   STR.SetFParam2Name("Decay")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : shear columns instead of rows
+   # ---    trigger : new ink colour
+
+   GLB.st = surface.get_stride() // 4
+   GLB.rows = np.arange(720)
+   GLB.cols = np.arange(GLB.st)
+   GLB.hue = 0.0
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 9.0)
+   f1 = STR.F1mix(0.004, 0.05)
+   f2 = STR.F2mix(2.0, 8.0)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.hue = np.random.random()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8, buffer=surface.get_data())
+
+   # --- decay first so the trail has a gradient along it
+   np.subtract(v, np.right_shift(v, int(f2)), out=v)
+
+   # --- Shear in BANDS with plain slice assignments.  A full 2D fancy-index
+   # --- gather over the buffer costs about 32ms; 24 banded slice shifts do
+   # --- the same job in well under a millisecond.
+   nb = 60
+   if acc:
+      bw = GLB.st // nb
+      for b in range(nb):
+         x0 = b * bw
+         x1 = x0 + bw
+         sft = int(sin(x0 * f1 + time * 1.3) * f0)
+         if sft > 0:
+            v[:-sft, x0:x1] = v[sft:, x0:x1]
+            v[-sft:, x0:x1] = 0
+         elif sft < 0:
+            k = -sft
+            v[k:, x0:x1] = v[:-k, x0:x1]
+            v[:k, x0:x1] = 0
+   else:
+      bh = 720 // nb
+      for b in range(nb):
+         y0 = b * bh
+         y1 = y0 + bh
+         sft = int(sin(y0 * f1 + time * 1.1) * f0)
+         if sft > 0:
+            v[y0:y1, :-sft] = v[y0:y1, sft:]
+            v[y0:y1, -sft:] = 0
+         elif sft < 0:
+            k = -sft
+            v[y0:y1, k:] = v[y0:y1, :-k]
+            v[y0:y1, :k] = 0
+
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   # --- fresh ink for the shear to drag out
+   c = hsv_to_rgb((GLB.hue + time * 0.03) % 1.0, 0.85, 1.0)
+   cr.set_source_rgb(c[2], c[1], c[0])
+   cr.set_line_width(7)
+   cr.set_line_cap(cairo.LINE_CAP_ROUND)
+   n = 5 if GLB.xmode else 3
+   for k in range(n):
+      u = (k + 0.5) / n
+      x = 1280.0 * u
+      cr.move_to(x, 360 + 260 * sin(time * 0.7 + k * 1.3))
+      cr.line_to(x + 40 * cos(time + k), 360 + 260 * sin(time * 0.7 + k * 1.3) + 40)
+      cr.stroke()

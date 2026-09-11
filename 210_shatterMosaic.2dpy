@@ -1,0 +1,108 @@
+def Init():
+   # --- author : claude
+   # --- voronoiShatter crossed with stained glass : the shards are leaded
+   # --- quarries, and when they fly the light comes through the gaps
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Blast")
+   STR.SetFParam1Name("Shards")
+   STR.SetFParam2Name("Spin")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : lead only, glass gone
+   # ---    trigger : re-break
+
+   def build(rings, spokes):
+      GLB.sh = []
+      for r in range(rings):
+         r0 = 16.0 + r * (430.0 / rings)
+         r1 = 16.0 + (r + 1) * (430.0 / rings)
+         for s in range(spokes):
+            a0 = s * 2.0 * pi / spokes
+            a1 = (s + 1) * 2.0 * pi / spokes
+            am = (a0 + a1) * 0.5
+            GLB.sh.append([a0, a1, r0, r1, cos(am), sin(am),
+                           np.random.random(), (np.random.random() - 0.5) * 2.0,
+                           0.4 + np.random.random() * 0.9])
+      GLB.spokes = spokes
+   GLB.build = build
+   GLB.build(4, 11)
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 1.0)
+   f1 = STR.F1mix(7.0, 13.0)
+   f2 = STR.F2mix(0.0, 2.5)
+
+   time = STR.IT() + STR.FT()
+
+   sp = int(f1)
+   if trig or sp != GLB.spokes:
+      GLB.build(4, sp)
+      if trig:
+         GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   cr.set_source_rgb(0.02, 0.02, 0.04)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   blast = f0
+   if GLB.xmode:
+      blast = f0 * (0.5 - 0.5 * cos(time * 0.7))
+
+   cx = 640.0
+   cy = 360.0
+
+   # --- the light behind, which only shows where glass has gone
+   # --- the backlight as a handful of filled annuli.  A full screen radial
+   # --- gradient fill costs about ten times as much as these do.
+   c0 = hsv_to_rgb((time * 0.03) % 1.0, 0.3, 1.0)
+   steps = 8
+   for k in range(steps, 0, -1):
+      u = k / (steps * 1.0)
+      rr = 560.0 * u
+      v = 1.0 - u
+      cr.set_source_rgb(0.05 + (c0[2] - 0.05) * v, 0.05 + (c0[1] - 0.05) * v,
+                        0.12 + (c0[0] - 0.12) * v)
+      cr.new_sub_path()
+      cr.arc(cx, cy, rr, 0, 2 * pi)
+      cr.fill()
+
+   bands = 5
+   for b in range(bands):
+      t = b / (bands - 1.0)
+      c = hsv_to_rgb((t * 0.85 + time * 0.02) % 1.0, 0.8, 0.85)
+      k = b
+      any = 0
+      while k < len(GLB.sh):
+         s = GLB.sh[k]
+         d = blast * 520.0 * s[8]
+         cr.save()
+         cr.translate(cx + s[4] * d, cy + s[5] * d)
+         cr.rotate(blast * s[7] * f2)
+         cr.new_sub_path()
+         cr.arc(0, 0, s[3] - 3.0, s[0] + 0.012, s[1] - 0.012)
+         cr.arc_negative(0, 0, s[2] + 3.0, s[1] - 0.012, s[0] + 0.012)
+         cr.close_path()
+         cr.restore()
+         any = 1
+         k = k + bands
+      if any:
+         if acc:
+            cr.set_source_rgb(0.08, 0.07, 0.09)
+            cr.set_line_width(5)
+            cr.stroke()
+         else:
+            cr.set_source_rgb(c[2], c[1], c[0])
+            cr.fill_preserve()
+            cr.set_source_rgb(0.06, 0.05, 0.07)
+            cr.set_line_width(4)
+            cr.stroke()
+   cr.new_path()

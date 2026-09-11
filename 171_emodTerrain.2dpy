@@ -1,0 +1,114 @@
+def Init():
+   # --- author : claude
+   # --- a landscape whose relief is the spectrum : the ridge line at each
+   # --- depth is one frame of history, so the terrain is a waterfall
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Depth")
+   STR.SetFParam1Name("Relief")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+   # ---    accent : filled ridges, hidden line removed
+   # ---    trigger : wire <-> solid
+
+   GLB.n = 12 if GLB.slots == 24 else GLB.slots
+   GLB.rows = 30
+   GLB.hist = []
+   for j in range(GLB.rows):
+      r = []
+      for i in range(GLB.n):
+         r.append(0.0)
+      GLB.hist.append(r)
+   GLB.lvl = []
+   for i in range(GLB.n):
+      GLB.lvl.append(0.0)
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.4, 1.2)
+   f1 = STR.F1mix(30.0, 200.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   n = GLB.n
+   for k in range(n):
+      GLB.lvl[k] = GLB.lvl[k] * 0.82
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if ids == 0:
+         continue
+      k = (note % 12) if GLB.mode == "midi" else i
+      if k < n:
+         v = velo / 127.0
+         if v > GLB.lvl[k]:
+            GLB.lvl[k] = v
+
+   row = []
+   for k in range(n):
+      row.append(GLB.lvl[k])
+   GLB.hist.insert(0, row)
+   while len(GLB.hist) > GLB.rows:
+      del GLB.hist[len(GLB.hist) - 1]
+
+   cr.set_source_rgb(0.02, 0.01, 0.05)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   hz = 620.0
+   ybase = 70.0
+   steps = 90
+
+   for j in range(GLB.rows - 1, -1, -1):
+      d = j / (GLB.rows * 1.0)
+      p = pow(1.0 - d, f0 * 2.0)
+      y = ybase + (hz - ybase) * (1.0 - p)
+      wid = 110.0 + 1100.0 * p
+      hgt = f1 * p
+      if wid < 6:
+         continue
+      r = GLB.hist[j]
+      t = 1.0 - d
+      c = hsv_to_rgb((f2 + d * 0.45) % 1.0, 0.8, 0.2 + 0.8 * t)
+      x0 = 640.0 - wid * 0.5
+      cr.new_path()
+      cr.move_to(x0, y)
+      for i in range(steps + 1):
+         u = i / (steps * 1.0)
+         fk = u * (n - 1)
+         k0 = int(fk)
+         k1 = k0 + 1
+         if k1 > n - 1:
+            k1 = n - 1
+         tt = fk - k0
+         tt = 0.5 - 0.5 * cos(tt * pi)
+         v = r[k0] * (1.0 - tt) + r[k1] * tt
+         cr.line_to(x0 + wid * u, y + v * hgt)
+      cr.line_to(x0 + wid, y)
+      if acc or GLB.xmode:
+         cr.close_path()
+         cr.set_source_rgb(c[2] * 0.35, c[1] * 0.35, c[0] * 0.35)
+         cr.fill_preserve()
+         cr.set_source_rgb(c[2], c[1], c[0])
+         cr.set_line_width(1.4)
+         cr.stroke()
+      else:
+         cr.set_source_rgb(c[2], c[1], c[0])
+         cr.set_line_width(1.0 + 2.0 * t)
+         cr.stroke()

@@ -1,0 +1,152 @@
+def Init():
+   # --- author : claude
+   # --- a Wilson cloud chamber.  Tracks are not redrawn - they are left in
+   # --- the canvas and allowed to broaden and fade, which is what the real
+   # --- droplets do.  Alphas go straight and fat, betas are light and
+   # --- curl hard in the field, and the odd one decays mid-flight.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Activity")
+   STR.SetFParam1Name("Field")
+   STR.SetFParam2Name("Vapour")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : put a source in the chamber
+   # ---    trigger : reverse the field
+
+   GLB.st = surface.get_stride() // 4
+   GLB.parity = 0
+   GLB.dir = 1.0
+   GLB.sx = 640.0
+   GLB.sy = 360.0
+   GLB.n = 0
+   GLB.px = np.zeros(64)
+   GLB.py = np.zeros(64)
+   GLB.pa = np.zeros(64)
+   GLB.pv = np.zeros(64)
+   GLB.pm = np.zeros(64)
+   GLB.pl = np.zeros(64)
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.006, 0.15)
+   f1 = STR.F1mix(0.0, 0.10)
+   f2 = STR.F2mix(3.0, 6.0)
+
+   if trig:
+      GLB.dir = -GLB.dir
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8,
+                  buffer=surface.get_data())
+   np.subtract(v, np.right_shift(v, int(f2)), out=v)
+   GLB.parity = GLB.parity + 1
+   # --- the droplets spread.  A full 2D dilate every frame is the most
+   # --- expensive thing available here, so one axis per frame.
+   # --- the four directions take turns : always dilating into the same
+   # --- slice drifts the whole plate that way over a few hundred frames
+   ph = GLB.parity % 4
+   if ph == 0:
+      np.maximum(v[:, :-1], v[:, 1:], out=v[:, :-1])
+   elif ph == 1:
+      np.maximum(v[:-1], v[1:], out=v[:-1])
+   elif ph == 2:
+      np.maximum(v[:, 1:], v[:, :-1], out=v[:, 1:])
+   else:
+      np.maximum(v[1:], v[:-1], out=v[1:])
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   # --- the source drifts slowly around the chamber
+   GLB.sx = 640.0 + sin(STR.IT() * 0.06) * 330.0
+   GLB.sy = 360.0 + cos(STR.IT() * 0.041) * 190.0
+
+   # --- new particles.  Alphas are thrown from the source inside the
+   # --- chamber and stop quickly; cosmic rays cross the whole plate.
+   rate = f0 * (4.0 if acc else 1.0)
+   while np.random.random() < rate and GLB.n < 60:
+      i = GLB.n
+      heavy = np.random.random() < (0.62 if acc else 0.35)
+      if heavy:
+         GLB.px[i] = GLB.sx + (np.random.random() - 0.5) * 8.0
+         GLB.py[i] = GLB.sy + (np.random.random() - 0.5) * 8.0
+         GLB.pa[i] = np.random.random() * 6.2831853
+         GLB.pm[i] = 1.0
+         GLB.pv[i] = 5.0
+         GLB.pl[i] = 170.0 + np.random.random() * 130.0
+      else:
+         edge = np.random.randint(4)
+         if edge == 0:
+            GLB.px[i] = 0.0
+            GLB.py[i] = np.random.random() * 720.0
+            GLB.pa[i] = (np.random.random() - 0.5) * 1.1
+         elif edge == 1:
+            GLB.px[i] = 1280.0
+            GLB.py[i] = np.random.random() * 720.0
+            GLB.pa[i] = pi + (np.random.random() - 0.5) * 1.1
+         elif edge == 2:
+            GLB.px[i] = np.random.random() * 1280.0
+            GLB.py[i] = 0.0
+            GLB.pa[i] = 1.5708 + (np.random.random() - 0.5) * 1.1
+         else:
+            GLB.px[i] = np.random.random() * 1280.0
+            GLB.py[i] = 720.0
+            GLB.pa[i] = -1.5708 + (np.random.random() - 0.5) * 1.1
+         GLB.pm[i] = 0.0
+         GLB.pv[i] = 11.0
+         # --- long enough to cross the plate and curl while doing it
+         GLB.pl[i] = 1500.0
+      GLB.n = GLB.n + 1
+
+   cr.set_line_cap(cairo.LINE_CAP_ROUND)
+   i = 0
+   while i < GLB.n:
+      heavy = GLB.pm[i] > 0.5
+      # --- radius of curvature goes with momentum, so the light ones spiral
+      curl = f1 * GLB.dir * (0.25 if heavy else 1.0)
+      GLB.pa[i] = GLB.pa[i] + curl
+      x0 = GLB.px[i]
+      y0 = GLB.py[i]
+      GLB.px[i] = x0 + cos(GLB.pa[i]) * GLB.pv[i]
+      GLB.py[i] = y0 + sin(GLB.pa[i]) * GLB.pv[i]
+      GLB.pl[i] = GLB.pl[i] - GLB.pv[i]
+      if heavy:
+         cr.set_line_width(3.2)
+         cr.set_source_rgb(0.72, 0.90, 1.0)
+      else:
+         cr.set_line_width(1.5)
+         cr.set_source_rgb(1.0, 0.93, 0.72)
+      cr.move_to(x0, y0)
+      cr.line_to(GLB.px[i], GLB.py[i])
+      cr.stroke()
+
+      dead = (GLB.pl[i] <= 0.0 or GLB.px[i] < -30 or GLB.px[i] > 1310 or
+              GLB.py[i] < -30 or GLB.py[i] > 750)
+      if dead:
+         # --- a decay in flight throws a short daughter track
+         if GLB.pl[i] <= 0.0 and np.random.random() < 0.4 and GLB.n < 60:
+            j = GLB.n
+            GLB.px[j] = GLB.px[i]
+            GLB.py[j] = GLB.py[i]
+            GLB.pa[j] = GLB.pa[i] + (np.random.random() - 0.5) * 2.4
+            GLB.pm[j] = 0.0
+            GLB.pv[j] = 9.0
+            GLB.pl[j] = 260.0
+            GLB.n = GLB.n + 1
+         last = GLB.n - 1
+         GLB.px[i] = GLB.px[last]
+         GLB.py[i] = GLB.py[last]
+         GLB.pa[i] = GLB.pa[last]
+         GLB.pv[i] = GLB.pv[last]
+         GLB.pm[i] = GLB.pm[last]
+         GLB.pl[i] = GLB.pl[last]
+         GLB.n = GLB.n - 1
+      else:
+         i = i + 1

@@ -1,0 +1,86 @@
+def Init():
+   # --- author : claude
+   # --- the tide going out.  Every wave that runs up the sand leaves a
+   # --- little salt behind and takes a little sand away, and neither is
+   # --- undone - so the beach ends up carrying the high water mark of every
+   # --- wave that has already been, in the order they came.
+   # --- note : screen y=0 is the BOTTOM, so the sea is at low y
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Swell")
+   STR.SetFParam1Name("Tide")
+   STR.SetFParam2Name("Salt")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : a big set comes through
+   # ---    trigger : new beach profile
+
+   GLB.st = surface.get_stride() // 4
+   GLB.ncol = 320
+   GLB.cw = 1280.0 / GLB.ncol
+   GLB.ph = np.random.random(5) * 6.283
+   GLB.wave = 0.0
+
+   def profile():
+      x = np.arange(GLB.ncol) / (GLB.ncol * 1.0)
+      h = 120.0 + x * 0.0
+      for k in range(4):
+         h = h + np.sin(x * (3.0 + k * 5.0) + np.random.random() * 6.283) * (
+            18.0 / (k + 1))
+      GLB.sand = h
+   GLB.profile = profile
+   GLB.profile()
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(40.0, 190.0)
+   f1 = STR.F1mix(120.0, 420.0)
+   f2 = STR.F2mix(7.0, 10.0)
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.profile()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8,
+                  buffer=surface.get_data())
+   np.subtract(v, np.right_shift(v, int(f2)), out=v)
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   # --- the swash : how far up the beach this particular wave reaches
+   amp = f0 * (1.9 if acc else 1.0)
+   GLB.wave = f1 + amp * (0.5 + 0.5 * sin(time * 1.35))
+   xs = np.arange(GLB.ncol) / (GLB.ncol * 1.0)
+   run = GLB.wave + np.sin(xs * 9.0 + time * 1.1) * 22.0 + np.sin(
+      xs * 23.0 - time * 0.7) * 9.0
+
+   # --- water body up to the swash line
+   for i in range(GLB.ncol):
+      top = run[i]
+      d = min(top / 420.0, 1.0)
+      cr.set_source_rgb(0.55 + 0.35 * d, 0.30 + 0.25 * d, 0.05 + 0.10 * d)
+      cr.rectangle(i * GLB.cw, 0, GLB.cw + 1, top)
+      cr.fill()
+
+   # --- foam at the leading edge, and salt left where it stops
+   cr.set_source_rgba(0.95, 0.97, 1.0, 0.85)
+   for i in range(GLB.ncol):
+      cr.rectangle(i * GLB.cw, run[i] - 3, GLB.cw + 1, 5)
+   cr.fill()
+
+   # --- the wave takes a little sand with it as it drains
+   pull = (run - GLB.sand) * 0.0016
+   GLB.sand = GLB.sand + np.clip(pull, -0.6, 0.6)
+
+   cr.set_source_rgb(0.30, 0.58, 0.80)
+   for i in range(GLB.ncol):
+      cr.rectangle(i * GLB.cw, 0, GLB.cw + 1, GLB.sand[i] * 0.35)
+   cr.fill()

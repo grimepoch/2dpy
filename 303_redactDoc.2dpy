@@ -1,0 +1,110 @@
+def Init():
+   # --- author : claude
+   # --- a document being cleared for release.  Text is set once and then
+   # --- struck out block by block, and the bars are never lifted - so the
+   # --- page only ever loses information, and what survives to the end is
+   # --- whatever nobody objected to.
+   # --- note : text is drawn with scale(1,-1) because row 0 is at the BOTTOM
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Redaction")
+   STR.SetFParam1Name("Block Size")
+   STR.SetFParam2Name("Stamp")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : redact whole paragraphs
+   # ---    trigger : release a new document
+
+   GLB.st = surface.get_stride() // 4
+   GLB.words = ["subject", "was", "observed", "at", "the", "location",
+                "on", "or", "about", "the", "date", "in", "question",
+                "no", "corroborating", "evidence", "has", "been",
+                "obtained", "see", "annex", "for", "further", "detail",
+                "the", "matter", "remains", "under", "review", "pending",
+                "authorisation", "from", "the", "relevant", "office"]
+   GLB.lh = 27.0
+
+   def release():
+      cr.set_source_rgb(0.80, 0.86, 0.90)
+      cr.rectangle(0, 0, 1280, 720)
+      cr.fill()
+      cr.select_font_face("serif", cairo.FONT_SLANT_NORMAL,
+                          cairo.FONT_WEIGHT_NORMAL)
+      cr.set_font_size(19.0)
+      cr.set_source_rgb(0.13, 0.11, 0.10)
+      y = 660.0
+      GLB.lines = []
+      while y > 50.0:
+         s = ""
+         nxt = GLB.words[np.random.randint(len(GLB.words))] + " "
+         while cr.text_extents(s + nxt)[4] < 1100.0:
+            s = s + nxt
+            nxt = GLB.words[np.random.randint(len(GLB.words))] + " "
+         cr.save()
+         cr.translate(90, y)
+         cr.scale(1, -1)
+         # --- show_text runs from the current point, which save/restore does
+         # --- not reset : without this every line after the first starts
+         # --- where the last one finished, off the page
+         cr.move_to(0, 0)
+         cr.show_text(s)
+         cr.restore()
+         GLB.lines.append(y)
+         y = y - GLB.lh
+      GLB.used = 0.0
+   GLB.release = release
+   GLB.release()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.05, 1.6)
+   f1 = STR.F1mix(40.0, 260.0)
+   f2 = STR.F2()
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.release()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   n = int(f0) + (1 if np.random.random() < (f0 % 1.0) else 0)
+   for k in range(n):
+      i = np.random.randint(len(GLB.lines))
+      y = GLB.lines[i]
+      x = 90.0 + np.random.random() * 1000.0
+      w = f1 * (0.4 + np.random.random() * 0.9)
+      if x + w > 1190.0:
+         w = 1190.0 - x
+      cr.set_source_rgb(0.05, 0.05, 0.05)
+      if acc:
+         # --- a whole paragraph goes at once
+         h = GLB.lh * 4.0
+         cr.rectangle(90, y - GLB.lh * 3.2, 1100, h)
+      else:
+         cr.rectangle(x, y - GLB.lh * 0.78, w, GLB.lh * 0.92)
+      cr.fill()
+      GLB.used = GLB.used + (9.0 if acc else w / 120.0)
+
+   # --- a page with nothing left to hide is not a page : once about
+   # --- everything has gone under a bar, the next document is released
+   if GLB.used > len(GLB.lines) * 5.0:
+      GLB.release()
+
+   # --- the classification stamp, struck across the page at an angle
+   cr.save()
+   cr.translate(640, 360)
+   cr.rotate(-0.38)
+   cr.set_source_rgba(0.72, 0.16, 0.16, 0.10 + 0.05 * sin(time * 0.7))
+   cr.select_font_face("sans", cairo.FONT_SLANT_NORMAL,
+                       cairo.FONT_WEIGHT_BOLD)
+   cr.set_font_size(96.0)
+   cr.scale(1, -1)
+   cr.move_to(-430, 30)
+   if f2 < 0.34:
+      cr.show_text("DECLASSIFIED")
+   elif f2 < 0.67:
+      cr.show_text("NO OBJECTION")
+   else:
+      cr.show_text("WITHHELD")
+   cr.restore()

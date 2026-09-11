@@ -1,0 +1,108 @@
+def Init():
+   # --- author : claude
+   # --- Greek key bands, one per slot : a band's key runs faster and brighter
+   # --- the louder its slot is
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Decay")
+   STR.SetFParam1Name("Module")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+   # ---    accent : terracotta and black
+   # ---    trigger : reverse alternate bands
+
+   GLB.n = 8 if GLB.slots == 24 else GLB.slots
+   GLB.lvl = []
+   GLB.off = []
+   for i in range(GLB.n):
+      GLB.lvl.append(0.0)
+      GLB.off.append(0.0)
+
+   def key(x0, y0, m, n, flip):
+      x = x0
+      y = y0
+      s = -1.0 if flip else 1.0
+      cr.move_to(x, y)
+      for i in range(n):
+         x = x + 4 * m
+         cr.line_to(x, y)
+         y = y + 4 * m * s
+         cr.line_to(x, y)
+         x = x - 3 * m
+         cr.line_to(x, y)
+         y = y - 3 * m * s
+         cr.line_to(x, y)
+         x = x + 2 * m
+         cr.line_to(x, y)
+         y = y + 2 * m * s
+         cr.line_to(x, y)
+         x = x - 1 * m
+         cr.line_to(x, y)
+         y = y - 3 * m * s
+         cr.line_to(x, y)
+         x = x + 2 * m
+         cr.line_to(x, y)
+   GLB.key = key
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.80, 0.985)
+   f1 = STR.F1mix(8.0, 18.0)
+   f2 = STR.F2()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   n = GLB.n
+   for k in range(n):
+      GLB.lvl[k] = GLB.lvl[k] * f0
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if ids == 0:
+         continue
+      k = (note % n) if GLB.mode == "midi" else (i % n)
+      v = velo / 127.0
+      if v > GLB.lvl[k]:
+         GLB.lvl[k] = v
+
+   if acc:
+      bg = (0.20, 0.35, 0.72)
+   else:
+      bg = (0.06, 0.05, 0.08)
+   cr.set_source_rgb(bg[2], bg[1], bg[0])
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   m = f1
+   reps = int(1280 / (8 * m)) + 3
+   bh = 720.0 / n
+   cr.set_line_cap(cairo.LINE_CAP_SQUARE)
+   cr.set_line_join(cairo.LINE_JOIN_MITER)
+
+   for k in range(n):
+      v = GLB.lvl[k]
+      GLB.off[k] = GLB.off[k] + v * 6.0 * (1.0 if (k % 2 == 0) != (GLB.xmode == 1) else -1.0)
+      y = k * bh + bh * 0.5 - 2 * m
+      if acc:
+         c = (0.06, 0.05, 0.07)
+      else:
+         c = hsv_to_rgb((f2 + k / (n * 1.0) * 0.5) % 1.0, 0.7 - 0.4 * v,
+                        0.25 + 0.75 * v)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      cr.set_line_width(m * (0.6 + 0.4 * v))
+      dx = GLB.off[k] % (8.0 * m)
+      GLB.key(-8 * m + dx, y, m, reps, k % 2 == 1)
+      cr.stroke()

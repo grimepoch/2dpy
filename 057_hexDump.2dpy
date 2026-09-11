@@ -1,0 +1,106 @@
+def Init():
+   # --- author : claude
+   # --- a live hex dump : address column, sixteen bytes, ascii gutter.
+   # --- Bytes that changed this pass stay lit for a moment.
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Churn")
+   STR.SetFParam1Name("Text Size")
+   STR.SetFParam2Name("Tint")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : highlight the ascii gutter
+   # ---    trigger : reseed the whole block
+
+   GLB.rows = 22
+   GLB.base = 0x40000000
+
+   def seed():
+      GLB.data = np.random.randint(0, 256, (GLB.rows, 16))
+      GLB.hot = np.zeros((GLB.rows, 16))
+      GLB.base = np.random.randint(0, 0x7000) * 0x10000
+   GLB.seed = seed
+   GLB.seed()
+
+   def text(x, y, s):
+      cr.save()
+      cr.translate(x, y)
+      cr.scale(1.0, -1.0)
+      cr.move_to(0, 0)
+      cr.show_text(s)
+      cr.restore()
+   GLB.text = text
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 26.0)
+   f1 = STR.F1mix(13.0, 26.0)
+   f2 = STR.F2()
+
+   if trig:
+      GLB.seed()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   # --- poke some bytes
+   n = int(f0)
+   for i in range(n):
+      r = np.random.randint(0, GLB.rows)
+      c = np.random.randint(0, 16)
+      GLB.data[r][c] = np.random.randint(0, 256)
+      GLB.hot[r][c] = 1.0
+   GLB.hot = GLB.hot * 0.90
+
+   cr.set_source_rgb(0.02, 0.02, 0.03)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cr.select_font_face("mono", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+   size = f1
+   cr.set_font_size(size)
+   adv = cr.text_extents("0").x_advance
+   lh = size * 1.42
+
+   base = hsv_to_rgb(f2, 0.55 if GLB.xmode else 0.85, 1.0)
+   dim  = hsv_to_rgb(f2, 0.30, 0.55)
+
+   x0 = 40.0
+   xh = x0 + adv * 10.0
+   xa = xh + adv * 49.0
+
+   for r in range(GLB.rows):
+      y = 720.0 - (r + 1) * lh - 10
+      if y < -lh:
+         break
+      # --- address
+      cr.set_source_rgb(dim[2], dim[1], dim[0])
+      GLB.text(x0, y, "%08X" % (GLB.base + r * 16))
+
+      asc = ""
+      for c in range(16):
+         v = int(GLB.data[r][c])
+         h = GLB.hot[r][c]
+         if h > 0.02:
+            cr.set_source_rgb(1.0, 1.0, 1.0)
+         else:
+            cr.set_source_rgb(base[2], base[1], base[0])
+         # --- a little extra gap between the two groups of eight
+         gx = xh + c * adv * 3.0 + (adv * 1.2 if c >= 8 else 0.0)
+         GLB.text(gx, y, "%02X" % v)
+         if v >= 32 and v < 127:
+            asc = asc + chr(v)
+         else:
+            asc = asc + "."
+
+      if acc:
+         cr.set_source_rgb(0.2, 1.0, 1.0)
+      else:
+         cr.set_source_rgb(dim[2] * 1.4, dim[1] * 1.4, dim[0] * 1.4)
+      GLB.text(xa, y, asc)

@@ -1,0 +1,122 @@
+def Init():
+   # --- author : claude
+   # --- smoke lines over an aerofoil.  The rake upstream releases evenly
+   # --- spaced filaments; they crowd together over the upper surface where
+   # --- the flow is fast and spread out underneath where it is slow, and at
+   # --- too high an angle the upper flow lets go and the wake fills with
+   # --- unsteady air.  The tunnel never stops running.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Angle")
+   STR.SetFParam1Name("Speed")
+   STR.SetFParam2Name("Camber")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : stall
+   # ---    trigger : new section
+
+   GLB.st = surface.get_stride() // 4
+   # --- filament count times points per filament is the frame time here
+   GLB.nl = 22
+   GLB.np_ = 90
+   GLB.x = np.zeros((GLB.nl, GLB.np_))
+   GLB.y = np.zeros((GLB.nl, GLB.np_))
+   for i in range(GLB.nl):
+      GLB.y[i, :] = 60.0 + i * (600.0 / GLB.nl)
+      GLB.x[i, :] = np.linspace(-60.0, 1340.0, GLB.np_)
+   GLB.head = 0
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(-0.22, 0.42)
+   f1 = STR.F1mix(3.0, 16.0)
+   f2 = STR.F2mix(0.0, 0.16)
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   cr.set_source_rgb(0.06, 0.07, 0.09)
+   cr.rectangle(0, 0, 1280, 720)
+   cr.fill()
+
+   aoa = f0
+   cxw = 600.0
+   cyw = 360.0
+   chord = 420.0
+
+   # --- a thin aerofoil is a vortex sheet; its far field is a point vortex
+   # --- of the right strength plus a source pair for thickness
+   gam = (aoa + f2 * 2.0) * 30000.0
+   stall = acc or aoa > 0.30
+
+   cr.set_line_width(1.6)
+   for i in range(GLB.nl):
+      xs = GLB.x[i]
+      ys = GLB.y[i]
+      dx = xs - cxw
+      dy = ys - cyw
+      r2 = dx * dx + dy * dy + 2600.0
+      ux = f1 - gam * dy / r2 * 0.06
+      uy = gam * dx / r2 * 0.06
+      # --- thickness pushes the flow apart over the section
+      uy = uy + dy / r2 * 90000.0 * 0.02
+      if stall:
+         # --- separated : the upper surface flow breaks into unsteady eddies
+         sep = (dx > -chord * 0.1) & (dy < 40.0)
+         uy = uy + np.where(sep, np.sin(dx * 0.03 - time * 5.0 + i) * 3.2,
+                            0.0)
+         ux = ux * np.where(sep, 0.45, 1.0)
+      xs = xs + ux
+      ys = ys + uy
+      # --- a filament that leaves the tunnel is released again at the rake
+      off = xs > 1340.0
+      xs = np.where(off, -60.0, xs)
+      ys = np.where(off, 60.0 + i * (600.0 / GLB.nl), ys)
+      GLB.x[i] = xs
+      GLB.y[i] = ys
+
+      c = hsv_to_rgb((0.55 + i * 0.004) % 1.0, 0.20, 0.95)
+      cr.set_source_rgba(c[2], c[1], c[0], 0.8)
+      started = False
+      for j in range(GLB.np_):
+         if not started:
+            cr.move_to(xs[j], ys[j])
+            started = True
+         elif abs(xs[j] - xs[j - 1]) > 200.0:
+            cr.stroke()
+            cr.move_to(xs[j], ys[j])
+         else:
+            cr.line_to(xs[j], ys[j])
+      cr.stroke()
+
+   # --- the section itself
+   cr.save()
+   cr.translate(cxw, cyw)
+   cr.rotate(-aoa)
+   cr.set_source_rgb(0.75, 0.80, 0.86)
+   cr.move_to(-chord * 0.5, 0)
+   n = 40
+   for k in range(n + 1):
+      u = k / (n * 1.0)
+      th = 5.0 * chord * 0.06 * (1.4845 * sqrt(u) - 0.63 * u -
+                                 1.758 * u * u + 1.4215 * u * u * u -
+                                 0.5075 * u * u * u * u)
+      cam = f2 * chord * 0.5 * sin(u * pi)
+      cr.line_to(-chord * 0.5 + u * chord, -th - cam)
+   for k in range(n, -1, -1):
+      u = k / (n * 1.0)
+      th = 5.0 * chord * 0.06 * (1.4845 * sqrt(u) - 0.63 * u -
+                                 1.758 * u * u + 1.4215 * u * u * u -
+                                 0.5075 * u * u * u * u)
+      cam = f2 * chord * 0.5 * sin(u * pi)
+      cr.line_to(-chord * 0.5 + u * chord, th - cam)
+   cr.close_path()
+   cr.fill()
+   cr.restore()

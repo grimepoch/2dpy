@@ -1,0 +1,104 @@
+def Init():
+   # --- author : claude
+   # --- a Gothic rose window : radiating tracery, cusped foils and leaded
+   # --- glass lit from behind.  Public domain architectural motif.
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Petals")
+   STR.SetFParam1Name("Lead Width")
+   STR.SetFParam2Name("Light")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : sun moves behind the glass
+   # ---    trigger : reglaze with new colours
+
+   def glaze():
+      GLB.hu = []
+      for i in range(90):
+         GLB.hu.append(np.random.random())
+   GLB.glaze = glaze
+   GLB.glaze()
+
+   def foil(cx, cy, r0, r1, a0, a1):
+      cr.new_sub_path()
+      cr.arc(cx, cy, r1, a0, a1)
+      cr.arc_negative(cx, cy, r0, a1, a0)
+      cr.close_path()
+   GLB.foil = foil
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(6.0, 16.0)
+   f1 = STR.F1mix(3.0, 14.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.glaze()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   cr.set_source_rgb(0.03, 0.03, 0.04)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cx = 640.0
+   cy = 360.0
+   n = int(f0)
+   lead = f1
+
+   # --- where the sun is, for the lit side of the window
+   sx = cos(time * 0.3) if acc else 0.4
+   sy = sin(time * 0.3) if acc else 0.5
+
+   rings = [[60.0, 130.0, n], [130.0, 235.0, n], [235.0, 330.0, n * 2]]
+   idx = 0
+   for rg in rings:
+      r0 = rg[0]
+      r1 = rg[1]
+      m = rg[2]
+      for k in range(m):
+         a0 = k * 2.0 * pi / m + time * 0.02 * (1.0 if idx % 2 == 0 else -1.0)
+         a1 = a0 + 2.0 * pi / m
+         # --- light falls off away from the sun direction
+         am = (a0 + a1) * 0.5
+         lit = 0.45 + 0.55 * max(0.0, cos(am) * sx + sin(am) * sy)
+         h = GLB.hu[(idx * 31 + k) % 90]
+         if GLB.xmode:
+            r,g,b = hsv_to_rgb((h * 0.25 + f2) % 1.0, 0.85, lit)
+         else:
+            r,g,b = hsv_to_rgb((h + f2) % 1.0, 0.85, lit)
+         cr.set_source_rgb(b, g, r)
+         GLB.foil(cx, cy, r0 + lead * 0.5, r1 - lead * 0.5, a0 + 0.02, a1 - 0.02)
+         cr.fill()
+      idx = idx + 1
+
+   # --- the oculus at the centre
+   rgg = cairo.RadialGradient(cx, cy, 4, cx, cy, 58)
+   c = hsv_to_rgb(f2, 0.5, 1.0)
+   rgg.add_color_stop_rgb(0.0, 1, 1, 1)
+   rgg.add_color_stop_rgb(1.0, c[2], c[1], c[0])
+   cr.set_source(rgg)
+   cr.new_sub_path()
+   cr.arc(cx, cy, 58, 0, 2 * pi)
+   cr.fill()
+
+   # --- the stone tracery over the top, drawn as radial mullions
+   cr.set_source_rgb(0.10, 0.09, 0.11)
+   cr.set_line_width(lead)
+   for k in range(n):
+      a = k * 2.0 * pi / n
+      cr.move_to(cx + cos(a) * 58, cy + sin(a) * 58)
+      cr.line_to(cx + cos(a) * 330, cy + sin(a) * 330)
+   cr.stroke()
+   # --- and the concentric stone rings, as filled annuli not stroked circles
+   for rr in (58.0, 130.0, 235.0, 330.0):
+      GLB.foil(cx, cy, rr - lead * 0.5, rr + lead * 0.5, 0.0, 2.0 * pi)
+   cr.fill()

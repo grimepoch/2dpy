@@ -1,0 +1,135 @@
+def Init():
+   # --- author : claude
+   # --- an astrological wheel : twelve houses, the ecliptic ring and the
+   # --- aspect lines drawn between planets.  Public domain diagram tradition.
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Orbits")
+   STR.SetFParam1Name("Size")
+   STR.SetFParam2Name("Aspects")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : parchment chart
+   # ---    trigger : recast the chart
+
+   GLB.glyph = "TVIXYZabcdef"
+
+   def cast():
+      GLB.p = []
+      for i in range(7):
+         GLB.p.append([np.random.random() * 6.28, 0.03 + np.random.random() * 0.5,
+                       np.random.random()])
+   GLB.cast = cast
+   GLB.cast()
+
+   def text(x, y, s):
+      cr.save()
+      cr.translate(x, y)
+      cr.scale(1.0, -1.0)
+      cr.move_to(0, 0)
+      cr.show_text(s)
+      cr.restore()
+   GLB.text = text
+
+   def ring(cx, cy, r0, r1):
+      cr.new_sub_path()
+      cr.arc(cx, cy, r1, 0, 2 * pi)
+      cr.arc_negative(cx, cy, r0, 2 * pi, 0)
+      cr.close_path()
+   GLB.ring = ring
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 0.4)
+   f1 = STR.F1mix(200.0, 330.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.cast()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   if acc:
+      bg = (0.80, 0.88, 0.94)
+      ink = (0.16, 0.14, 0.22)
+   else:
+      bg = (0.04, 0.03, 0.07)
+      ink = hsv_to_rgb(f2, 0.30, 1.0)
+
+   cr.set_source_rgb(bg[2], bg[1], bg[0])
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cx = 640.0
+   cy = 360.0
+   R = f1
+   cr.set_source_rgb(ink[2], ink[1], ink[0])
+
+   # --- the rings
+   for rr in (R, R * 0.82, R * 0.58, R * 0.20):
+      GLB.ring(cx, cy, rr - 1.6, rr + 1.6)
+   cr.fill()
+
+   # --- twelve houses
+   cr.set_line_width(1.4)
+   for k in range(12):
+      a = k * pi / 6.0 + time * 0.01
+      cr.move_to(cx + cos(a) * R * 0.20, cy + sin(a) * R * 0.20)
+      cr.line_to(cx + cos(a) * R, cy + sin(a) * R)
+   cr.stroke()
+
+   # --- sign glyphs in the ecliptic band
+   cr.select_font_face("serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+   cr.set_font_size(R * 0.11)
+   for k in range(12):
+      a = (k + 0.5) * pi / 6.0 + time * 0.01
+      s = GLB.glyph[k]
+      e = cr.text_extents(s)
+      if not acc:
+         c = hsv_to_rgb((f2 + k / 12.0 * 0.8) % 1.0, 0.7, 1.0)
+         cr.set_source_rgb(c[2], c[1], c[0])
+      GLB.text(cx + cos(a) * R * 0.91 - e.width * 0.5 - e.x_bearing,
+               cy + sin(a) * R * 0.91 - e.height * 0.5, s)
+
+   # --- the planets on their orbits
+   px = []
+   py = []
+   for i in range(7):
+      p = GLB.p[i]
+      a = p[0] + time * f0 * p[1]
+      rr = R * (0.28 + 0.26 * p[2])
+      px.append(cx + cos(a) * rr)
+      py.append(cy + sin(a) * rr)
+
+   # --- aspect lines between planets that are near an exact angle
+   cr.set_line_width(1.6)
+   for i in range(7):
+      for j in range(i + 1, 7):
+         dx = px[j] - px[i]
+         dy = py[j] - py[i]
+         a = atan2(dy, dx)
+         # --- trine, square, opposition
+         m = abs(((a % (pi / 3.0)) / (pi / 3.0)) - 0.5) * 2.0
+         if m < 0.30:
+            continue
+         c = hsv_to_rgb((f2 + 0.4 + m * 0.3) % 1.0, 0.8, 1.0)
+         cr.set_source_rgba(c[2], c[1], c[0], 0.55)
+         cr.move_to(px[i], py[i])
+         cr.line_to(px[j], py[j])
+         cr.stroke()
+
+   for i in range(7):
+      c = hsv_to_rgb((f2 + i / 7.0 * 0.6) % 1.0, 0.6, 1.0)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      cr.new_sub_path()
+      cr.arc(px[i], py[i], R * 0.032, 0, 2 * pi)
+      cr.fill()

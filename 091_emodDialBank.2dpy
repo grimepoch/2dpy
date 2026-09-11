@@ -1,0 +1,121 @@
+def Init():
+   # --- author : claude
+   # --- a rack of rotary dials, one per slot, each with a ring of ticks and
+   # --- a pointer that chases the level with a bit of overshoot
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Inertia")
+   STR.SetFParam1Name("Size")
+   STR.SetFParam2Name("Hue")
+   # ---    accent : arc fills behind the pointers
+   # ---    trigger : grid <-> ring layout
+
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   GLB.n = 12 if GLB.slots == 24 else GLB.slots
+   GLB.lvl = []
+   GLB.pos = []
+   GLB.vel = []
+   for i in range(GLB.n):
+      GLB.lvl.append(0.0)
+      GLB.pos.append(0.0)
+      GLB.vel.append(0.0)
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.05, 0.45)
+   f1 = STR.F1mix(40.0, 90.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   n = GLB.n
+   for k in range(n):
+      GLB.lvl[k] = GLB.lvl[k] * 0.88
+
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if ids == 0:
+         continue
+      k = (note % 12) if GLB.mode == "midi" else i
+      if k < n:
+         v = velo / 127.0
+         if v > GLB.lvl[k]:
+            GLB.lvl[k] = v
+
+   for k in range(n):
+      GLB.vel[k] = (GLB.vel[k] + (GLB.lvl[k] - GLB.pos[k]) * f0) * 0.80
+      GLB.pos[k] = GLB.pos[k] + GLB.vel[k]
+
+   cr.set_source_rgb(0.04, 0.03, 0.05)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   R = f1
+   cols = 4
+   rows = int((n + cols - 1) / cols)
+
+   for k in range(n):
+      if GLB.xmode:
+         a = k * 2.0 * pi / n - pi * 0.5
+         cx = 640.0 + cos(a) * 260.0
+         cy = 360.0 + sin(a) * 210.0
+      else:
+         cx = (k % cols + 0.5) * 1280.0 / cols
+         cy = 720.0 - (int(k / cols) + 0.5) * 720.0 / rows
+      v = GLB.pos[k]
+      c = hsv_to_rgb((f2 + k / (n * 1.0) * 0.45) % 1.0, 0.8, 1.0)
+
+      # --- dial face
+      cr.set_source_rgb(0.09, 0.08, 0.11)
+      cr.new_sub_path()
+      cr.arc(cx, cy, R, 0, 2 * pi)
+      cr.fill()
+
+      # --- the sweep, as a filled sector so we never stroke a circle
+      a0 = pi * 0.75
+      a1 = pi * 0.75 + pi * 1.5 * max(0.0, min(1.2, v))
+      if acc:
+         cr.set_source_rgb(c[2] * 0.5, c[1] * 0.5, c[0] * 0.5)
+         cr.new_sub_path()
+         cr.arc(cx, cy, R * 0.92, a0, a1)
+         cr.arc_negative(cx, cy, R * 0.60, a1, a0)
+         cr.close_path()
+         cr.fill()
+
+      # --- ticks
+      cr.set_source_rgb(0.45, 0.43, 0.52)
+      cr.set_line_width(2)
+      for t in range(11):
+         aa = pi * 0.75 + pi * 1.5 * t / 10.0
+         L = 0.86 if t % 5 else 0.78
+         cr.move_to(cx + cos(aa) * R * 0.94, cy + sin(aa) * R * 0.94)
+         cr.line_to(cx + cos(aa) * R * L, cy + sin(aa) * R * L)
+      cr.stroke()
+
+      # --- pointer
+      cr.set_source_rgb(c[2], c[1], c[0])
+      cr.set_line_width(3.5)
+      cr.set_line_cap(cairo.LINE_CAP_ROUND)
+      cr.move_to(cx, cy)
+      cr.line_to(cx + cos(a1) * R * 0.82, cy + sin(a1) * R * 0.82)
+      cr.stroke()
+      cr.new_sub_path()
+      cr.arc(cx, cy, R * 0.10, 0, 2 * pi)
+      cr.fill()

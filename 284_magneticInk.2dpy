@@ -1,0 +1,86 @@
+def Init():
+   # --- author : claude
+   # --- iron filings over a wandering dipole.  Each frame only scatters a
+   # --- few hundred new filings, but the canvas keeps the old ones, so the
+   # --- field lines are drawn by accumulation - and when the poles move the
+   # --- old pattern fades out from under the new one.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Filings")
+   STR.SetFParam1Name("Memory")
+   STR.SetFParam2Name("Pole Drift")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : shake the plate
+   # ---    trigger : flip polarity
+
+   GLB.st = surface.get_stride() // 4
+   GLB.pol = 1.0
+   GLB.n = 900
+   GLB.px = np.random.random(GLB.n) * 1280.0
+   GLB.py = np.random.random(GLB.n) * 720.0
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0()
+   f1 = STR.F1mix(3.0, 7.0)
+   f2 = STR.F2mix(0.05, 0.8)
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.pol = -GLB.pol
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8,
+                  buffer=surface.get_data())
+   np.subtract(v, np.right_shift(v, int(f1)), out=v)
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   # --- two poles, opposite sign, orbiting each other
+   a = time * f2
+   ax = 640.0 + cos(a) * 330.0
+   ay = 360.0 + sin(a * 0.77) * 190.0
+   bx = 640.0 - cos(a) * 330.0
+   by = 360.0 - sin(a * 0.77) * 190.0
+
+   if acc:
+      GLB.px = np.random.random(GLB.n) * 1280.0
+      GLB.py = np.random.random(GLB.n) * 720.0
+   else:
+      # --- filings creep along the field they are sitting in
+      GLB.px = (GLB.px + (np.random.random(GLB.n) - 0.5) * 26.0) % 1280.0
+      GLB.py = (GLB.py + (np.random.random(GLB.n) - 0.5) * 26.0) % 720.0
+
+   dxa = GLB.px - ax
+   dya = GLB.py - ay
+   ra = dxa * dxa + dya * dya + 400.0
+   dxb = GLB.px - bx
+   dyb = GLB.py - by
+   rb = dxb * dxb + dyb * dyb + 400.0
+   fx = GLB.pol * (dxa / (ra * np.sqrt(ra)) - dxb / (rb * np.sqrt(rb)))
+   fy = GLB.pol * (dya / (ra * np.sqrt(ra)) - dyb / (rb * np.sqrt(rb)))
+   mag = np.sqrt(fx * fx + fy * fy) + 1e-12
+   ux = fx / mag
+   uy = fy / mag
+   # --- brightness follows field strength, so the poles glow
+   lum = np.clip(np.log10(mag * 4.0e6 + 1.0) * 0.30, 0.08, 1.0)
+
+   cr.set_line_width(1.6)
+   cr.set_line_cap(cairo.LINE_CAP_ROUND)
+   nf = int(GLB.n * (0.15 + f0 * 0.85))
+   for i in range(nf):
+      l = lum[i]
+      cr.set_source_rgb(l * 0.62, l * 0.90, l * 0.98)
+      hx = ux[i] * 5.0
+      hy = uy[i] * 5.0
+      cr.move_to(GLB.px[i] - hx, GLB.py[i] - hy)
+      cr.line_to(GLB.px[i] + hx, GLB.py[i] + hy)
+      cr.stroke()

@@ -1,0 +1,99 @@
+def Init():
+   # --- author : claude
+   # --- nested rhythm wheels.  Each ring is divided into a different number
+   # --- of steps and they all turn on the same clock, so the pattern of
+   # --- coincidences between them only repeats after the lowest common
+   # --- multiple of all of them - which for these numbers is long enough to
+   # --- never see twice.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Tempo")
+   STR.SetFParam1Name("Rings")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : the wheels counter-rotate
+   # ---    trigger : new divisions
+
+   GLB.st = surface.get_stride() // 4
+   GLB.lit = np.zeros((9, 32), dtype=np.float32)
+   GLB.prev = np.zeros(GLB.slots, dtype=np.float32)
+
+   def divisions():
+      GLB.div = []
+      pool = [3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 16]
+      for i in range(9):
+         GLB.div.append(pool[np.random.randint(len(pool))])
+   GLB.divisions = divisions
+   GLB.divisions()
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.15, 2.2)
+   f1 = STR.F1mix(3.0, 8.99)
+   f2 = STR.F2()
+   it = STR.IT()
+   ft = STR.FT()
+   time = (it + ft) * f0
+
+   if trig:
+      GLB.divisions()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   nr = int(f1)
+   GLB.lit = GLB.lit * 0.88
+
+   hits = 0.0
+   for i in range(GLB.slots):
+      d = STR.GetSlotData(i)
+      vel = d[2] * 1.0
+      if d[0] != 0 and vel > GLB.prev[i] + 5.0:
+         hits = hits + vel / 127.0
+      GLB.prev[i] = vel
+
+   cr.set_source_rgba(0, 0, 0, 1)
+   cr.rectangle(0, 0, 1280, 720)
+   cr.fill()
+
+   for k in range(nr):
+      n = GLB.div[k]
+      rr = 70.0 + k * (285.0 / nr)
+      sgn = -1.0 if (acc and (k % 2) == 1) else 1.0
+      # --- which step this wheel is on right now
+      pos = (time * sgn * (1.0 + k * 0.0)) % 1.0
+      step = int(pos * n)
+      if GLB.lit[k, step] < 0.4:
+         GLB.lit[k, step] = 1.0
+      c = hsv_to_rgb((f2 + k / (nr * 1.0) * 0.7) % 1.0, 0.75, 1.0)
+
+      cr.set_line_width(1.2)
+      cr.set_source_rgba(c[2] * 0.35, c[1] * 0.35, c[0] * 0.35, 1.0)
+      cr.new_sub_path()
+      cr.arc(640, 360, rr, 0, 6.2831853)
+      cr.stroke()
+
+      for s in range(n):
+         a = s * 6.2831853 / n - 1.5708
+         x = 640.0 + cos(a) * rr
+         y = 360.0 + sin(a) * rr
+         l = GLB.lit[k, s]
+         sz = 5.0 + l * 12.0 + hits * 5.0
+         cr.set_source_rgb(c[2] * (0.25 + l), c[1] * (0.25 + l),
+                           c[0] * (0.25 + l))
+         cr.new_sub_path()
+         cr.arc(x, y, sz, 0, 6.2831853)
+         cr.fill()
+
+      # --- the hand, so the coincidences are readable
+      a = pos * 6.2831853 - 1.5708
+      cr.set_source_rgba(c[2], c[1], c[0], 0.5)
+      cr.set_line_width(2.0)
+      cr.move_to(640, 360)
+      cr.line_to(640 + cos(a) * rr, 360 + sin(a) * rr)
+      cr.stroke()

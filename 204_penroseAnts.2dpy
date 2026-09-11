@@ -1,0 +1,121 @@
+def Init():
+   # --- author : claude
+   # --- penroseTiles crossed with marchingAnts : the aperiodic tiling is
+   # --- drawn as dashed outlines that crawl, so the matching rules show
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Crawl")
+   STR.SetFParam1Name("Depth")
+   STR.SetFParam2Name("Zoom")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : fill the rhombs behind the dashes
+   # ---    trigger : rebuild
+
+   GLB.phi = (1.0 + sqrt(5.0)) * 0.5
+   GLB.depth = 0
+
+   def deflate(tris):
+      out = []
+      p = GLB.phi
+      for t in tris:
+         k = t[0]
+         a = t[1]
+         b = t[2]
+         c = t[3]
+         if k == 0:
+            q = [a[0] + (b[0] - a[0]) / p, a[1] + (b[1] - a[1]) / p]
+            out.append([0, c, q, b])
+            out.append([1, q, c, a])
+         else:
+            q = [b[0] + (a[0] - b[0]) / p, b[1] + (a[1] - b[1]) / p]
+            r = [b[0] + (c[0] - b[0]) / p, b[1] + (c[1] - b[1]) / p]
+            out.append([1, r, c, a])
+            out.append([0, r, q, b])
+            out.append([1, q, a, r])
+         if len(out) > 340:
+            return out
+      return out
+   GLB.deflate = deflate
+
+   def build(depth):
+      tris = []
+      for i in range(10):
+         b = [cos((2 * i - 1) * pi / 10.0), sin((2 * i - 1) * pi / 10.0)]
+         c = [cos((2 * i + 1) * pi / 10.0), sin((2 * i + 1) * pi / 10.0)]
+         if i % 2 == 0:
+            t = b
+            b = c
+            c = t
+         tris.append([0, [0.0, 0.0], b, c])
+      for g in range(depth):
+         tris = GLB.deflate(tris)
+         if len(tris) > 300:
+            break
+      GLB.kind = [[], []]
+      for t in tris:
+         GLB.kind[t[0]].append(t)
+      GLB.depth = depth
+   GLB.build = build
+   GLB.build(4)
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 50.0)
+   f1 = STR.F1mix(3.0, 5.0)
+   f2 = STR.F2mix(320.0, 820.0)
+
+   time = STR.IT() + STR.FT()
+
+   d = int(f1)
+   if trig or d != GLB.depth:
+      GLB.build(d)
+      if trig:
+         GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   cr.set_source_rgb(0.03, 0.03, 0.05)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cr.save()
+   cr.translate(640, 360)
+   cr.rotate(time * 0.04)
+   sc = f2
+   cr.scale(sc, sc)
+
+   for kind in range(2):
+      bucket = GLB.kind[kind]
+      if len(bucket) == 0:
+         continue
+      if GLB.xmode:
+         c = hsv_to_rgb((kind * 0.5 + time * 0.03) % 1.0, 0.8, 1.0)
+      else:
+         c = hsv_to_rgb((0.55 + kind * 0.12) % 1.0, 0.55, 0.55 + 0.45 * kind)
+      if acc:
+         cr.set_source_rgb(c[2] * 0.35, c[1] * 0.35, c[0] * 0.35)
+         for t in bucket:
+            cr.move_to(t[1][0], t[1][1])
+            cr.line_to(t[2][0], t[2][1])
+            cr.line_to(t[3][0], t[3][1])
+            cr.close_path()
+         cr.fill()
+      cr.set_source_rgb(c[2], c[1], c[0])
+      cr.set_line_width(1.6 / sc)
+      # --- the dashes crawl in opposite directions per rhomb kind
+      # --- a fine dash on a big zoom generates thousands of dash segments,
+      # --- which costs far more than the tile count does
+      cr.set_dash([22.0 / sc, 14.0 / sc], time * f0 * (1.0 if kind == 0 else -1.0) / sc)
+      for t in bucket:
+         cr.move_to(t[2][0], t[2][1])
+         cr.line_to(t[1][0], t[1][1])
+         cr.line_to(t[3][0], t[3][1])
+      cr.stroke()
+   cr.set_dash([])
+   cr.restore()

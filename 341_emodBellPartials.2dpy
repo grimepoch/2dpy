@@ -1,0 +1,89 @@
+def Init():
+   # --- author : claude
+   # --- bell partials.  A bell is not harmonic - its hum, prime, tierce,
+   # --- quint and nominal sit at ratios that no string produces - and each
+   # --- rings for a different length of time, so the chord a bell makes
+   # --- changes as it decays.  Struck again before it has died, the old
+   # --- partials are still there under the new ones.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Strike")
+   STR.SetFParam1Name("Damping")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : hold the bell, it damps fast
+   # ---    trigger : a different casting
+
+   GLB.st = surface.get_stride() // 4
+   # --- the classical partial ratios of a well tuned bell
+   GLB.rat = [0.5, 1.0, 1.2, 1.5, 2.0, 2.5, 3.0, 4.0]
+   GLB.dec = [0.9985, 0.9975, 0.996, 0.994, 0.991, 0.987, 0.982, 0.975]
+   GLB.amp = np.zeros(8, dtype=np.float32)
+   GLB.ph = np.zeros(8, dtype=np.float32)
+   GLB.prev = np.zeros(GLB.slots, dtype=np.float32)
+   GLB.base = 1.0
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.3, 1.0)
+   f1 = STR.F1mix(0.9, 1.0)
+   f2 = STR.F2()
+
+   if trig:
+      # --- a bell that was cast a little differently
+      for i in range(8):
+         GLB.rat[i] = GLB.rat[i] * (0.94 + np.random.random() * 0.12)
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   for i in range(GLB.slots):
+      d = STR.GetSlotData(i)
+      vel = d[2] * 1.0
+      if d[0] != 0 and vel > GLB.prev[i] + 5.0:
+         st = (vel / 127.0) * f0
+         GLB.base = 0.6 + (int(d[1]) % 24) / 24.0
+         for k in range(8):
+            # --- a hard strike excites the high partials, a soft one does
+            # --- not - which is why a bell changes timbre with force
+            GLB.amp[k] = min(1.0, GLB.amp[k] + st * (1.0 / (1.0 + k * 0.5)) *
+                             (0.4 + st))
+      GLB.prev[i] = vel
+
+   damp = f1 * (0.985 if acc else 1.0)
+   for k in range(8):
+      GLB.amp[k] = GLB.amp[k] * (GLB.dec[k] * damp)
+      GLB.ph[k] = GLB.ph[k] + GLB.rat[k] * GLB.base * 0.09
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8,
+                  buffer=surface.get_data())
+   np.subtract(v, np.right_shift(v, 4), out=v)
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   # --- each partial as a ring whose radius is its frequency and whose
+   # --- thickness is how much of it is left
+   for k in range(8):
+      a = GLB.amp[k]
+      if a < 0.01:
+         continue
+      r = 55.0 + GLB.rat[k] * 115.0
+      c = hsv_to_rgb((f2 + k * 0.09) % 1.0, 0.72, min(0.3 + a, 1.0))
+      cr.set_source_rgba(c[2], c[1], c[0], 0.9)
+      cr.set_line_width(1.5 + a * 12.0)
+      # --- a stroked ring per partial, so segment count is frame time
+      nseg = 46
+      cr.move_to(640 + r, 360)
+      for s in range(1, nseg + 1):
+         b = s * 6.2831853 / nseg
+         # --- the mode shape : this partial has 2k nodes round the rim
+         rr = r * (1.0 + 0.06 * a * sin(b * (k + 2) + GLB.ph[k]))
+         cr.line_to(640 + cos(b) * rr, 360 + sin(b) * rr * 0.92)
+      cr.close_path()
+      cr.stroke()

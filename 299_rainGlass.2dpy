@@ -1,0 +1,90 @@
+def Init():
+   # --- author : claude
+   # --- rain on a lit window.  The previous frame IS the water: it is dimmed
+   # --- and dragged one row toward the ground, so every drop head leaves a
+   # --- running tail and the streetlights behind smear into bokeh.
+   # --- note : screen y=0 is the BOTTOM, so "down" is toward row 0
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Rain")
+   STR.SetFParam1Name("Run")
+   STR.SetFParam2Name("Lights")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : squall
+   # ---    trigger : relight the street
+
+   GLB.st = surface.get_stride() // 4
+   GLB.n = 260
+   GLB.dx = np.random.random(GLB.n) * 1280.0
+   GLB.dy = np.random.random(GLB.n) * 720.0
+   GLB.dv = np.random.random(GLB.n) * 4.0 + 1.0
+   GLB.dr = np.random.random(GLB.n) * 3.5 + 1.2
+   GLB.parity = 0
+
+   def relight():
+      k = 26
+      GLB.lx = np.random.random(k) * 1280.0
+      GLB.ly = np.random.random(k) * 600.0 + 60.0
+      GLB.lr = np.random.random(k) * 26.0 + 10.0
+      GLB.lh = np.random.random(k)
+      GLB.lp = np.random.random(k) * 6.283
+   GLB.relight = relight
+   GLB.relight()
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.15, 1.0)
+   f1 = STR.F1()
+   f2 = STR.F2mix(0.2, 1.0)
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.relight()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8,
+                  buffer=surface.get_data())
+   np.subtract(v, np.right_shift(v, 4), out=v)
+   GLB.parity = GLB.parity + 1
+   # --- the run.  A full-frame np.maximum is the expensive half of this
+   # --- program, so at low Run it only fires on alternate frames.
+   if f1 > 0.5 or (f1 > 0.12 and GLB.parity % 2 == 0):
+      np.maximum(v[:-1], v[1:], out=v[:-1])
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   # --- lights out behind the glass.  They drift a little so each frame's
+   # --- disc lands slightly off the last one and the stack reads as a soft
+   # --- bokeh blob instead of a hard sticker.
+   for i in range(len(GLB.lx)):
+      h = (GLB.lh[i] + time * 0.01) % 1.0
+      c = hsv_to_rgb(h, 0.45, f2)
+      cr.set_source_rgba(c[2], c[1], c[0], 0.055)
+      cr.new_sub_path()
+      cr.arc(GLB.lx[i] + sin(time * 0.31 + GLB.lp[i]) * 9.0,
+             GLB.ly[i] + cos(time * 0.23 + GLB.lp[i]) * 7.0,
+             GLB.lr[i] * (0.85 + 0.15 * sin(time * 0.7 + GLB.lp[i])),
+             0, 6.2831853)
+      cr.fill()
+
+   spd = 2.4 if acc else 1.0
+   GLB.dy = GLB.dy - GLB.dv * spd * (0.4 + f0 * 1.8)
+   off = GLB.dy < -8.0
+   if off.any():
+      GLB.dy = np.where(off, np.random.random(GLB.n) * 160.0 + 724.0, GLB.dy)
+      GLB.dx = np.where(off, np.random.random(GLB.n) * 1280.0, GLB.dx)
+
+   nd = int(GLB.n * (0.25 + f0 * 0.75))
+   cr.set_source_rgb(1.0, 0.96, 0.82)
+   for i in range(nd):
+      cr.new_sub_path()
+      cr.arc(GLB.dx[i], GLB.dy[i], GLB.dr[i], 0, 6.2831853)
+   cr.fill()

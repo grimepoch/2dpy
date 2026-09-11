@@ -1,0 +1,90 @@
+def Init():
+   # --- author : claude
+   # --- a lamp dragged across a dirty lens.  Every ghost sits on the line
+   # --- through the frame centre at its own distance, which is what makes a
+   # --- flare read as a flare, and the canvas keeps a few frames of them so
+   # --- the whole string smears when the light moves.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Flare")
+   STR.SetFParam1Name("Smear")
+   STR.SetFParam2Name("Coating")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : stop down, the iris shows
+   # ---    trigger : new optics
+
+   GLB.st = surface.get_stride() // 4
+
+   def optics():
+      n = 11
+      GLB.gp = np.random.random(n) * 2.6 - 1.0
+      GLB.gr = np.random.random(n) * 70.0 + 12.0
+      GLB.gh = np.random.random(n)
+      GLB.ga = np.random.random(n) * 0.4 + 0.08
+   GLB.optics = optics
+   GLB.optics()
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.2, 1.0)
+   f1 = STR.F1mix(2.0, 6.0)
+   f2 = STR.F2()
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.optics()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8,
+                  buffer=surface.get_data())
+   np.subtract(v, np.right_shift(v, int(f1)), out=v)
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   lx = 640.0 + cos(time * 0.37) * 560.0
+   ly = 360.0 + sin(time * 0.53) * 300.0
+   dx = 640.0 - lx
+   dy = 360.0 - ly
+
+   cr.set_operator(cairo.OPERATOR_ADD)
+   for i in range(len(GLB.gp)):
+      t = GLB.gp[i]
+      gx = lx + dx * (1.0 + t)
+      gy = ly + dy * (1.0 + t)
+      c = hsv_to_rgb((GLB.gh[i] + f2) % 1.0, 0.55, 1.0)
+      a = GLB.ga[i] * f0 * 0.55
+      cr.set_source_rgba(c[2] * a, c[1] * a, c[0] * a, 1.0)
+      r = GLB.gr[i] * (0.6 + 0.4 * abs(t))
+      if acc:
+         # --- stopped down, the ghosts take the shape of the iris
+         cr.save()
+         cr.translate(gx, gy)
+         cr.rotate(time * 0.2 + i)
+         cr.move_to(r, 0)
+         for k in range(1, 7):
+            cr.line_to(cos(k * 1.0472) * r, sin(k * 1.0472) * r)
+         cr.close_path()
+         cr.fill()
+         cr.restore()
+      else:
+         cr.new_sub_path()
+         cr.arc(gx, gy, r, 0, 6.2831853)
+         cr.fill()
+
+   # --- the source, and the anamorphic streak across it
+   cr.set_source_rgba(0.55 * f0, 0.80 * f0, 1.0 * f0, 1.0)
+   cr.new_sub_path()
+   cr.arc(lx, ly, 22.0, 0, 6.2831853)
+   cr.fill()
+   cr.set_source_rgba(0.30 * f0, 0.42 * f0, 0.55 * f0, 1.0)
+   cr.rectangle(lx - 420, ly - 2, 840, 5)
+   cr.fill()
+   cr.set_operator(cairo.OPERATOR_OVER)

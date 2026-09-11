@@ -1,0 +1,119 @@
+def Init():
+   # --- author : claude
+   # --- a meshing gear train.  Ratios are exact, so the teeth actually line
+   # --- up in the meshes and the whole train turns as one machine.
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Speed")
+   STR.SetFParam1Name("Module")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : cutaway, spokes and bores only
+   # ---    trigger : new gear train
+
+   def build():
+      # --- each gear meshes with the previous one, so its centre sits at
+      # --- the sum of the two pitch radii and it turns the other way
+      GLB.g = []
+      teeth = np.random.randint(11, 21)
+      GLB.g.append([640.0, 360.0, teeth, 1.0, 0.0])
+      ang = np.random.random() * 2.0 * pi
+      for i in range(1, 6):
+         prev = GLB.g[i - 1]
+         t2 = np.random.randint(9, 26)
+         ang = ang + (np.random.random() - 0.5) * 2.2
+         GLB.g.append([0.0, 0.0, t2, -prev[3] * prev[2] / (t2 * 1.0), ang])
+   GLB.build = build
+   GLB.build()
+
+   def gear(cx, cy, rp, n, rot, col, dark, cut):
+      # --- pitch circle with simple trapezoidal teeth
+      ra = rp + rp * 0.14
+      rd = rp - rp * 0.16
+      step = 2.0 * pi / n
+      cr.move_to(cx + cos(rot) * rd, cy + sin(rot) * rd)
+      for k in range(n):
+         a0 = rot + k * step
+         cr.line_to(cx + cos(a0 + step * 0.10) * rd, cy + sin(a0 + step * 0.10) * rd)
+         cr.line_to(cx + cos(a0 + step * 0.22) * ra, cy + sin(a0 + step * 0.22) * ra)
+         cr.line_to(cx + cos(a0 + step * 0.50) * ra, cy + sin(a0 + step * 0.50) * ra)
+         cr.line_to(cx + cos(a0 + step * 0.62) * rd, cy + sin(a0 + step * 0.62) * rd)
+         cr.line_to(cx + cos(a0 + step * 0.90) * rd, cy + sin(a0 + step * 0.90) * rd)
+      cr.close_path()
+      if cut:
+         cr.set_source_rgb(col[2], col[1], col[0])
+         cr.set_line_width(2)
+         cr.stroke()
+      else:
+         cr.set_source_rgb(col[2], col[1], col[0])
+         cr.fill()
+      # --- spokes and bore
+      cr.set_source_rgb(dark[2], dark[1], dark[0])
+      cr.set_line_width(rp * 0.13)
+      for k in range(5):
+         a = rot + k * 2.0 * pi / 5.0
+         cr.move_to(cx + cos(a) * rp * 0.26, cy + sin(a) * rp * 0.26)
+         cr.line_to(cx + cos(a) * rp * 0.72, cy + sin(a) * rp * 0.72)
+      cr.stroke()
+      cr.new_sub_path()
+      cr.arc(cx, cy, rp * 0.20, 0, 2 * pi)
+      cr.fill()
+   GLB.gear = gear
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(-0.05, 0.05)
+   f1 = STR.F1mix(3.4, 8.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.build()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   cr.set_source_rgb(0.04, 0.03, 0.05)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   mod = f1
+   drive = time * f0 * 12.0
+
+   # --- place the train, each gear hung off the last
+   px = 640.0
+   py = 360.0
+   for i in range(len(GLB.g)):
+      gg = GLB.g[i]
+      rp = gg[2] * mod
+      if i == 0:
+         gg[0] = 640.0
+         gg[1] = 360.0
+      else:
+         prev = GLB.g[i - 1]
+         rprev = prev[2] * mod
+         d = rprev + rp
+         gg[0] = prev[0] + cos(gg[4]) * d
+         gg[1] = prev[1] + sin(gg[4]) * d
+
+   for i in range(len(GLB.g)):
+      gg = GLB.g[i]
+      rp = gg[2] * mod
+      if gg[0] < -rp * 1.4 or gg[0] > 1280 + rp * 1.4:
+         continue
+      if gg[1] < -rp * 1.4 or gg[1] > 720 + rp * 1.4:
+         continue
+      t = i / (len(GLB.g) * 1.0)
+      col = hsv_to_rgb((f2 + t * 0.3) % 1.0, 0.55 if GLB.xmode else 0.25, 0.95)
+      dark = hsv_to_rgb((f2 + t * 0.3) % 1.0, 0.7, 0.30)
+      # --- phase so the teeth mesh: a gear turning backwards is offset
+      # --- by half a tooth against its neighbour
+      rot = drive * gg[3] + (0.0 if i % 2 == 0 else pi / gg[2])
+      GLB.gear(gg[0], gg[1], rp, gg[2], rot, col, dark, acc)

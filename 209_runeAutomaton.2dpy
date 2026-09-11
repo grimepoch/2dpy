@@ -1,0 +1,103 @@
+def Init():
+   # --- author : claude
+   # --- rule110 written in runes : each cell is a glyph, and the rule decides
+   # --- which of two alphabets it is drawn from
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Rule")
+   STR.SetFParam1Name("Cell Size")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : dead cells shown faintly
+   # ---    trigger : reseed
+
+   GLB.rules = [110, 30, 90, 150, 54, 22, 60, 102, 126, 182]
+   GLB.onset = "FUTHARKNIWZSBEMLNGDO"
+   GLB.offset = ".,:;'`~-_^"
+   GLB.cs = 0
+   GLB.acc2 = 0.0
+
+   def build(cs):
+      GLB.cs = cs
+      GLB.nx = int(1280 / cs) + 1
+      GLB.ny = int(720 / cs) + 1
+      GLB.rows = []
+      row = np.zeros(GLB.nx, dtype=np.int32)
+      row[GLB.nx // 2] = 1
+      for j in range(GLB.ny):
+         GLB.rows.append(row)
+         l = np.roll(row, 1)
+         r = np.roll(row, -1)
+         idx = (l * 4 + row * 2 + r).astype(np.int32)
+         row = ((110 >> idx) & 1).astype(np.int32)
+   GLB.build = build
+   GLB.build(26)
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0()
+   f1 = STR.F1mix(16.0, 40.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   cs = int(f1)
+   if trig or cs != GLB.cs:
+      GLB.build(cs)
+      if trig:
+         GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   rule = GLB.rules[int(f0 * (len(GLB.rules) - 1))]
+
+   GLB.acc2 = GLB.acc2 + 0.4
+   while GLB.acc2 >= 1.0:
+      GLB.acc2 = GLB.acc2 - 1.0
+      row = GLB.rows[len(GLB.rows) - 1]
+      l = np.roll(row, 1)
+      r = np.roll(row, -1)
+      idx = (l * 4 + row * 2 + r).astype(np.int32)
+      GLB.rows.append(((rule >> idx) & 1).astype(np.int32))
+      del GLB.rows[0]
+
+   cr.set_source_rgb(0.03, 0.02, 0.05)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cr.select_font_face("serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+   cr.set_font_size(GLB.cs * 0.95)
+   cs = GLB.cs
+   non = len(GLB.onset)
+   noff = len(GLB.offset)
+
+   cr.save()
+   cr.scale(1.0, -1.0)
+   for j in range(GLB.ny):
+      row = GLB.rows[j]
+      rl = row.tolist()
+      yy = -(j * cs)
+      t = j / (GLB.ny * 1.0)
+      if GLB.xmode:
+         c = hsv_to_rgb((f2 + t * 0.6) % 1.0, 0.8, 1.0)
+      else:
+         c = hsv_to_rgb((f2 + t * 0.12) % 1.0, 0.55, 0.45 + 0.55 * t)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      for i in range(GLB.nx):
+         if rl[i]:
+            cr.move_to(i * cs, yy)
+            cr.show_text(GLB.onset[(i + j) % non])
+      if acc:
+         cr.set_source_rgba(c[2], c[1], c[0], 0.22)
+         for i in range(GLB.nx):
+            if not rl[i]:
+               cr.move_to(i * cs, yy)
+               cr.show_text(GLB.offset[(i * 3 + j) % noff])
+   cr.restore()

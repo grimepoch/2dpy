@@ -1,0 +1,99 @@
+def Init():
+   # --- author : claude
+   # --- a dust devil crossing a dry lake.  Grains are picked up, carried
+   # --- round the core and dropped again, and the canvas keeps every grain
+   # --- that has been laid down - so the track the vortex has walked stays
+   # --- written on the ground behind it.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Wind")
+   STR.SetFParam1Name("Lift")
+   STR.SetFParam2Name("Settle")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : the core tightens and it lifts hard
+   # ---    trigger : it collapses and a new one forms
+
+   GLB.st = surface.get_stride() // 4
+   GLB.n = 1400
+   GLB.px = np.random.random(GLB.n) * 1280.0
+   GLB.py = np.random.random(GLB.n) * 720.0
+   GLB.pl = np.zeros(GLB.n, dtype=np.float32)
+   GLB.cx = 300.0
+   GLB.cy = 360.0
+   GLB.ca = 0.0
+
+   cr.set_source_rgb(0.22, 0.26, 0.30)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.6, 4.5)
+   f1 = STR.F1mix(0.004, 0.05)
+   f2 = STR.F2mix(0.004, 0.06)
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.cx = np.random.random() * 1280.0
+      GLB.cy = np.random.random() * 720.0
+      GLB.pl = GLB.pl * 0.0
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   GLB.ca = GLB.ca + 0.013
+   GLB.cx = GLB.cx + cos(GLB.ca) * f0
+   GLB.cy = GLB.cy + sin(GLB.ca * 0.7) * f0 * 0.6
+   if GLB.cx < 40 or GLB.cx > 1240:
+      GLB.ca = pi - GLB.ca
+   if GLB.cy < 40 or GLB.cy > 680:
+      GLB.ca = -GLB.ca
+   GLB.cx = min(max(GLB.cx, 40.0), 1240.0)
+   GLB.cy = min(max(GLB.cy, 40.0), 680.0)
+
+   dx = GLB.px - GLB.cx
+   dy = GLB.py - GLB.cy
+   r2 = dx * dx + dy * dy
+   r = np.sqrt(r2) + 1e-6
+   core = 70.0 if acc else 130.0
+   # --- a Rankine vortex : solid body inside the core, 1/r outside
+   sw = np.where(r < core, r / core, core / r) * (14.0 if acc else 9.0)
+   ux = -dy / r
+   uy = dx / r
+   # --- grains only lift where the wind is actually strong
+   lift = np.random.random(GLB.n) < (f1 * np.clip(sw / 6.0, 0.0, 1.6))
+   GLB.pl = np.where(lift, 1.0, GLB.pl)
+   GLB.pl = GLB.pl - np.where(GLB.pl > 0.0, f2, 0.0)
+   np.clip(GLB.pl, 0.0, 1.0, out=GLB.pl)
+
+   up = GLB.pl > 0.0
+   move = np.where(up, 1.0, 0.06)
+   GLB.px = np.mod(GLB.px + (ux * sw - dx / r * 0.45) * move, 1280.0)
+   GLB.py = np.mod(GLB.py + (uy * sw - dy / r * 0.45) * move
+                   - GLB.pl * 1.1, 720.0)
+
+   # --- airborne grains are drawn bright, settled ones get stamped into the
+   # --- ground and stay there
+   ix = GLB.px.astype(np.int32)
+   iy = GLB.py.astype(np.int32)
+   np.clip(ix, 0, 1279, out=ix)
+   np.clip(iy, 0, 719, out=iy)
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8,
+                  buffer=surface.get_data())
+   grounded = ~up
+   gi = (iy[grounded], ix[grounded])
+   np.minimum.at(v[:, :, 0], gi, 150)
+   np.minimum.at(v[:, :, 1], gi, 132)
+   np.minimum.at(v[:, :, 2], gi, 110)
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   cr.set_source_rgba(0.62, 0.80, 0.94, 0.75)
+   for i in range(GLB.n):
+      if GLB.pl[i] <= 0.0:
+         continue
+      s = 1.0 + GLB.pl[i] * 2.2
+      cr.rectangle(GLB.px[i], GLB.py[i], s, s)
+   cr.fill()

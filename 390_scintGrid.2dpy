@@ -1,0 +1,77 @@
+def Init():
+   # --- author : claude
+   # --- the scintillating grid.  Grey discs sit at the crossings of a
+   # --- lattice and appear to flicker black wherever you are not looking -
+   # --- the effect is entirely in the viewer, nothing on the screen changes
+   # --- at those points.  The lattice drifts and breathes so the illusion
+   # --- keeps re-arming itself.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Spacing")
+   STR.SetFParam1Name("Drift")
+   STR.SetFParam2Name("Contrast")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : the bars go dark, the discs bright
+   # ---    trigger : rotate the lattice
+
+   GLB.st = surface.get_stride() // 4
+   GLB.rot = 0.0
+   GLB.t = 0.0
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(66.0, 150.0)
+   f1 = STR.F1mix(0.0, 0.9)
+   f2 = STR.F2mix(0.3, 1.0)
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.rot = GLB.rot + 0.3927
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   GLB.t = GLB.t + f1
+
+   cr.set_source_rgb(0.035, 0.035, 0.04)
+   cr.rectangle(0, 0, 1280, 720)
+   cr.fill()
+
+   g = f0 + sin(time * 0.3) * f0 * 0.10
+   bw = g * 0.17
+   cr.save()
+   cr.translate(640, 360)
+   cr.rotate(GLB.rot + sin(time * 0.11) * 0.05)
+   cr.translate(-640, -360)
+
+   n = int(1900 / g) + 2
+   off = GLB.t % g
+   # --- the grey bars
+   bar = 0.26 if acc else 0.52
+   cr.set_source_rgb(bar, bar, bar * 1.02)
+   for i in range(-n, n):
+      cr.rectangle(640 + i * g + off - bw * 0.5, -640, bw, 2000)
+      cr.rectangle(-640, 360 + i * g + off - bw * 0.5, 2560, bw)
+   cr.fill()
+
+   # --- the discs at the crossings.  The illusion needs them a little
+   # --- larger than the bar width and the same value across the whole grid.
+   dv = 1.0 if acc else 0.98
+   cr.set_source_rgb(dv, dv, dv)
+   # --- the disc has to read as a disc ON the bar, not as part of it
+   rr = bw * (0.40 + 0.30 * f2)
+   for j in range(-n, n):
+      for i in range(-n, n):
+         x = 640 + i * g + off
+         y = 360 + j * g + off
+         if x < -60 or x > 1340 or y < -60 or y > 780:
+            continue
+         cr.new_sub_path()
+         cr.arc(x, y, rr, 0, 6.2831853)
+   cr.fill()
+   cr.restore()

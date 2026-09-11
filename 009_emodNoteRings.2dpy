@@ -1,0 +1,102 @@
+def Init():
+   # --- author : claude
+   # --- every note that arrives drops a ring, pitch picks where, velocity
+   # --- picks how hard it hits
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Growth")
+   STR.SetFParam2Name("Thickness")
+   # ---    accent : rings square off
+   # ---    trigger : ring of twelve <-> scattered
+
+   # --- 10 slots = FFT analysis bins, 24 slots = MIDI notes
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   GLB.seen = dict()
+   GLB.prev = []
+   for i in range(24):
+      GLB.prev.append(0)
+   GLB.rings = []
+
+   def spawn(k, n, velo):
+      # --- k is the lane, n how many lanes there are
+      if GLB.xmode:
+         x = 640 + 430 * cos(k * 2.0 * pi / n - pi * 0.5)
+         y = 360 + 250 * sin(k * 2.0 * pi / n - pi * 0.5)
+      else:
+         x = (k + 0.5) * 1280.0 / n
+         y = 360 + 200 * sin(k * 1.7)
+      GLB.rings.append([x, y, 0.0, velo / 127.0, k / (n * 1.0)])
+      if len(GLB.rings) > 24:
+         del GLB.rings[0]
+   GLB.spawn = spawn
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.05, 0.55)
+   f1 = STR.F1mix(2.0, 16.0)
+   f2 = STR.F2mix(1.0, 14.0)
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,f0)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   lanes = 12 if GLB.mode == "midi" else GLB.slots
+
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if GLB.mode == "midi":
+         # --- a new id in this slot means a fresh note on
+         if ids != 0 and GLB.prev[i] != ids:
+            GLB.spawn(note % 12, lanes, velo)
+         GLB.prev[i] = ids
+      else:
+         # --- levels never stop, so trigger on a rising edge instead
+         if velo > 40 and GLB.prev[i] <= 40:
+            GLB.spawn(i, lanes, velo)
+         GLB.prev[i] = velo
+
+   cr.set_line_cap(cairo.LINE_CAP_ROUND)
+
+   dead = []
+   for i in range(len(GLB.rings)):
+      r = GLB.rings[i]
+      r[2] = r[2] + f1 * (0.4 + r[3])
+      life = 1.0 - r[2] / 520.0
+      if life <= 0:
+         dead.append(i)
+         continue
+      rr,gg,bb = hsv_to_rgb(r[4], 0.85, 1.0)
+      a = life * life * (0.35 + 0.65 * r[3])
+      # --- always stroked: a big translucent disc fill costs far more than
+      # --- the annulus a stroke actually touches
+      cr.set_source_rgba(bb, gg, rr, a)
+      cr.set_line_width(1.0 + f2 * r[3] * life)
+      if acc:
+         cr.rectangle(r[0] - r[2], r[1] - r[2], r[2] * 2, r[2] * 2)
+      else:
+         cr.new_sub_path()
+         cr.arc(r[0], r[1], r[2], 0, 2 * pi)
+      cr.stroke()
+
+   dead.reverse()
+   for i in dead:
+      del GLB.rings[i]

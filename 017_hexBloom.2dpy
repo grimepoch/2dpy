@@ -1,0 +1,91 @@
+def Init():
+   # --- author : claude
+   # --- hex tiling lit by rings of energy blooming out from the centre on the beat
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Cell Size")
+   STR.SetFParam2Name("Ring Width")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : outline only
+   # ---    trigger : fill <-> honeycomb gaps
+
+   GLB.hue = 0.0
+   GLB.cells = []
+   GLB.size = 0
+
+   def build(s):
+      # --- axial hex layout, cached until the size knob actually moves
+      GLB.cells = []
+      dx = s * 1.5
+      dy = s * 1.7320508
+      cols = int(1280 / dx) + 3
+      rows = int(720 / dy) + 3
+      for i in range(cols):
+         for j in range(rows):
+            x = i * dx - dx
+            y = j * dy - dy + (dy * 0.5 if i % 2 else 0.0)
+            d = sqrt((x - 640) * (x - 640) + (y - 360) * (y - 360))
+            GLB.cells.append([x, y, d])
+      GLB.size = s
+   GLB.build = build
+
+   def hexpath(x, y, s):
+      cr.move_to(x + s, y)
+      for k in range(1, 6):
+         cr.line_to(x + s * cos(k * 1.0471976), y + s * sin(k * 1.0471976))
+      cr.close_path()
+   GLB.hexpath = hexpath
+
+   GLB.build(40)
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.15, 1.0)
+   f1 = STR.F1mix(30.0, 82.0)
+   f2 = STR.F2mix(40.0, 185.0)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,f0)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   s = int(f1)
+   if s < 30:
+      s = 30
+   if s != GLB.size:
+      GLB.build(s)
+
+   GLB.hue = (GLB.hue + 0.002) % 1.0
+   cr.set_line_width(2)
+
+   # --- the bloom front travels one screen width per two beats
+   front = (time * 0.5 % 1.0) * 900.0
+   inner = s * (0.94 if GLB.xmode else 0.72)
+
+   for c in GLB.cells:
+      d = abs(c[2] - front)
+      if d > f2:
+         continue
+      v = 1.0 - d / f2
+      v = v * v
+      r,g,b = hsv_to_rgb((GLB.hue + c[2] * 0.0016) % 1.0, 0.85, v)
+      cr.set_source_rgb(b, g, r)
+      GLB.hexpath(c[0], c[1], inner)
+      if acc:
+         cr.stroke()
+      else:
+         cr.fill()

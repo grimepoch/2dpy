@@ -1,0 +1,98 @@
+def Init():
+   # --- author : claude
+   # --- a seed head that grows with the material : the divergence angle drifts
+   # --- off the golden value with the level, which breaks the packing open
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Decay")
+   STR.SetFParam1Name("Seeds")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+   # ---    accent : rings instead of discs
+   # ---    trigger : snap back to the golden angle
+
+   GLB.golden = pi * (3.0 - sqrt(5.0))
+   GLB.off = 0.0
+   GLB.n = 12 if GLB.slots == 24 else GLB.slots
+   GLB.lvl = []
+   for i in range(GLB.n):
+      GLB.lvl.append(0.0)
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.80, 0.985)
+   f1 = STR.F1mix(120.0, 400.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.off = 0.0
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   n = GLB.n
+   for k in range(n):
+      GLB.lvl[k] = GLB.lvl[k] * f0
+   tot = 0.0
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if ids == 0:
+         continue
+      k = (note % 12) if GLB.mode == "midi" else i
+      if k < n:
+         v = velo / 127.0
+         if v > GLB.lvl[k]:
+            GLB.lvl[k] = v
+   for k in range(n):
+      tot = tot + GLB.lvl[k]
+   tot = tot / n
+
+   # --- the divergence angle wanders with the level
+   GLB.off = GLB.off * 0.97 + tot * 0.0012
+
+   cr.set_source_rgb(0.02, 0.02, 0.03)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cnt = int(f1)
+   ga = GLB.golden + GLB.off
+   scale = 300.0 / sqrt(cnt * 1.0)
+
+   ks = np.arange(cnt, dtype=np.float64)
+   ang = ks * ga + time * 0.2
+   rad = np.sqrt(ks) * scale
+   xs = (640.0 + np.cos(ang) * rad).tolist()
+   ys = (360.0 + np.sin(ang) * rad).tolist()
+   rr = (2.0 + np.sqrt(ks) * scale * 0.030).tolist()
+
+   for b in range(n):
+      v = GLB.lvl[b]
+      if GLB.xmode:
+         c = hsv_to_rgb((f2 + b / (n * 1.0) * 0.85) % 1.0, 0.85, 0.3 + 0.7 * v)
+      else:
+         c = hsv_to_rgb((f2 + b / (n * 1.0) * 0.16) % 1.0, 0.85 - 0.4 * v,
+                        0.3 + 0.7 * v)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      lo = int(cnt * b / n)
+      hi = int(cnt * (b + 1) / n)
+      for i in range(lo, hi):
+         cr.new_sub_path()
+         cr.arc(xs[i], ys[i], rr[i] * (1.0 + v), 0, 2 * pi)
+      if acc:
+         cr.set_line_width(1.4)
+         cr.stroke()
+      else:
+         cr.fill()

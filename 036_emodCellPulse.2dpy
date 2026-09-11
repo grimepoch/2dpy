@@ -1,0 +1,168 @@
+def Init():
+   # --- author : claude
+   # --- a light wall.  Each slot owns a column of cells and its level fills
+   # --- the column from the middle out, with a peak cell left hanging.
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Peak Hold")
+   STR.SetFParam1Name("Rows")
+   STR.SetFParam2Name("Hue")
+   # ---    accent : mirror top and bottom
+   # ---    trigger : columns <-> rings
+
+   # --- 10 slots = FFT analysis bins, 24 slots = MIDI notes
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   GLB.n = 12 if GLB.slots == 24 else GLB.slots
+   GLB.lvl = []
+   GLB.pk = []
+   for i in range(GLB.n):
+      GLB.lvl.append(0.0)
+      GLB.pk.append(0.0)
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 0.02)
+   f1 = STR.F1mix(8.0, 22.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   n = GLB.n
+   for k in range(n):
+      GLB.lvl[k] = GLB.lvl[k] * 0.84
+      GLB.pk[k] = GLB.pk[k] - f0
+
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if ids == 0:
+         continue
+      k = (note % 12) if GLB.mode == "midi" else i
+      if k < n:
+         v = velo / 127.0
+         if v > GLB.lvl[k]:
+            GLB.lvl[k] = v
+         if v > GLB.pk[k]:
+            GLB.pk[k] = v
+
+   cr.set_source_rgb(0.02, 0.02, 0.03)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   rows = int(f1)
+
+   # --- Colour depends only on the row, so quantise it into a few bands and
+   # --- emit ONE path per band.  Drawing a cell at a time meant up to 264
+   # --- separate stroke/fill passes per frame.
+   nb = 6
+   pal = []
+   for b in range(nb):
+      t = b / (nb - 1.0)
+      r,g,bl = hsv_to_rgb((f2 + t * 0.32) % 1.0, 0.9 - 0.55 * t, 1.0)
+      pal.append((bl, g, r))
+   offc = hsv_to_rgb(f2, 0.9, 0.09)
+
+   if GLB.xmode:
+      # --- The wall wrapped into a disc: slots are angular sectors, rows run
+      # --- outward.  Cells are FILLED annular sectors, never stroked rings -
+      # --- a stroked circle is the most expensive primitive on this board
+      # --- (264 concentric rings measured over 200ms; the same count as
+      # --- fills is under 1ms).
+      cx = 640.0
+      cy = 360.0
+      r0 = 60.0
+      dr = 290.0 / rows
+      gap = 0.012
+      buckets = []
+      for b in range(nb):
+         buckets.append([])
+      offs = []
+      for k in range(n):
+         lit = int(rows * GLB.lvl[k])
+         a0 = k * 2.0 * pi / n + gap
+         a1 = (k + 1) * 2.0 * pi / n - gap
+         for j in range(rows):
+            cell = [a0, a1, r0 + j * dr, r0 + (j + 1) * dr - 2.0]
+            if j < lit:
+               buckets[int(j * nb / rows)].append(cell)
+            else:
+               offs.append(cell)
+
+      def wedges(lst):
+         for q in lst:
+            cr.new_sub_path()
+            cr.arc(cx, cy, q[3], q[0], q[1])
+            cr.arc_negative(cx, cy, q[2], q[1], q[0])
+            cr.close_path()
+
+      cr.set_source_rgb(offc[2], offc[1], offc[0])
+      wedges(offs)
+      cr.fill()
+      for b in range(nb):
+         if len(buckets[b]) == 0:
+            continue
+         c = pal[b]
+         cr.set_source_rgb(c[0], c[1], c[2])
+         wedges(buckets[b])
+         cr.fill()
+   else:
+      cw = 1180.0 / n
+      ch = 640.0 / rows
+      x0 = 640.0 - cw * n * 0.5
+      buckets = []
+      for b in range(nb):
+         buckets.append([])
+      offs = []
+      peaks = []
+      for k in range(n):
+         lit = int(rows * GLB.lvl[k])
+         pk = int(rows * GLB.pk[k])
+         x = x0 + k * cw + 3
+         for j in range(rows):
+            if j < lit:
+               buckets[int(j * nb / rows)].append([x, j])
+            elif j == pk and pk > 0:
+               peaks.append([x, j])
+            else:
+               offs.append([x, j])
+
+      def emit(lst):
+         for q in lst:
+            j = q[1]
+            if acc:
+               hh = ch * 0.5 - 2
+               cr.rectangle(q[0], 360 + j * ch * 0.5 + 2, cw - 6, hh)
+               cr.rectangle(q[0], 360 - j * ch * 0.5 - hh - 2, cw - 6, hh)
+            else:
+               cr.rectangle(q[0], 40 + j * ch + 2, cw - 6, ch - 4)
+
+      cr.set_source_rgb(offc[2], offc[1], offc[0])
+      emit(offs)
+      cr.fill()
+      for b in range(nb):
+         if len(buckets[b]) == 0:
+            continue
+         c = pal[b]
+         cr.set_source_rgb(c[0], c[1], c[2])
+         emit(buckets[b])
+         cr.fill()
+      if len(peaks):
+         cr.set_source_rgb(1, 1, 1)
+         emit(peaks)
+         cr.fill()

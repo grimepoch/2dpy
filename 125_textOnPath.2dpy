@@ -1,0 +1,114 @@
+def Init():
+   # --- author : claude
+   # --- a line of type set along a curve, each glyph placed and rotated to
+   # --- the tangent, the way a proper type on a path routine does it
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Amplitude")
+   STR.SetFParam1Name("Text Size")
+   STR.SetFParam2Name("Travel")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : draw the baseline
+   # ---    trigger : wave <-> spiral
+
+   GLB.msg = "TYPE SET ALONG A CURVE  "
+   GLB.off = 0.0
+
+   def curve(u, amp, spiral):
+      # --- returns x, y, the tangent angle, and the tangent MAGNITUDE.
+      # --- Advancing u by the glyph width alone crowds the letters wherever
+      # --- the curve is steep, because parameter distance is not arc length;
+      # --- dividing the advance by this magnitude fixes the spacing.
+      if spiral:
+         a = u * 0.020
+         r = 60.0 + u * 0.34
+         x = 640.0 + cos(a) * r
+         y = 360.0 + sin(a) * r
+         dx = -sin(a) * r * 0.020 + cos(a) * 0.34
+         dy = cos(a) * r * 0.020 + sin(a) * 0.34
+      else:
+         x = u
+         # --- gentle wavelength on purpose: the radius of curvature has to
+         # --- stay well above the cap height or the glyphs collide on the
+         # --- inside of each bend
+         k = 0.0034
+         y = 360.0 + amp * sin(u * k)
+         dx = 1.0
+         dy = amp * k * cos(u * k)
+      return [x, y, atan2(dy, dx), sqrt(dx * dx + dy * dy)]
+   GLB.curve = curve
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 240.0)
+   f1 = STR.F1mix(26.0, 76.0)
+   f2 = STR.F2mix(-4.0, 4.0)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   cr.set_source_rgb(0.03, 0.02, 0.05)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   GLB.off = GLB.off + f2
+
+   cr.select_font_face("serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+   cr.set_font_size(f1)
+
+   if acc:
+      cr.set_source_rgba(0.35, 0.35, 0.45, 1.0)
+      cr.set_line_width(1.5)
+      cr.set_dash([7.0, 6.0])
+      first = 1
+      u = 0.0
+      while u < 2400.0:
+         p = GLB.curve(u, f0, GLB.xmode)
+         if first:
+            cr.move_to(p[0], p[1])
+            first = 0
+         else:
+            cr.line_to(p[0], p[1])
+         u = u + 24.0
+      cr.stroke()
+      cr.set_dash([])
+
+   # --- walk the message along the curve, advancing by each glyph's width
+   reps = 3
+   u = GLB.off % 600.0 - 300.0
+   for rep in range(reps):
+      for i in range(len(GLB.msg)):
+         ch = GLB.msg[i]
+         adv = cr.text_extents(ch).x_advance
+         if ch != " ":
+            p = GLB.curve(u, f0, GLB.xmode)
+            if p[0] > -80 and p[0] < 1360 and p[1] > -80 and p[1] < 800:
+               t = (u % 1200.0) / 1200.0
+               r,g,b = hsv_to_rgb((t * 0.7 + time * 0.03) % 1.0, 0.75, 1.0)
+               cr.set_source_rgb(b, g, r)
+               cr.save()
+               cr.translate(p[0], p[1])
+               # --- the display is y-up, so the tangent angle is negated
+               cr.rotate(-p[2])
+               cr.scale(1.0, -1.0)
+               cr.move_to(0, 0)
+               cr.show_text(ch)
+               cr.restore()
+         # --- step along the curve by arc length, not parameter
+         pu = GLB.curve(u, f0, GLB.xmode)
+         mag = pu[3]
+         if mag < 0.05:
+            mag = 0.05
+         # --- a little tracking; rotated glyphs on a slope need more air
+         u = u + (adv * 1.18 + 3.0) / mag

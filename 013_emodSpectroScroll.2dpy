@@ -1,0 +1,91 @@
+def Init():
+   # --- author : claude
+   # --- spectrogram : one column of incoming energy per frame, the whole
+   # --- picture sliding left underneath it
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Scroll")
+   STR.SetFParam1Name("Gain")
+   STR.SetFParam2Name("Palette")
+   # ---    accent : freeze the scroll
+   # ---    trigger : heat map <-> single hue
+
+   # --- if listening to PARAMS::ACTIONS::Extra Mod Type
+   # --- 10 slots = FFT analysis bins
+   # --- 24 slots = MIDI notes
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   GLB.sur2 = surface.create_similar(cairo.CONTENT_COLOR_ALPHA, 1280, 720)
+   GLB.cr2  = cairo.Context(GLB.sur2)
+   GLB.carry = 0.0
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(1.0, 16.0)
+   f1 = STR.F1mix(0.4, 2.6)
+   f2 = STR.F2()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   # --- how far to slide this frame, carrying the fraction over
+   GLB.carry = GLB.carry + (0.0 if acc else f0)
+   sp = int(GLB.carry)
+   GLB.carry = GLB.carry - sp
+
+   if sp > 0:
+      GLB.cr2.save()
+      GLB.cr2.set_operator(cairo.OPERATOR_SOURCE)
+      GLB.cr2.set_source_surface(surface, 0, 0)
+      GLB.cr2.paint()
+      GLB.cr2.restore()
+      cr.set_source_surface(GLB.sur2, -sp, 0)
+      cr.paint()
+      # --- clear the strip we are about to draw into
+      cr.set_source_rgb(0,0,0)
+      cr.rectangle(1280 - sp, 0, sp, 720)
+      cr.fill()
+
+      lanes = 12 if GLB.mode == "midi" else GLB.slots
+      lh = 720.0 / lanes
+      lvl = []
+      for i in range(lanes):
+         lvl.append(0.0)
+
+      for i in range(GLB.slots):
+         (ids, note, velo) = STR.GetSlotData(i)
+         if ids == 0:
+            continue
+         k = (note % 12) if GLB.mode == "midi" else i
+         if k < lanes:
+            v = (velo / 127.0) * f1
+            if v > lvl[k]:
+               lvl[k] = v
+
+      for k in range(lanes):
+         v = lvl[k]
+         if v <= 0.01:
+            continue
+         if v > 1.0:
+            v = 1.0
+         if GLB.xmode:
+            r,g,b = hsv_to_rgb(f2, 0.9 - 0.7 * v, v)
+         else:
+            # --- cold at the bottom of the scale, white hot at the top
+            r,g,b = hsv_to_rgb((f2 + 0.66 - 0.66 * v) % 1.0, 1.0 - v * 0.85, v)
+         cr.set_source_rgb(b, g, r)
+         cr.rectangle(1280 - sp, k * lh, sp, lh - 1)
+         cr.fill()

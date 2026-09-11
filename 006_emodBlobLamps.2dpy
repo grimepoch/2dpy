@@ -1,0 +1,91 @@
+def Init():
+   # --- author : claude
+   # --- a row of soft lamps, one per slot, that swell and drift with the level
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Size")
+   STR.SetFParam2Name("Drift")
+   # ---    accent : hard edged discs instead of glows
+   # ---    trigger : row <-> ring
+
+   # --- 10 slots = FFT analysis bins, 24 slots = MIDI notes
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   GLB.lanes = 12 if GLB.slots == 24 else GLB.slots
+   GLB.lvl = []
+   GLB.ph  = []
+   for i in range(GLB.lanes):
+      GLB.lvl.append(0.0)
+      GLB.ph.append(np.random.random() * 6.28)
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.08, 0.8)
+   f1 = STR.F1mix(40.0, 148.0)
+   f2 = STR.F2mix(0.0, 130.0)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,f0)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   n = GLB.lanes
+   for k in range(n):
+      GLB.lvl[k] = GLB.lvl[k] * 0.88
+
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if ids == 0:
+         continue
+      k = (note % 12) if GLB.mode == "midi" else i
+      if k < n:
+         v = velo / 127.0
+         if v > GLB.lvl[k]:
+            GLB.lvl[k] = v
+
+   for k in range(n):
+      v = GLB.lvl[k]
+      if v < 0.02:
+         continue
+      a = GLB.ph[k] + time * 0.5
+      if GLB.xmode:
+         cx = 640 + 360 * cos(k * 2.0 * pi / n - pi * 0.5) + f2 * 0.3 * sin(a)
+         cy = 360 + 250 * sin(k * 2.0 * pi / n - pi * 0.5) + f2 * 0.3 * cos(a)
+      else:
+         cx = (k + 0.5) * 1280.0 / n + f2 * 0.25 * sin(a)
+         cy = 360 + f2 * sin(a * 0.7)
+      rad = 12.0 + f1 * v
+      r,g,b = hsv_to_rgb((k / (n * 1.0) * 0.8 + time * 0.03) % 1.0, 0.8, 1.0)
+      if acc:
+         cr.set_source_rgba(b, g, r, 0.9)
+         cr.new_sub_path()
+         cr.arc(cx, cy, rad, 0, 2 * pi)
+         cr.fill()
+      else:
+         # --- radial gradient gives the lamp its falloff in one fill
+         rg = cairo.RadialGradient(cx, cy, 0, cx, cy, rad)
+         rg.add_color_stop_rgba(0.0, b, g, r, 0.95 * v + 0.05)
+         rg.add_color_stop_rgba(0.45, b, g, r, 0.35 * v)
+         rg.add_color_stop_rgba(1.0, b, g, r, 0.0)
+         cr.set_source(rg)
+         cr.rectangle(cx - rad, cy - rad, rad * 2, rad * 2)
+         cr.fill()

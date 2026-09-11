@@ -1,0 +1,120 @@
+def Init():
+   # --- author : claude
+   # --- inkMarble crossed with type : letters are dropped into the bath as
+   # --- point clouds and then displaced by every drop that follows
+   # --- note : screen y=0 is the BOTTOM, so glyph y is NEGATED
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Rake")
+   STR.SetFParam1Name("Drop Size")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : comb across
+   # ---    trigger : fresh bath
+
+   GLB.set = "MARBLEDTYPE"
+   GLB.i = 0
+   GLB.pts = 96
+   GLB.lastbeat = -1
+
+   def glyphpts(ch, size, count):
+      cr.save()
+      cr.select_font_face("serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+      cr.set_font_size(size)
+      e = cr.text_extents(ch)
+      cr.new_path()
+      cr.move_to(0, 0)
+      cr.text_path(ch)
+      raw = []
+      for t, p in cr.copy_path_flat():
+         if t == 0 or t == 1:
+            raw.append([p[0], p[1]])
+      cr.new_path()
+      cr.restore()
+      if len(raw) < 4:
+         raw = [[0.0, 0.0]]
+      m = len(raw)
+      xs = []
+      ys = []
+      for i in range(count):
+         q = raw[int(i * m / count) % m]
+         xs.append(q[0] - e.width * 0.5 - e.x_bearing)
+         ys.append(-(q[1] + e.height * 0.5))
+      return [np.array(xs), np.array(ys)]
+   GLB.glyphpts = glyphpts
+
+   def fresh():
+      GLB.drops = []
+   GLB.fresh = fresh
+   GLB.fresh()
+
+   def drop(cx, cy, r, ch, hue):
+      # --- the area preserving displacement of a real ink drop
+      for d in GLB.drops:
+         dx = d[0] - cx
+         dy = d[1] - cy
+         d2 = dx * dx + dy * dy
+         d2 = np.where(d2 < 1.0, 1.0, d2)
+         k = np.sqrt(1.0 + (r * r) / d2)
+         d[0] = cx + dx * k
+         d[1] = cy + dy * k
+      g = GLB.glyphpts(ch, r * 2.6, GLB.pts)
+      GLB.drops.append([cx + g[0], cy + g[1], hue])
+      while len(GLB.drops) > 16:
+         del GLB.drops[0]
+   GLB.drop = drop
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 26.0)
+   f1 = STR.F1mix(40.0, 120.0)
+   f2 = STR.F2()
+
+   itime = STR.IT()
+   time  = itime + STR.FT()
+
+   if trig:
+      GLB.fresh()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   if itime != GLB.lastbeat:
+      GLB.lastbeat = itime
+      GLB.i = (GLB.i + 1) % len(GLB.set)
+      GLB.drop(220.0 + np.random.random() * 840.0,
+               150.0 + np.random.random() * 420.0,
+               f1 * (0.6 + np.random.random() * 0.7),
+               GLB.set[GLB.i], np.random.random())
+
+   amp = f0
+   if amp > 0.05:
+      ph = time * 1.2
+      for d in GLB.drops:
+         if acc:
+            d[0] = d[0] + amp * 0.09 * np.sin(d[1] * 0.02 + ph)
+         else:
+            d[1] = d[1] + amp * 0.09 * np.sin(d[0] * 0.016 + ph)
+
+   cr.set_source_rgb(0.93, 0.92, 0.88)
+   if GLB.xmode:
+      cr.set_source_rgb(0.05, 0.04, 0.06)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   for d in GLB.drops:
+      xs = d[0].tolist()
+      ys = d[1].tolist()
+      r,g,b = hsv_to_rgb((d[2] * 0.8 + f2) % 1.0, 0.82, 0.92)
+      cr.set_source_rgb(b, g, r)
+      cr.move_to(xs[0], ys[0])
+      for i in range(1, GLB.pts):
+         cr.line_to(xs[i], ys[i])
+      cr.close_path()
+      cr.fill()

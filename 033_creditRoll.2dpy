@@ -1,0 +1,128 @@
+def Init():
+   # --- author : claude
+   # --- end credits crawling up the screen, roles right aligned against
+   # --- names left aligned, with a card at the head of the roll
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Speed")
+   STR.SetFParam1Name("Text Size")
+   STR.SetFParam2Name("Tint")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : dim to a whisper
+   # ---    trigger : rewind to the top
+
+   GLB.roles = ["DIRECTED BY","LIGHTING","SIGNAL PATH","COLOUR","RHYTHM",
+                "GEOMETRY","SOUND","TITLES","CAMERA","EDIT","GRIP","DUST",
+                "RENDERED BY","TIMING","THE CROWD","BEST BOY","FOLEY","GAFFER"]
+   GLB.names = ["A CAIRO CONTEXT","THE BEAT CLOCK","SEMAPHORE 0x1002","HSV",
+                "120 BPM","1280 x 720","THE FFT BINS","MONOSPACE","NODE 0",
+                "THE FADE BUFFER","TRIANGLE WAVE","ANTIALIASING","A JETSON",
+                "FRACTIONAL TIME","EVERY PIXEL","SLOT 7","A STRAY ARC","GLSL"]
+
+   def build():
+      GLB.lines = []
+      GLB.lines.append(["title", "STRUCTURE"])
+      GLB.lines.append(["gap", ""])
+      GLB.lines.append(["sub", "A PROGRAM IN 2DPY"])
+      GLB.lines.append(["gap", ""])
+      GLB.lines.append(["gap", ""])
+      order = []
+      for i in range(len(GLB.roles)):
+         order.append(i)
+      for i in range(len(order) - 1, 0, -1):
+         j = np.random.randint(0, i + 1)
+         t = order[i]
+         order[i] = order[j]
+         order[j] = t
+      for i in order:
+         GLB.lines.append(["pair", GLB.roles[i] + "\t" + GLB.names[i % len(GLB.names)]])
+         GLB.lines.append(["gap", ""])
+      GLB.lines.append(["gap", ""])
+      GLB.lines.append(["sub", "NO PIXELS WERE HARMED"])
+      GLB.scroll = -80.0
+   GLB.build = build
+   GLB.build()
+
+   def text(x, y, s):
+      cr.save()
+      cr.translate(x, y)
+      cr.scale(1.0, -1.0)
+      cr.move_to(0, 0)
+      cr.show_text(s)
+      cr.restore()
+   GLB.text = text
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.1, 5.0)
+   f1 = STR.F1mix(18.0, 40.0)
+   f2 = STR.F2()
+
+   if trig:
+      GLB.build()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   cr.set_source_rgb(0,0,0)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   size = f1
+   lh = size * 1.7
+   GLB.scroll = GLB.scroll + f0
+
+   total = len(GLB.lines) * lh
+   if GLB.scroll > total + 800:
+      GLB.scroll = -80.0
+
+   tint = hsv_to_rgb(f2, 0.10 if GLB.xmode else 0.35, 1.0)
+   dim = 0.35 if acc else 1.0
+
+   cr.select_font_face("serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+
+   gap = 26.0
+
+   for i in range(len(GLB.lines)):
+      # --- credits crawl UP the screen, so y grows with the scroll
+      y = GLB.scroll - i * lh
+      if y < -120 or y > 800:
+         continue
+      kind = GLB.lines[i][0]
+      s = GLB.lines[i][1]
+      # --- fade in at the bottom and out at the top
+      a = 1.0
+      if y < 90:
+         a = y / 90.0
+      if y > 620:
+         a = (720.0 - y) / 100.0
+      if a < 0:
+         a = 0.0
+      a = a * dim
+
+      if kind == "title":
+         cr.set_font_size(size * 2.6)
+         cr.set_source_rgba(tint[2], tint[1], tint[0], a)
+         e = cr.text_extents(s)
+         GLB.text(640 - e.width * 0.5 - e.x_bearing, y, s)
+      elif kind == "sub":
+         cr.set_font_size(size * 1.1)
+         cr.set_source_rgba(tint[2] * 0.8, tint[1] * 0.8, tint[0] * 0.8, a)
+         e = cr.text_extents(s)
+         GLB.text(640 - e.width * 0.5 - e.x_bearing, y, s)
+      elif kind == "pair":
+         parts = s.split("\t")
+         cr.set_font_size(size * 0.82)
+         cr.set_source_rgba(tint[2] * 0.65, tint[1] * 0.65, tint[0] * 0.65, a)
+         e = cr.text_extents(parts[0])
+         GLB.text(640 - gap - e.width - e.x_bearing, y + size * 0.1, parts[0])
+         cr.set_font_size(size)
+         cr.set_source_rgba(tint[2], tint[1], tint[0], a)
+         GLB.text(640 + gap, y, parts[1])

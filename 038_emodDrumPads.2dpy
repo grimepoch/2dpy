@@ -1,0 +1,129 @@
+def Init():
+   # --- author : claude
+   # --- a grid of pads.  Anything arriving lights its pad and knocks a ring
+   # --- out of it, and the pad stays warm for a moment afterwards
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Decay")
+   STR.SetFParam1Name("Grid")
+   STR.SetFParam2Name("Hue")
+   # ---    accent : pads go solid when struck
+   # ---    trigger : shuffle the pad colours
+
+   # --- 10 slots = FFT analysis bins, 24 slots = MIDI notes
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   GLB.lit = []
+   GLB.hue = []
+   for i in range(36):
+      GLB.lit.append(0.0)
+      GLB.hue.append(np.random.random())
+   GLB.prev = []
+   for i in range(24):
+      GLB.prev.append(0)
+   GLB.rings = []
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.80, 0.985)
+   f1 = STR.F1mix(3.0, 6.0)
+   f2 = STR.F2()
+
+   if trig:
+      for i in range(36):
+         GLB.hue[i] = np.random.random()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   cols = int(f1)
+   rows = cols
+   npad = cols * rows
+
+   for i in range(npad):
+      GLB.lit[i] = GLB.lit[i] * f0
+
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if GLB.mode == "midi":
+         if ids != 0 and GLB.prev[i] != ids:
+            k = note % npad
+            GLB.lit[k] = velo / 127.0
+            GLB.rings.append([k, 0.0, velo / 127.0])
+         GLB.prev[i] = ids
+      else:
+         if ids == 0:
+            continue
+         k = i % npad
+         v = velo / 127.0
+         if v > GLB.lit[k]:
+            GLB.lit[k] = v
+         if velo > 70 and GLB.prev[i] <= 70:
+            GLB.rings.append([k, 0.0, v])
+         GLB.prev[i] = velo
+
+   if len(GLB.rings) > 22:
+      del GLB.rings[0]
+
+   cr.set_source_rgb(0.03, 0.02, 0.04)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   pw = 700.0 / cols
+   ph = 640.0 / rows
+   x0 = 640.0 - pw * cols * 0.5
+   y0 = 360.0 - ph * rows * 0.5
+   pad = pw * 0.09
+
+   for j in range(rows):
+      for i in range(cols):
+         k = j * cols + i
+         v = GLB.lit[k]
+         x = x0 + i * pw
+         y = y0 + j * ph
+         r,g,b = hsv_to_rgb((GLB.hue[k] * 0.6 + f2) % 1.0, 0.85, 0.16 + 0.84 * v)
+         if acc and v > 0.5:
+            r,g,b = (1.0, 1.0, 1.0)
+         cr.set_source_rgb(b, g, r)
+         cr.rectangle(x + pad, y + pad, pw - pad * 2, ph - pad * 2)
+         cr.fill()
+         if v > 0.02 and not GLB.xmode:
+            cr.set_source_rgba(1, 1, 1, v * 0.8)
+            cr.set_line_width(2 + 4 * v)
+            cr.rectangle(x + pad, y + pad, pw - pad * 2, ph - pad * 2)
+            cr.stroke()
+
+   # --- the knock rings
+   dead = []
+   for i in range(len(GLB.rings)):
+      rg = GLB.rings[i]
+      rg[1] = rg[1] + 7.0
+      life = 1.0 - rg[1] / 190.0
+      if life <= 0:
+         dead.append(i)
+         continue
+      k = rg[0]
+      cx = x0 + (k % cols) * pw + pw * 0.5
+      cy = y0 + (k // cols) * ph + ph * 0.5
+      r,g,b = hsv_to_rgb((GLB.hue[k] * 0.6 + f2 + 0.5) % 1.0, 0.6, 1.0)
+      v = life * rg[2]
+      cr.set_source_rgb(b * v, g * v, r * v)
+      cr.set_line_width(1.0 + 5.0 * life)
+      cr.new_sub_path()
+      cr.arc(cx, cy, rg[1], 0, 2 * pi)
+      cr.stroke()
+
+   dead.reverse()
+   for i in dead:
+      del GLB.rings[i]

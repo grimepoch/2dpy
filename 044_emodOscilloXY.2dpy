@@ -1,0 +1,123 @@
+def Init():
+   # --- author : claude
+   # --- an XY oscilloscope : two slots drive the beams and the phosphor
+   # --- keeps a decaying trace of where the spot has been
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Persistence")
+   STR.SetFParam1Name("Gain")
+   STR.SetFParam2Name("Sweep")
+   # ---    accent : graticule
+   # ---    trigger : XY <-> two channel sweep
+
+   # --- 10 slots = FFT analysis bins, 24 slots = MIDI notes
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   GLB.xv = 0.0
+   GLB.yv = 0.0
+   GLB.ph = 0.0
+   GLB.tr = []
+   GLB.fr = 0
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.06, 0.60)
+   f1 = STR.F1mix(0.5, 3.0)
+   f2 = STR.F2mix(0.5, 9.0)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   # --- phosphor decay, on alternate frames to keep the cost down
+   GLB.fr = GLB.fr + 1
+   if GLB.fr % 2 == 0:
+      cr.set_source_rgba(0, 0, 0, f0)
+      cr.rectangle(0,0,1280,720)
+      cr.fill()
+
+   # --- gather two channels out of the slots
+   a = 0.0
+   b = 0.0
+   tot = 0.0
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if ids == 0:
+         continue
+      v = velo / 127.0
+      if i % 2 == 0:
+         a = a + v
+      else:
+         b = b + v
+      tot = tot + 1.0
+   if tot > 0:
+      a = a / tot * 2.0
+      b = b / tot * 2.0
+
+   # --- slew toward the new value so the beam does not jump
+   GLB.xv = GLB.xv + (a - GLB.xv) * 0.35
+   GLB.yv = GLB.yv + (b - GLB.yv) * 0.35
+
+   if acc:
+      cr.set_source_rgba(0.20, 0.55, 0.25, 0.55)
+      cr.set_line_width(1)
+      for k in range(-5, 6):
+         cr.move_to(640 + k * 100, 80)
+         cr.line_to(640 + k * 100, 640)
+         cr.move_to(190, 360 + k * 56)
+         cr.line_to(1090, 360 + k * 56)
+      cr.stroke()
+
+   # --- 90 fresh samples per frame, drawn as one polyline
+   pts = 90
+   cr.set_line_cap(cairo.LINE_CAP_BUTT)
+   cr.set_line_width(2.2)
+   cr.set_source_rgb(0.45, 1.0, 0.55)
+
+   for k in range(pts):
+      u = k / (pts * 1.0)
+      GLB.ph = GLB.ph + 0.02 * f2
+      if GLB.xmode:
+         # --- two traces swept left to right
+         x = 190.0 + 900.0 * u
+         y1 = 520.0 + GLB.xv * 140.0 * f1 * sin(GLB.ph * 3.0)
+         y2 = 200.0 + GLB.yv * 140.0 * f1 * sin(GLB.ph * 4.0 + 1.0)
+         if k == 0:
+            cr.move_to(x, y1)
+            GLB.px2 = x
+            GLB.py2 = y2
+         else:
+            cr.line_to(x, y1)
+      else:
+         # --- lissajous from the two channels
+         x = 640.0 + 330.0 * f1 * GLB.xv * sin(GLB.ph * 2.0)
+         y = 360.0 + 260.0 * f1 * GLB.yv * sin(GLB.ph * 3.0 + time * 0.2)
+         if k == 0:
+            cr.move_to(x, y)
+         else:
+            cr.line_to(x, y)
+   cr.stroke()
+
+   if GLB.xmode:
+      cr.set_source_rgb(0.35, 0.85, 1.0)
+      cr.move_to(190, 200)
+      for k in range(pts):
+         u = k / (pts * 1.0)
+         x = 190.0 + 900.0 * u
+         y2 = 200.0 + GLB.yv * 140.0 * f1 * sin((GLB.ph - (pts - k) * 0.02 * f2) * 4.0 + 1.0)
+         cr.line_to(x, y2)
+      cr.stroke()

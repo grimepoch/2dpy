@@ -1,0 +1,117 @@
+def Init():
+   # --- author : claude
+   # --- the polar jet.  A fast ribbon of air round the hemisphere develops
+   # --- long Rossby waves; the waves travel, sharpen, and occasionally pinch
+   # --- off a closed eddy that drifts away on its own before being
+   # --- reabsorbed.  The ribbon is always there and never the same shape.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Wind Speed")
+   STR.SetFParam1Name("Meander")
+   STR.SetFParam2Name("Trails")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : blocking, the jet splits
+   # ---    trigger : new wave numbers
+
+   GLB.st = surface.get_stride() // 4
+   GLB.t = 0.0
+
+   def waves():
+      k = 5
+      GLB.kn = np.random.randint(2, 8, k)
+      GLB.am = np.random.random(k) * 70.0 + 18.0
+      GLB.sp = (np.random.random(k) - 0.5) * 0.5
+      GLB.ph = np.random.random(k) * 6.283
+   GLB.waves = waves
+   GLB.waves()
+   GLB.np_ = 900
+   GLB.px = np.random.random(GLB.np_) * 1280.0
+   GLB.py = np.random.random(GLB.np_) * 720.0
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(1.0, 9.0)
+   f1 = STR.F1mix(0.2, 1.8)
+   f2 = STR.F2mix(3.0, 7.0)
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.waves()
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   GLB.t = GLB.t + 0.01
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8,
+                  buffer=surface.get_data())
+   np.subtract(v, np.right_shift(v, int(f2)), out=v)
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   # --- where the core of the jet sits at this longitude
+   def core(x):
+      y = 360.0
+      for k in range(len(GLB.kn)):
+         y = y + sin(x / 1280.0 * GLB.kn[k] * 6.2831853 +
+                     GLB.ph[k] + GLB.t * GLB.sp[k] * 6.0) * \
+             GLB.am[k] * f1
+      return y
+   GLB.core = core
+
+   # --- tracers ride the ribbon : fast in the core, slack outside it
+   cx = GLB.px
+   cy = GLB.py
+   yc = np.zeros(GLB.np_, dtype=np.float32)
+   for k in range(len(GLB.kn)):
+      yc = yc + np.sin(cx / 1280.0 * GLB.kn[k] * 6.2831853 +
+                       GLB.ph[k] + GLB.t * GLB.sp[k] * 6.0) * \
+          GLB.am[k] * f1
+   yc = yc + 360.0
+   dy = cy - yc
+   prof = np.exp(-(dy / 70.0) ** 2)
+   if acc:
+      # --- a blocking high splits the flow round it
+      bd = np.sqrt((cx - 640.0) ** 2 + (cy - 360.0) ** 2)
+      prof = prof * np.clip((bd - 130.0) / 90.0, 0.0, 1.0)
+   ox = cx
+   oy = cy
+   GLB.px = np.mod(cx + prof * f0 + 0.4, 1280.0)
+   # --- pulled gently back toward the core, so the ribbon stays a ribbon
+   GLB.py = cy - dy * 0.03 + (np.random.random(GLB.np_) - 0.5) * 1.4
+
+   ix = GLB.px.astype(np.int32)
+   iy = np.clip(GLB.py, 1, 718).astype(np.int32)
+   GLB.py = iy * 1.0
+   wrapped = np.abs(GLB.px - ox) > 60.0
+   ok = ~wrapped
+   lum = np.clip(prof, 0.0, 1.0)[ok]
+   sx = ix[ok]
+   sy = iy[ok]
+   h6 = np.mod((0.55 + lum * 0.35) * 6.0, 6.0)
+   rr = np.clip(np.abs(h6 - 3.0) - 1.0, 0.0, 1.0)
+   gg = np.clip(2.0 - np.abs(h6 - 2.0), 0.0, 1.0)
+   bb = np.clip(2.0 - np.abs(h6 - 4.0), 0.0, 1.0)
+   v[sy, sx, 0] = np.maximum(v[sy, sx, 0],
+                             (rr * lum * 255.0).astype(np.uint8))
+   v[sy, sx, 1] = np.maximum(v[sy, sx, 1],
+                             (gg * lum * 255.0).astype(np.uint8))
+   v[sy, sx, 2] = np.maximum(v[sy, sx, 2],
+                             (bb * lum * 255.0 + 40.0).astype(np.uint8))
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   # --- the core line itself
+   cr.set_source_rgba(0.75, 0.90, 1.0, 0.30)
+   cr.set_line_width(1.6)
+   cr.move_to(0, core(0.0))
+   for i in range(1, 65):
+      x = i * 20.0
+      cr.line_to(x, core(x))
+   cr.stroke()

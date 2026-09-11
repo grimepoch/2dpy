@@ -1,0 +1,134 @@
+def Init():
+   # --- author : claude
+   # --- an acanthus rinceau : the scrolling foliate band carved on friezes
+   # --- and printed as a border ever since.  Public domain ornament.
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Scroll")
+   STR.SetFParam1Name("Leaf Size")
+   STR.SetFParam2Name("Tint")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : carved stone, lit from the left
+   # ---    trigger : band <-> medallion
+
+   GLB.off = 0.0
+
+   def leaf(s, curl):
+      cr.move_to(0, 0)
+      cr.curve_to(s * 0.30, s * 0.42, s * 0.72, s * 0.36, s, 0)
+      cr.curve_to(s * 0.74, -s * 0.14, s * 0.44, -s * 0.26, 0, 0)
+      cr.close_path()
+      # --- the lobes along the leaf edge
+      for i in range(2):
+         u = 0.25 + i * 0.24
+         cr.new_sub_path()
+         cr.arc(s * u, s * (0.30 - i * 0.06), s * (0.13 - i * 0.02), 0, 2 * pi)
+         cr.close_path()
+      cr.move_to(s, 0)
+      cr.curve_to(s + curl * 0.6, -curl * 0.4, s + curl, curl * 0.3,
+                  s + curl * 0.35, curl * 0.7)
+      cr.curve_to(s + curl * 0.05, curl * 0.35, s + curl * 0.2, -curl * 0.05, s, 0)
+      cr.close_path()
+   GLB.leaf = leaf
+
+   def vine(t, amp):
+      # --- the S curve the leaves spring from
+      return [t, amp * sin(t * 0.0085), amp * 0.0085 * cos(t * 0.0085)]
+   GLB.vine = vine
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(-3.0, 3.0)
+   f1 = STR.F1mix(40.0, 110.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   if acc:
+      bg = (0.72, 0.74, 0.76)
+      c1 = (0.52, 0.54, 0.57)
+      c2 = (0.88, 0.90, 0.92)
+   else:
+      bg = hsv_to_rgb((f2 + 0.5) % 1.0, 0.6, 0.10)
+      c1 = hsv_to_rgb(f2, 0.55, 0.85)
+      c2 = hsv_to_rgb((f2 + 0.08) % 1.0, 0.30, 1.0)
+
+   cr.set_source_rgb(bg[2], bg[1], bg[0])
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   GLB.off = GLB.off + f0
+   s = f1
+   curl = s * 0.5
+
+   if GLB.xmode:
+      # --- the same rinceau wrapped into a medallion
+      cr.save()
+      cr.translate(640, 360)
+      for ring in range(2):
+         R = 130.0 + ring * 150.0
+         n = 8 + ring * 5
+         for k in range(n):
+            a = k * 2.0 * pi / n + GLB.off * 0.01 * (1.0 if ring % 2 else -1.0)
+            for layer in range(2):
+               cr.save()
+               cr.rotate(a)
+               cr.translate(R, 0)
+               cr.rotate(pi * 0.5)
+               if layer == 0:
+                  cr.set_source_rgb(c1[2], c1[1], c1[0])
+                  cr.translate(4, -4)
+               else:
+                  cr.set_source_rgb(c2[2], c2[1], c2[0])
+               GLB.leaf(s * (0.7 + ring * 0.2), curl)
+               cr.restore()
+               cr.fill()
+      cr.restore()
+   else:
+      # --- two bands, not three: every leaf is a two layer fill
+      for band in range(2):
+         y = 230.0 + band * 260.0
+         amp = 70.0
+         x = (GLB.off * (1.0 if band % 2 == 0 else -1.0)) % (s * 1.6) - s * 1.6
+         k = 0
+         while x < 1340:
+            v = GLB.vine(x, amp)
+            ang = atan2(v[2], 1.0)
+            for layer in range(2):
+               cr.save()
+               cr.translate(v[0], y + v[1])
+               cr.rotate(ang + (0.5 if k % 2 else -0.5))
+               if k % 2:
+                  cr.scale(1.0, -1.0)
+               if layer == 0:
+                  cr.set_source_rgb(c1[2], c1[1], c1[0])
+                  cr.translate(4, -4)
+               else:
+                  cr.set_source_rgb(c2[2], c2[1], c2[0])
+               GLB.leaf(s, curl)
+               cr.restore()
+               cr.fill()
+            x = x + s * 1.00
+            k = k + 1
+         # --- the stem itself
+         cr.set_source_rgb(c2[2], c2[1], c2[0])
+         cr.set_line_width(4)
+         t = -60.0
+         v = GLB.vine(t, amp)
+         cr.move_to(v[0], y + v[1])
+         while t < 1340:
+            v = GLB.vine(t, amp)
+            cr.line_to(v[0], y + v[1])
+            t = t + 20.0
+         cr.stroke()

@@ -1,0 +1,88 @@
+def Init():
+   # --- author : claude
+   # --- a field of cilia beating.  Each one is slightly behind its
+   # --- neighbour, so the field carries a travelling wave across it even
+   # --- though no cilium knows anything about the wave.  The coupling keeps
+   # --- pulling them into step and the noise keeps knocking them out.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Beat Rate")
+   STR.SetFParam1Name("Coupling")
+   STR.SetFParam2Name("Density")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : the wave reverses
+   # ---    trigger : new bed
+
+   GLB.st = surface.get_stride() // 4
+   # --- one stroke per cilium, so the bed size is a frame-time decision
+   GLB.gx = 30
+   GLB.gy = 17
+   yy, xx = np.meshgrid(np.arange(GLB.gy), np.arange(GLB.gx), indexing="ij")
+   # --- started with a phase gradient already in place.  From a random
+   # --- start the coupling does eventually organise a wave, but it takes
+   # --- longer than anyone will watch, and until then it is just noise.
+   GLB.ramp = (xx * 0.55 + yy * 0.12).astype(np.float32)
+   GLB.ph = np.mod(GLB.ramp + np.random.random((GLB.gy, GLB.gx)) * 0.4,
+                   6.2831853).astype(np.float32)
+   GLB.w = (0.97 + np.random.random((GLB.gy, GLB.gx)) * 0.06).astype(
+      np.float32)
+   GLB.dir = 1.0
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.04, 0.32)
+   f1 = STR.F1mix(0.02, 0.45)
+   f2 = STR.F2mix(0.3, 1.0)
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.ph = np.mod(GLB.ramp + np.random.random((GLB.gy, GLB.gx)) * 0.4,
+                      6.2831853).astype(np.float32)
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+   if acc:
+      GLB.dir = -1.0
+   else:
+      GLB.dir = 1.0
+
+   # --- each cilium is pulled toward its upstream neighbour's phase, which
+   # --- is what turns a bed of independent beaters into a metachronal wave
+   ph = GLB.ph
+   up = np.roll(ph, int(GLB.dir), axis=1)
+   d = np.sin(up - ph)
+   ph = ph + GLB.w * f0 + d * f1
+   ph = ph + (np.random.random((GLB.gy, GLB.gx)) - 0.5) * 0.012
+   GLB.ph = np.mod(ph, 6.2831853)
+
+   cr.set_source_rgba(0, 0, 0, 1)
+   cr.rectangle(0, 0, 1280, 720)
+   cr.fill()
+
+   sx = 1280.0 / GLB.gx
+   sy = 720.0 / GLB.gy
+   cr.set_line_cap(cairo.LINE_CAP_ROUND)
+   L = min(sx, sy) * 1.55 * f2
+   for j in range(GLB.gy):
+      for i in range(GLB.gx):
+         p = GLB.ph[j, i]
+         # --- the power stroke is fast and straight, the recovery slow and
+         # --- curled.  That asymmetry is what actually moves fluid.
+         bend = sin(p)
+         fast = 0.5 + 0.5 * cos(p)
+         x = i * sx + sx * 0.5
+         y = j * sy + sy * 0.5
+         c = hsv_to_rgb((0.48 + 0.12 * fast) % 1.0, 0.55,
+                        0.35 + 0.65 * fast)
+         cr.set_source_rgb(c[2], c[1], c[0])
+         cr.set_line_width(1.6 + fast * 1.4)
+         cr.move_to(x, y)
+         cr.curve_to(x + bend * L * 0.3, y + L * 0.35,
+                     x + bend * L * 0.8, y + L * 0.7,
+                     x + bend * L, y + L * (0.55 + 0.35 * fast))
+         cr.stroke()

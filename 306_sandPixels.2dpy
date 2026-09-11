@@ -1,0 +1,143 @@
+def Init():
+   # --- author : claude
+   # --- falling sand over a field of ledges.  The sweep runs BOTTOM UP: a
+   # --- grain that has just vacated a cell frees it for the grain above, so a
+   # --- column falls as a column.  Updating every grain at once instead makes
+   # --- a stack spread apart, which is not what sand does.
+   # --- note : screen y=0 is the BOTTOM, so grid row 0 is the floor
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Pour")
+   STR.SetFParam1Name("Steps")
+   STR.SetFParam2Name("Ledges")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : open a drain in the floor
+   # ---    trigger : dump the sand, new ledges
+
+   GLB.res = 5
+   GLB.nx = 1280 // GLB.res
+   GLB.ny = 720 // GLB.res
+   GLB.small = cairo.ImageSurface(cairo.FORMAT_ARGB32, GLB.nx, GLB.ny)
+   GLB.sst = GLB.small.get_stride() // 4
+   GLB.sv = np.ndarray(shape=(GLB.ny, GLB.sst, 4), dtype=np.uint8,
+                       buffer=GLB.small.get_data())
+   GLB.g = np.zeros((GLB.ny, GLB.nx), dtype=np.int32)
+   GLB.h = np.zeros((GLB.ny, GLB.nx), dtype=np.float32)
+   GLB.wall = np.zeros((GLB.ny, GLB.nx), dtype=np.int32)
+   GLB.flip = 0
+   GLB.seed = 0
+
+   def build(n):
+      # --- n staggered ledges, each one shorter than the gap it spans, so
+      # --- sand heaps on top and then spills off both ends onto the next
+      w = GLB.wall
+      w[:, :] = 0
+      rows = GLB.ny // (n + 1)
+      for k in range(n):
+         y = rows * (k + 1)
+         span = GLB.nx // 3
+         off = int((GLB.nx - span) * (0.5 + 0.42 * sin(k * 2.3 + GLB.seed)))
+         w[y:y+2, off:off+span] = 1
+      GLB.wall = w
+   GLB.build = build
+   GLB.build(3)
+   GLB.nled = 3
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.06, 0.9)
+   f1 = STR.F1mix(1.0, 3.99)
+   f2 = STR.F2mix(2.0, 5.99)
+
+   time = STR.IT() + STR.FT()
+
+   n = int(f2)
+   if trig:
+      GLB.g = GLB.g * 0
+      GLB.seed = GLB.seed + 1.7
+      GLB.build(n)
+      GLB.nled = n
+   elif n != GLB.nled:
+      GLB.build(n)
+      GLB.nled = n
+
+   g = GLB.g
+   h = GLB.h
+   wall = GLB.wall
+   ny = GLB.ny
+   nx = GLB.nx
+
+   # --- two spouts drifting out of phase
+   for k in range(2):
+      cx = int(nx * (0.5 + 0.30 * sin(time * 0.53 + k * 2.1)))
+      w = 3
+      hue = (time * 0.05 + k * 0.4) % 1.0
+      mask = np.random.random((2, w * 2)) < f0
+      sl = g[ny-3:ny-1, cx-w:cx+w]
+      g[ny-3:ny-1, cx-w:cx+w] = np.where(mask, 1, sl)
+      h[ny-3:ny-1, cx-w:cx+w] = np.where(mask, hue,
+                                         h[ny-3:ny-1, cx-w:cx+w])
+
+   # --- a drain in the middle of the floor, only while accented
+   if acc:
+      d = nx // 14
+      g[0:2, nx//2-d:nx//2+d] = 0
+
+   GLB.flip = GLB.flip + 1
+   for s in range(int(f1)):
+      blocked = (g == 1) | (wall == 1)
+      # --- straight down, bottom up
+      for i in range(1, ny):
+         cf = (g[i] == 1) & (g[i-1] == 0) & (wall[i-1] == 0)
+         if not cf.any():
+            continue
+         g[i-1] = np.where(cf, 1, g[i-1])
+         h[i-1] = np.where(cf, h[i], h[i-1])
+         g[i] = np.where(cf, 0, g[i])
+      # --- then slump diagonally, direction alternating so heaps stay even
+      right = (GLB.flip + s) % 2 == 0
+      for i in range(1, ny):
+         if right:
+            cf = ((g[i, 1:] == 1) & (blocked[i-1, 1:]) &
+                  (g[i-1, :-1] == 0) & (wall[i-1, :-1] == 0))
+            if not cf.any():
+               continue
+            g[i-1, :-1] = np.where(cf, 1, g[i-1, :-1])
+            h[i-1, :-1] = np.where(cf, h[i, 1:], h[i-1, :-1])
+            g[i, 1:] = np.where(cf, 0, g[i, 1:])
+         else:
+            cf = ((g[i, :-1] == 1) & (blocked[i-1, :-1]) &
+                  (g[i-1, 1:] == 0) & (wall[i-1, 1:] == 0))
+            if not cf.any():
+               continue
+            g[i-1, 1:] = np.where(cf, 1, g[i-1, 1:])
+            h[i-1, 1:] = np.where(cf, h[i, :-1], h[i-1, 1:])
+            g[i, :-1] = np.where(cf, 0, g[i, :-1])
+
+   GLB.g = g
+   GLB.h = h
+
+   sel = g == 1
+   hv = np.clip(h * 255.0, 0, 255).astype(np.uint8)
+   wl = wall == 1
+   # --- b,g,r : sand runs warm, ledges are a cold slate
+   GLB.sv[:, :nx, 0] = np.where(sel, 235 - (hv >> 2), np.where(wl, 90, 8))
+   GLB.sv[:, :nx, 1] = np.where(sel, 130 + (hv >> 1), np.where(wl, 60, 8))
+   GLB.sv[:, :nx, 2] = np.where(sel, 70 + (255 - hv) // 3,
+                                np.where(wl, 44, 11))
+   GLB.sv[:, :nx, 3] = 255
+   GLB.small.mark_dirty()
+   pat = cairo.SurfacePattern(GLB.small)
+   pat.set_filter(cairo.FILTER_NEAREST)
+   m = cairo.Matrix()
+   m.scale(1.0 / GLB.res, 1.0 / GLB.res)
+   pat.set_matrix(m)
+   cr.set_source(pat)
+   cr.paint()

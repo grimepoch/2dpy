@@ -1,0 +1,98 @@
+def Init():
+   # --- author : claude
+   # --- neonHorizon crossed with typeRipple : the perspective grid is made of
+   # --- characters, so the landscape is printed rather than drawn
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Speed")
+   STR.SetFParam1Name("Relief")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : ridge lines only
+   # ---    trigger : new terrain
+
+   GLB.ramp = ".:-=+*#%@"
+   GLB.rows = 26
+   GLB.cols = 78
+   GLB.z = 0.0
+
+   def seed():
+      GLB.h = []
+      for i in range(5):
+         GLB.h.append([0.004 + np.random.random() * 0.02,
+                       0.004 + np.random.random() * 0.02,
+                       np.random.random() * 6.28])
+   GLB.seed = seed
+   GLB.seed()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.0, 3.0)
+   f1 = STR.F1mix(0.0, 1.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.seed()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   GLB.z = GLB.z + f0
+
+   cr.set_source_rgb(0.02, 0.01, 0.05)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cr.select_font_face("mono", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+   nr = len(GLB.ramp)
+   hz = 660.0
+
+   cr.save()
+   cr.scale(1.0, -1.0)
+
+   # --- far rows first
+   for j in range(GLB.rows - 1, -1, -1):
+      d = j / (GLB.rows * 1.0)
+      p = pow(1.0 - d, 1.8)
+      y = 60.0 + (hz - 60.0) * (1.0 - p)
+      wid = 120.0 + 1160.0 * p
+      sz = 6.0 + 26.0 * p
+      if sz < 5:
+         continue
+      cr.set_font_size(sz)
+      x0 = 640.0 - wid * 0.5
+      nc = int(GLB.cols * p) + 6
+      wz = j * 26.0 + GLB.z
+      s = ""
+      last = -1
+      for i in range(nc):
+         u = i / (nc * 1.0)
+         wx = u * 900.0
+         hgt = 0.0
+         for h in GLB.h:
+            hgt = hgt + sin(wx * h[0] + wz * h[1] + h[2])
+         hgt = (hgt / len(GLB.h)) * 0.5 + 0.5
+         v = int(hgt * nr * f1 + (1.0 - f1) * nr * 0.35)
+         if v > nr - 1:
+            v = nr - 1
+         if v < 0:
+            v = 0
+         if acc and v < nr - 3:
+            continue
+         if v != last:
+            c = hsv_to_rgb((f2 + d * 0.35) % 1.0, 0.85 - 0.5 * (v / (nr - 1.0)),
+                           (0.25 + 0.75 * (v / (nr - 1.0))) * (0.35 + 0.65 * p))
+            cr.set_source_rgb(c[2], c[1], c[0])
+            last = v
+         cr.move_to(x0 + u * wid, -y)
+         cr.show_text(GLB.ramp[v])
+   cr.restore()

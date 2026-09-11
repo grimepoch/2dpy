@@ -1,0 +1,136 @@
+def Init():
+   # --- author : claude
+   # --- the circle of fifths.  Held notes light their station and the
+   # --- intervals between them are drawn as chords across the wheel.
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Decay")
+   STR.SetFParam1Name("Radius")
+   STR.SetFParam2Name("Hue")
+   # ---    accent : chromatic order instead of fifths
+   # ---    trigger : show the interval names
+
+   # --- 10 slots = FFT analysis bins, 24 slots = MIDI notes
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   GLB.names = ["C","G","D","A","E","B","F#","C#","G#","D#","A#","F"]
+   GLB.chrom = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"]
+   # --- pitch class -> position on the wheel of fifths
+   GLB.pos = [0,7,2,9,4,11,6,1,8,3,10,5]
+   GLB.lvl = []
+   for i in range(12):
+      GLB.lvl.append(0.0)
+
+   def text(x, y, s):
+      cr.save()
+      cr.translate(x, y)
+      cr.scale(1.0, -1.0)
+      cr.move_to(0, 0)
+      cr.show_text(s)
+      cr.restore()
+   GLB.text = text
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.80, 0.99)
+   f1 = STR.F1mix(150.0, 300.0)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   for k in range(12):
+      GLB.lvl[k] = GLB.lvl[k] * f0
+
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if ids == 0:
+         continue
+      k = (note % 12) if GLB.mode == "midi" else int(i * 12.0 / GLB.slots)
+      v = velo / 127.0
+      if GLB.mode == "audio" and velo < 25:
+         continue
+      if v > GLB.lvl[k]:
+         GLB.lvl[k] = v
+
+   cr.set_source_rgb(0.03, 0.02, 0.05)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   R = f1
+   cx = 640.0
+   cy = 360.0
+
+   # --- where each pitch class sits
+   ang = []
+   for k in range(12):
+      slot = k if acc else GLB.pos[k]
+      a = slot * 2.0 * pi / 12.0 - pi * 0.5 + time * 0.05
+      ang.append(a)
+
+   # --- chords between everything currently sounding
+   lit = []
+   for k in range(12):
+      if GLB.lvl[k] > 0.06:
+         lit.append(k)
+   cr.set_line_cap(cairo.LINE_CAP_ROUND)
+   for i in range(len(lit)):
+      for j in range(i + 1, len(lit)):
+         a = lit[i]
+         b = lit[j]
+         iv = (b - a) % 12
+         v = GLB.lvl[a] * GLB.lvl[b]
+         r,g,bl = hsv_to_rgb((f2 + iv / 12.0 * 0.6) % 1.0, 0.8, 1.0)
+         cr.set_source_rgb(bl * v, g * v, r * v)
+         cr.set_line_width(1.0 + 5.0 * v)
+         cr.move_to(cx + cos(ang[a]) * R, cy + sin(ang[a]) * R)
+         cr.line_to(cx + cos(ang[b]) * R, cy + sin(ang[b]) * R)
+         cr.stroke()
+
+   # --- the ring
+   cr.set_source_rgba(0.30, 0.28, 0.36, 1.0)
+   cr.set_line_width(2)
+   cr.new_sub_path()
+   cr.arc(cx, cy, R, 0, 2 * pi)
+   cr.stroke()
+
+   cr.select_font_face("sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+   for k in range(12):
+      v = GLB.lvl[k]
+      x = cx + cos(ang[k]) * R
+      y = cy + sin(ang[k]) * R
+      r,g,bl = hsv_to_rgb((f2 + k / 12.0 * 0.5) % 1.0, 0.85, 0.30 + 0.70 * v)
+      cr.set_source_rgb(bl, g, r)
+      cr.new_sub_path()
+      cr.arc(x, y, 26.0 + 26.0 * v, 0, 2 * pi)
+      cr.fill()
+      cr.set_font_size(26)
+      nm = GLB.chrom[k]
+      cr.set_source_rgb(0.05, 0.05, 0.07)
+      e = cr.text_extents(nm)
+      GLB.text(x - e.width * 0.5 - e.x_bearing, y - e.height * 0.5, nm)
+
+   if GLB.xmode and len(lit) > 1:
+      cr.set_font_size(30)
+      cr.set_source_rgb(0.9, 0.9, 0.95)
+      s = ""
+      for k in lit:
+         s = s + GLB.chrom[k] + " "
+      e = cr.text_extents(s)
+      GLB.text(640 - e.width * 0.5 - e.x_bearing, 70, s)

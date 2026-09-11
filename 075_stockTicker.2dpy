@@ -1,0 +1,115 @@
+def Init():
+   # --- author : claude
+   # --- ticker tape : symbols crawling right to left, green up, red down,
+   # --- with a headline crawl underneath running the other way
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Speed")
+   STR.SetFParam1Name("Text Size")
+   STR.SetFParam2Name("Rows")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : everything crashes red
+   # ---    trigger : reroll the whole board
+
+   GLB.syms = ["VID","STRC","CAIR","GLSL","MIDI","SYNC","GAIN","FFT","LUMA","CHRM",
+               "NTSC","PAL","RGBA","YUV","DMA","JTAG","OPUS","WAVE","BPM","XFDE"]
+   GLB.head = ["SIGNAL LOCKED", "GENLOCK RESTORED", "FRAME BUDGET EXCEEDED",
+               "NEW PATCH DEPLOYED", "AUDIO CLOCK DRIFTING", "ALL NODES NOMINAL",
+               "RENDER QUEUE BACKED UP", "TEMPO CHANGE DETECTED"]
+
+   def roll():
+      GLB.items = []
+      for i in range(len(GLB.syms)):
+         GLB.items.append([GLB.syms[i],
+                           10.0 + np.random.random() * 400.0,
+                           (np.random.random() - 0.45) * 9.0])
+      GLB.x1 = 1280.0
+      GLB.x2 = 1280.0
+      GLB.hl = GLB.head[np.random.randint(0, len(GLB.head))]
+   GLB.roll = roll
+   GLB.roll()
+
+   def text(x, y, s):
+      cr.save()
+      cr.translate(x, y)
+      cr.scale(1.0, -1.0)
+      cr.move_to(0, 0)
+      cr.show_text(s)
+      cr.restore()
+   GLB.text = text
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.5, 9.0)
+   f1 = STR.F1mix(20.0, 54.0)
+   f2 = STR.F2mix(1.0, 5.0)
+
+   if trig:
+      GLB.roll()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   cr.set_source_rgb(0.02, 0.02, 0.03)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cr.select_font_face("mono", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+   size = f1
+   cr.set_font_size(size)
+
+   rows = int(f2)
+   rh = 720.0 / rows
+
+   GLB.x1 = GLB.x1 - f0
+   GLB.x2 = GLB.x2 - f0 * 0.55
+
+   n = len(GLB.items)
+
+   # --- the tape repeats, so measure one full pass and wrap on it
+   pitch = 330.0 * (size / 32.0)
+   span = pitch * n
+   if GLB.x1 < -span:
+      GLB.x1 = GLB.x1 + span
+   if GLB.x2 < -span:
+      GLB.x2 = GLB.x2 + span
+
+   for r in range(rows):
+      y = 720.0 - (r + 1) * rh + rh * 0.30
+      base = GLB.x1 if r % 2 == 0 else GLB.x2
+      # --- band behind the row
+      cr.set_source_rgb(0.06, 0.05, 0.07)
+      cr.rectangle(0, 720.0 - (r + 1) * rh + 2, 1280, rh - 4)
+      cr.fill()
+
+      for rep in range(2):
+         for i in range(n):
+            it = GLB.items[(i + r * 3) % n]
+            x = base + i * pitch + rep * span
+            if x > 1300 or x < -pitch:
+               continue
+            up = it[2] >= 0
+            if acc:
+               up = False
+            cr.set_source_rgb(0.92, 0.92, 0.95)
+            GLB.text(x, y, it[0])
+            if up:
+               cr.set_source_rgb(0.35, 0.95, 0.35)
+               arrow = "+"
+            else:
+               cr.set_source_rgb(0.30, 0.30, 1.00)
+               arrow = "-"
+            GLB.text(x + size * 3.2, y, "%7.2f" % it[1])
+            GLB.text(x + size * 8.6, y, "%s%5.2f" % (arrow, abs(it[2])))
+
+   # --- headline crawl across the middle
+   cr.set_font_size(size * 1.5)
+   cr.set_source_rgb(0.15, 0.85, 1.0)
+   GLB.text(GLB.x2 * 1.7 + 300, 360, GLB.hl)

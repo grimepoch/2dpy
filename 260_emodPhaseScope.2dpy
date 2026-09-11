@@ -1,0 +1,97 @@
+def Init():
+   # --- author : claude
+   # --- a vectorscope, with the phosphor left to do its job.  Two channels
+   # --- are plotted against each other, and because the trace is never
+   # --- erased - only allowed to decay - a steady signal draws a standing
+   # --- figure while a moving one leaves it behind as a smear.
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Sweep")
+   STR.SetFParam1Name("Persistence")
+   STR.SetFParam2Name("Beam")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : lissajous mode, the channels are detuned
+   # ---    trigger : rotate the graticule
+
+   GLB.st = surface.get_stride() // 4
+   GLB.a = 0.0
+   GLB.b = 0.0
+   GLB.rot = 0.0
+   GLB.lx = 640.0
+   GLB.ly = 360.0
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.02, 0.45)
+   f1 = STR.F1mix(3.0, 7.0)
+   f2 = STR.F2mix(0.6, 2.6)
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.rot = GLB.rot + 0.3927
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   surface.flush()
+   v = np.ndarray(shape=(720, GLB.st, 4), dtype=np.uint8,
+                  buffer=surface.get_data())
+   np.subtract(v, np.right_shift(v, int(f1)), out=v)
+   v[:, :, 3] = 255
+   surface.mark_dirty()
+
+   # --- the two channels, driven by whatever the slots are carrying
+   la = 0.0
+   lb = 0.0
+   tot = 0.0
+   for i in range(GLB.slots):
+      d = STR.GetSlotData(i)
+      if d[0] == 0:
+         continue
+      lv = d[2] / 127.0
+      n = int(d[1])
+      la = la + lv * cos(n * 0.5236)
+      lb = lb + lv * sin(n * 0.5236)
+      tot = tot + lv
+   sc = 1.0 / (1.0 + tot * 0.5)
+   la = la * sc
+   lb = lb * sc
+
+   cr.set_line_cap(cairo.LINE_CAP_ROUND)
+   c = hsv_to_rgb((0.30 + f2 * 0.06) % 1.0, 0.70, 1.0)
+   cr.set_source_rgb(c[2], c[1], c[0])
+   cr.set_line_width(1.6)
+   # --- the beam is swept, not jumped : the trace between samples is as
+   # --- much of the picture as the samples themselves
+   n = 26
+   cr.move_to(GLB.lx, GLB.ly)
+   for k in range(n):
+      GLB.a = GLB.a + f0
+      GLB.b = GLB.b + f0 * (1.4983 if acc else 1.0)
+      x = 640.0 + (sin(GLB.a) * 0.55 + la * 0.9) * 300.0
+      y = 360.0 + (sin(GLB.b) * 0.55 + lb * 0.9) * 300.0
+      ca = cos(GLB.rot)
+      sa = sin(GLB.rot)
+      rx = 640.0 + (x - 640.0) * ca - (y - 360.0) * sa
+      ry = 360.0 + (x - 640.0) * sa + (y - 360.0) * ca
+      cr.line_to(rx, ry)
+      GLB.lx = rx
+      GLB.ly = ry
+   cr.stroke()
+
+   # --- the graticule, dim, redrawn every frame under the trace
+   cr.set_source_rgba(0.22, 0.34, 0.20, 0.55)
+   cr.set_line_width(1.0)
+   for k in range(1, 4):
+      cr.new_sub_path()
+      cr.arc(640, 360, k * 100.0, 0, 6.2831853)
+   for k in range(8):
+      a = k * 0.7854
+      cr.move_to(640 - cos(a) * 310, 360 - sin(a) * 310)
+      cr.line_to(640 + cos(a) * 310, 360 + sin(a) * 310)
+   cr.stroke()

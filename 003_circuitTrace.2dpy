@@ -1,0 +1,110 @@
+def Init():
+   # --- author : claude
+   # --- autorouter : heads crawl the grid laying copper, dropping a via each
+   # --- time they turn, and the board slowly tarnishes behind them
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Fade")
+   STR.SetFParam1Name("Heads")
+   STR.SetFParam2Name("Grid")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : traces run hot
+   # ---    trigger : lift every head and re-place it
+
+   GLB.nmax = 24
+   GLB.g = 20
+   GLB.heads = []
+
+   def place(h):
+      h[0] = np.random.randint(0, int(1280 / GLB.g)) * GLB.g
+      h[1] = np.random.randint(0, int(720 / GLB.g)) * GLB.g
+      d = np.random.randint(0, 4)
+      h[2] = [1,0,-1,0][d]
+      h[3] = [0,1,0,-1][d]
+      h[4] = np.random.randint(20, 120)
+   GLB.place = place
+
+   def reset():
+      GLB.heads = []
+      for i in range(GLB.nmax):
+         h = [0,0,1,0,0]
+         GLB.place(h)
+         GLB.heads.append(h)
+   GLB.reset = reset
+   GLB.reset()
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.005, 0.10)
+   f1 = STR.F1mix(2.0, 24.0)
+   f2 = STR.F2mix(10.0, 46.0)
+
+   if trig:
+      GLB.g = int(f2)
+      GLB.reset()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,f0)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   if acc:
+      trace = (0.15, 0.55, 1.00)
+      via   = (0.55, 0.85, 1.00)
+   elif GLB.xmode:
+      trace = (0.95, 0.75, 0.10)
+      via   = (1.00, 0.95, 0.55)
+   else:
+      trace = (0.25, 0.95, 0.35)
+      via   = (0.65, 1.00, 0.75)
+
+   n = int(f1)
+   g = GLB.g
+   cr.set_line_cap(cairo.LINE_CAP_ROUND)
+   cr.set_line_width(3)
+
+   for i in range(n):
+      h = GLB.heads[i]
+      x0 = h[0]
+      y0 = h[1]
+      h[0] = h[0] + h[2] * g
+      h[1] = h[1] + h[3] * g
+      h[4] = h[4] - 1
+
+      cr.set_source_rgb(trace[2], trace[1], trace[0])
+      cr.move_to(x0, y0)
+      cr.line_to(h[0], h[1])
+      cr.stroke()
+
+      off = (h[0] < -g or h[0] > 1280 + g or h[1] < -g or h[1] > 720 + g)
+      if off or h[4] <= 0:
+         GLB.place(h)
+         continue
+
+      # --- turn now and then, and solder a via where we do
+      if np.random.random() < 0.28:
+         if np.random.random() < 0.5:
+            t = h[2]
+            h[2] = -h[3]
+            h[3] = t
+         else:
+            t = h[2]
+            h[2] = h[3]
+            h[3] = -t
+         cr.set_source_rgb(via[2], via[1], via[0])
+         cr.new_sub_path()
+         cr.arc(h[0], h[1], 4.5, 0, 2 * pi)
+         cr.fill()
+         cr.set_source_rgb(0,0,0)
+         cr.new_sub_path()
+         cr.arc(h[0], h[1], 1.8, 0, 2 * pi)
+         cr.fill()

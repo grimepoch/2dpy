@@ -1,0 +1,90 @@
+def Init():
+   # --- author : claude
+   # --- a page coming out of a typewriter.  Characters are struck onto the
+   # --- canvas and never redrawn, so the page is the accumulation - and
+   # --- because the platen is never quite aligned, each line sits a little
+   # --- off the last, the way a real page does.
+   # --- note : text is drawn with scale(1,-1) because row 0 is at the BOTTOM
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Typing")
+   STR.SetFParam1Name("Strike")
+   STR.SetFParam2Name("Ribbon")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : hammer the keys
+   # ---    trigger : new sheet
+
+   GLB.st = surface.get_stride() // 4
+   GLB.words = ["the", "quick", "report", "filed", "under", "seal",
+                "no", "further", "action", "was", "taken", "at", "this",
+                "time", "witness", "declined", "to", "comment", "see",
+                "attached", "schedule", "paragraph", "seventeen", "of",
+                "the", "agreement", "dated", "herein", "provided", "that",
+                "all", "copies", "be", "destroyed", "upon", "receipt"]
+   GLB.x = 90.0
+   GLB.y = 660.0
+   GLB.lh = 30.0
+   GLB.buf = ""
+   GLB.hold = 0
+
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.4, 4.0)
+   f1 = STR.F1mix(0.35, 1.0)
+   f2 = STR.F2()
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      cr.set_source_rgba(0, 0, 0, 1)
+      cr.rectangle(0, 0, 1280, 720)
+      cr.fill()
+      GLB.x = 90.0
+      GLB.y = 660.0
+      GLB.xmode = 1 if GLB.xmode == 0 else 0
+
+   cr.select_font_face("monospace", cairo.FONT_SLANT_NORMAL,
+                       cairo.FONT_WEIGHT_NORMAL)
+   cr.set_font_size(23.0)
+
+   n = int(f0) + (2 if acc else 0)
+   for k in range(n):
+      if len(GLB.buf) == 0:
+         GLB.buf = GLB.words[np.random.randint(len(GLB.words))] + " "
+      ch = GLB.buf[0]
+      GLB.buf = GLB.buf[1:]
+
+      # --- every hammer lands slightly differently
+      jx = (np.random.random() - 0.5) * 1.8
+      jy = (np.random.random() - 0.5) * 2.6
+      ink = f1 * (0.55 + 0.45 * np.random.random())
+      c = hsv_to_rgb(f2, 0.55, 1.0)
+      cr.set_source_rgba(c[2] * ink, c[1] * ink, c[0] * ink, 1.0)
+      cr.save()
+      cr.translate(GLB.x + jx, GLB.y + jy)
+      cr.scale(1, -1)
+      cr.move_to(0, 0)
+      cr.show_text(ch)
+      cr.restore()
+      GLB.x = GLB.x + 14.0
+
+      if GLB.x > 1190.0:
+         GLB.x = 90.0 + (np.random.random() - 0.5) * 5.0
+         GLB.y = GLB.y - GLB.lh
+         if GLB.y < 40.0:
+            # --- roll a clean sheet in
+            cr.set_source_rgba(0, 0, 0, 1)
+            cr.rectangle(0, 0, 1280, 720)
+            cr.fill()
+            GLB.y = 660.0
+
+   # --- the carriage
+   cr.set_source_rgb(0.25, 0.65, 1.0)
+   cr.rectangle(GLB.x, GLB.y - 6, 12, 2)
+   cr.fill()

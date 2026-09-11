@@ -1,0 +1,74 @@
+def Init():
+   # --- author : claude
+   # --- sunflower packing : seed k sits at angle k * the golden angle, which
+   # --- is the only spacing that never lines up into spokes
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Seeds")
+   STR.SetFParam1Name("Angle")
+   STR.SetFParam2Name("Hue")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : rings instead of discs
+   # ---    trigger : snap back to the true golden angle
+
+   GLB.golden = pi * (3.0 - sqrt(5.0))
+   GLB.off = 0.0
+   # --- note : a filled arc costs about 6x a filled rect here, so the
+   # --- seed count is kept modest rather than drawing discs as squares
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(120.0, 400.0)
+   f1 = STR.F1mix(-0.06, 0.06)
+   f2 = STR.F2()
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.off = 0.0
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   GLB.off = GLB.off + f1 * 0.02
+
+   cr.set_source_rgb(0.02, 0.02, 0.03)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   n = int(f0)
+   ga = GLB.golden + GLB.off
+   scale = 310.0 / sqrt(n * 1.0)
+
+   ks = np.arange(n, dtype=np.float64)
+   ang = ks * ga + time * 0.25
+   rad = np.sqrt(ks) * scale
+   xs = (640.0 + np.cos(ang) * rad).tolist()
+   ys = (360.0 + np.sin(ang) * rad).tolist()
+   rr = (2.0 + np.sqrt(ks) * scale * 0.030).tolist()
+
+   bands = 9
+   for bd in range(bands):
+      t = bd / (bands - 1.0)
+      if GLB.xmode:
+         r,g,b = hsv_to_rgb((f2 + t * 0.85) % 1.0, 0.85, 1.0)
+      else:
+         r,g,b = hsv_to_rgb((f2 + t * 0.16) % 1.0, 0.9 - 0.35 * t, 0.4 + 0.6 * t)
+      cr.set_source_rgb(b, g, r)
+      # --- band by index so each fill covers one annulus of seeds
+      lo = int(n * bd / bands)
+      hi = int(n * (bd + 1) / bands)
+      for i in range(lo, hi):
+         cr.new_sub_path()
+         cr.arc(xs[i], ys[i], rr[i], 0, 2 * pi)
+      if acc:
+         cr.set_line_width(1.4)
+         cr.stroke()
+      else:
+         cr.fill()

@@ -1,0 +1,117 @@
+def Init():
+   # --- author : claude
+   # --- a plate of radiolarian skeletons after Haeckel (public domain), one
+   # --- specimen per slot, each swelling with its own level
+   # --- note : screen y=0 is the BOTTOM, colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Decay")
+   STR.SetFParam1Name("Lattice")
+   STR.SetFParam2Name("Spines")
+   # ---    accent : plate style, ink on cream
+   # ---    trigger : new specimens
+
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   GLB.mode = "auto"
+   if GLB.slots == 10:
+      GLB.mode = "audio"
+   if GLB.slots == 24:
+      GLB.mode = "midi"
+
+   GLB.n = 9 if GLB.slots == 24 else GLB.slots
+   GLB.lvl = []
+   for i in range(GLB.n):
+      GLB.lvl.append(0.0)
+
+   def collect():
+      GLB.sp = []
+      for i in range(12):
+         GLB.sp.append([np.random.randint(4, 9), np.random.random(),
+                        np.random.random() * 6.28])
+   GLB.collect = collect
+   GLB.collect()
+
+   def shell(R, rings, per, spin, spines):
+      for j in range(rings):
+         u = (j + 0.5) / rings
+         rr = R * u
+         m = int(per * (0.4 + u))
+         if m < 3:
+            m = 3
+         for k in range(m):
+            a0 = k * 2.0 * pi / m + spin * (1.0 if j % 2 else -1.0)
+            a1 = a0 + 2.0 * pi / m * 0.6
+            cr.new_sub_path()
+            cr.arc(0, 0, rr + R * 0.06, a0, a1)
+            cr.arc_negative(0, 0, rr - R * 0.06, a1, a0)
+            cr.close_path()
+      for k in range(spines):
+         a = k * 2.0 * pi / spines + spin
+         w = 0.03
+         cr.move_to(cos(a - w) * R * 0.5, sin(a - w) * R * 0.5)
+         cr.line_to(cos(a) * R * 1.35, sin(a) * R * 1.35)
+         cr.line_to(cos(a + w) * R * 0.5, sin(a + w) * R * 0.5)
+         cr.close_path()
+   GLB.shell = shell
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.78, 0.98)
+   f1 = STR.F1mix(2.0, 6.0)
+   f2 = STR.F2mix(5.0, 20.0)
+
+   time = STR.IT() + STR.FT()
+
+   if trig:
+      GLB.collect()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   n = GLB.n
+   for k in range(n):
+      GLB.lvl[k] = GLB.lvl[k] * f0
+   for i in range(GLB.slots):
+      (ids, note, velo) = STR.GetSlotData(i)
+      if ids == 0:
+         continue
+      k = (note % n) if GLB.mode == "midi" else (i % n)
+      v = velo / 127.0
+      if v > GLB.lvl[k]:
+         GLB.lvl[k] = v
+
+   if acc:
+      bg = (0.86, 0.91, 0.95)
+   else:
+      bg = (0.03, 0.03, 0.05)
+   cr.set_source_rgb(bg[2], bg[1], bg[0])
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cols = 3
+   rows = int((n + cols - 1) / cols)
+   rings = int(f1)
+   spines = int(f2)
+
+   for k in range(n):
+      v = GLB.lvl[k]
+      s = GLB.sp[k % 12]
+      cx = ((k % cols) + 0.5) * 1280.0 / cols
+      cy = 720.0 - (int(k / cols) + 0.5) * 720.0 / rows
+      R = (48.0 + 110.0 * v) * (0.7 + 0.3 * s[1])
+      if acc:
+         c = (0.14, 0.13, 0.16)
+      else:
+         c = hsv_to_rgb((s[1] + time * 0.02) % 1.0, 0.6, 0.3 + 0.7 * v)
+      cr.set_source_rgb(c[2], c[1], c[0])
+      cr.save()
+      cr.translate(cx, cy)
+      cr.rotate(s[2] + time * 0.06)
+      GLB.shell(R, rings, s[0] * 2, time * 0.1, spines)
+      cr.restore()
+      cr.fill()

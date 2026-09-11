@@ -1,0 +1,138 @@
+def Init():
+   # --- author : claude
+   # --- split flap departure board.  Each cell riffles through the alphabet
+   # --- until it reaches its target letter, so the board settles in a wave.
+   # --- note : screen y=0 is the BOTTOM, so text must be drawn y-flipped
+   # --- note : colours are passed as (b,g,r)
+
+   STR.SetFParam0Name("Flip Speed")
+   STR.SetFParam1Name("Rows")
+   STR.SetFParam2Name("Tint")
+   GLB.slots = STR.GetMaxSlots()
+   GLB.xmode = 0
+   # ---    accent : amber board
+   # ---    trigger : set a new destination list
+
+   GLB.set = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:.-"
+   GLB.words = ["STRUCTURE", "TOKYO", "REYKJAVIK", "BERLIN", "LISBON", "OSAKA",
+                "MONTREAL", "NAIROBI", "BOGOTA", "HELSINKI", "DAKAR", "PERTH",
+                "SANTIAGO", "DETROIT", "TBILISI", "MANILA", "BERGEN", "CAIRO"]
+   GLB.stat = ["ON TIME", "BOARDING", "DELAYED", "GATE 07", "FINAL CALL", "CANCELLED"]
+   GLB.cols = 22
+   GLB.maxrows = 9
+   GLB.cur = []
+   GLB.tgt = []
+   GLB.wait = []
+   for j in range(GLB.maxrows):
+      GLB.cur.append([0] * GLB.cols)
+      GLB.tgt.append([0] * GLB.cols)
+      GLB.wait.append([0] * GLB.cols)
+
+   def setrow(j):
+      # --- lay one row out as WORD .... STATUS, padded to the full width
+      w = GLB.words[np.random.randint(0, len(GLB.words))]
+      s = GLB.stat[np.random.randint(0, len(GLB.stat))]
+      line = w
+      while len(line) < GLB.cols - len(s):
+         line = line + " "
+      line = line + s
+      line = line[0:GLB.cols]
+      for i in range(GLB.cols):
+         c = line[i]
+         p = GLB.set.find(c)
+         GLB.tgt[j][i] = p if p >= 0 else 0
+         # --- stagger the start so the row riffles left to right
+         GLB.wait[j][i] = i * 2 + np.random.randint(0, 6)
+   GLB.setrow = setrow
+
+   def setall():
+      for j in range(GLB.maxrows):
+         GLB.setrow(j)
+   GLB.setall = setall
+   GLB.setall()
+
+   def text(x, y, s):
+      cr.save()
+      cr.translate(x, y)
+      cr.scale(1.0, -1.0)
+      cr.move_to(0, 0)
+      cr.show_text(s)
+      cr.restore()
+   GLB.text = text
+
+   # --- clear screen
+   cr.set_source_rgba(0,0,0,1)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+
+def Render(cr):
+   acc  = STR.CheckAccent()
+   trig = STR.CheckTrigger()
+   f0 = STR.F0mix(0.2, 3.0)
+   f1 = STR.F1mix(3.0, 9.0)
+   f2 = STR.F2()
+
+   itime = STR.IT()
+
+   if trig:
+      GLB.setall()
+      GLB.xmode = 1 if GLB.xmode==0 else 0
+
+   rows = int(f1)
+   nset = len(GLB.set)
+
+   # --- advance the flaps
+   steps = int(f0)
+   if steps < 1:
+      steps = 1
+   for j in range(rows):
+      for i in range(GLB.cols):
+         if GLB.wait[j][i] > 0:
+            GLB.wait[j][i] = GLB.wait[j][i] - 1
+            continue
+         for s in range(steps):
+            if GLB.cur[j][i] != GLB.tgt[j][i]:
+               GLB.cur[j][i] = (GLB.cur[j][i] + 1) % nset
+
+   # --- one row re-rolls every couple of beats so the board keeps moving
+   if itime % 3 == 0 and STR.FT() < 0.06:
+      GLB.setrow(np.random.randint(0, rows))
+
+   cr.set_source_rgb(0.02, 0.02, 0.03)
+   cr.rectangle(0,0,1280,720)
+   cr.fill()
+
+   cr.select_font_face("mono", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+   cw = 1280.0 / GLB.cols
+   rh = 720.0 / rows
+   # --- size to the CELL WIDTH, not the row height, or the last column
+   # --- runs off the right hand edge
+   size = cw * 1.45
+   if size > rh * 0.62:
+      size = rh * 0.62
+   cr.set_font_size(size)
+   adv = cr.text_extents("M").x_advance
+   off = (cw - adv) * 0.5
+
+   if acc:
+      ink = hsv_to_rgb(0.10, 0.95, 1.0)
+   else:
+      ink = hsv_to_rgb(f2, 0.25 if GLB.xmode else 0.75, 1.0)
+
+   for j in range(rows):
+      y = 720.0 - (j + 1) * rh
+      for i in range(GLB.cols):
+         x = i * cw
+         # --- flap tile
+         cr.set_source_rgb(0.09, 0.08, 0.10)
+         cr.rectangle(x + 1, y + 2, cw - 2, rh - 4)
+         cr.fill()
+         c = GLB.set[GLB.cur[j][i]]
+         if c != " ":
+            cr.set_source_rgb(ink[2], ink[1], ink[0])
+            GLB.text(x + off, y + rh * 0.30, c)
+         # --- the split down the middle of the flap
+         cr.set_source_rgb(0.02, 0.02, 0.03)
+         cr.rectangle(x + 1, y + rh * 0.5 - 1, cw - 2, 2)
+         cr.fill()
